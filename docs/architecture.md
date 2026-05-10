@@ -8,9 +8,10 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 
 ## High-Level Diagram
 
+<!--
 ![Sentinel IoT Platform High Level Diagram](screenshots/sentinel-high-level-diagram.png)
+-->
 
-<!-- ASSCII Diagram High-Level Diagram
 ```text
                     ┌──────────────────────────────────────────────────────────┐
                     │                  Sentinel IoT Platform                   │
@@ -74,7 +75,6 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
                    │  └──────────────────┘                                  │
                    └──────────────────────────────────────────────────────────┘
 ```
--->
 
 ---
 
@@ -82,9 +82,10 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 
 ### Normal Ingestion Path
 
+<!--
 ![Sentinel IoT Platform Normal Ingestion Path](screenshots/sentinel-data-flow-normal.png)
+-->
 
-<!-- ASSCII Diagram Normal Ingestion Path
 ```text
 Device/Simulator
   │── MQTT publish ──▶ Mosquitto
@@ -100,13 +101,13 @@ Device/Simulator
                                                                 │        └── LINE Notify (threshold exceeded)
                                                                 └── WebSocket broadcast ──▶ React UI
 ```
--->
 
 ### Failure Paths
 
+<!--
 ![Sentinel IoT Platform Failure Ingestion Path](screenshots/sentinel-data-flow-failure.png)
+-->
 
-<!-- ASCII Diagram Failure Paths
 ```text
 Stage ①–④ validation failure or LIFECYCLE_REJECTED:
   MqttConsumerService ──▶ mqttDlqChannel ──▶ factory/telemetry/dlq
@@ -123,7 +124,6 @@ Replay queue drain (every 30 seconds):
     └── LPOP batchSize entries ──▶ TelemetryRepository.save() ──▶ PostgreSQL
           failures ──▶ RPUSH back to tail of queue
 ```
--->
 
 ---
 
@@ -282,9 +282,10 @@ Hourly aggregates have no expiry — they are the long-term analytics record. Th
 
 ## Deployment Topology
 
+<!--
 ![Sentinel IoT Platform Deployment Topology Diagram](screenshots/sentinel-deployment-topology.png)
+-->
 
-<!-- ASCII Diagram Deployment Topology
 ```text
 Internet
     │
@@ -306,4 +307,3 @@ Supabase    Upstash    HiveMQ      Docker VM     Jaeger
 (Postgres)  (Redis)    (MQTT)   (Prometheus    (traces)
                                  + Grafana)
 ```
--->

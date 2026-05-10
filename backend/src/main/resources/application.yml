@@ -52,6 +52,10 @@ alert:
   humidity-threshold: ${HUMIDITY_THRESHOLD:90.0}
   smoke-threshold: ${SMOKE_THRESHOLD:200.0}
 
+audit:
+  retention-days: ${AUDIT_RETENTION_DAYS:90}
+  cron: "0 30 3 * * *"
+
 telemetry:
   retention-days: ${TELEMETRY_RETENTION_DAYS:30}
   retention:
@@ -72,7 +76,7 @@ management:
         enabled: true
   endpoint:
     health:
-      show-details: always
+      show-details: when-authorized
   tracing:
     sampling:
       probability: 1.0
@@ -81,6 +85,9 @@ management:
   otlp:
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
 server:
   port: ${PORT:8080}

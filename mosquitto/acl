@@ -1,0 +1,21 @@
+# Sentinel IoT Platform — Mosquitto Topic ACL
+#
+# Applied to ALL clients when allow_anonymous true (no per-user rules without password_file).
+# With password_file enabled, add per-user blocks:
+#
+#   user sentinel-backend
+#   topic readwrite factory/telemetry
+#   topic readwrite factory/telemetry/dlq
+#
+#   user sensor-device
+#   topic write factory/telemetry
+#
+# Mosquitto 2.0: topics not matched by any rule are DENIED by default when acl_file is set.
+
+# Telemetry ingestion — devices publish, backend subscribes
+topic write factory/telemetry
+topic read  factory/telemetry
+
+# Dead-letter queue — backend publishes rejected messages, operators may read
+topic write factory/telemetry/dlq
+topic read  factory/telemetry/dlq

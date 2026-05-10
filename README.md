@@ -15,9 +15,10 @@
 
 ## Architecture Diagram
 
+<!-- 
 ![Sentinel IoT Platform Architecture](docs/screenshots/sentinel-architecture-diagram.png)
+-->
 
-<!-- ASCII Diagram
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────┐
 │                            Sentinel IoT Platform                               │
@@ -48,13 +49,13 @@
 │                                  └─────────────────┘                           │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
--->
 
 ### Data Flow — Normal Path
 
+<!-- 
 ![Normal Ingestion Data Flow](docs/screenshots/sentinel-dataflow-normal-path.png)
+-->
 
-<!-- ASCII Diagram
 ```text
 Device/Simulator
   │── MQTT publish ──▶ Mosquitto
@@ -68,13 +69,13 @@ Device/Simulator
                                                           │        └── LINE Notify (if threshold exceeded)
                                                           └── WebSocket broadcast ──▶ React UI
 ```
--->
 
 ### Data Flow — Failure Paths
 
+<!--
 ![Failure Ingestion Data Flow](docs/screenshots/sentinel-dataflow-failure-path.png)
+-->
 
-<!-- ASCII Diagram
 ```text
 DB unavailable (circuit breaker OPEN):
   TelemetryService.saveFallback()
@@ -89,13 +90,13 @@ Invalid MQTT payload / unknown device:
 ```
 
 ---
--->
 
 ## Tech Stack
 
+<!--
 ![Sentinel Tech Stack](docs/screenshots/sentinel-tech-stack.png)
+-->
 
-<!-- ASCII Table
 | Layer        | Technology                                                   |
 |--------------|--------------------------------------------------------------|
 | Backend      | Spring Boot 3.2, Java 21                                     |
@@ -113,7 +114,6 @@ Invalid MQTT payload / unknown device:
 | CI/CD        | GitHub Actions                                               |
 | Infra        | Docker Compose                                               |
 | Notify       | LINE Notify                                                  |
--->
 
 ---
 
@@ -315,13 +315,29 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 
 | Feature | Implementation |
 | --- | --- |
-| Authentication | JWT (15 min access token) + opaque refresh token (7 days, rotated on use) |
+| Authentication | JWT (15 min access token) + opaque refresh token (7 days, DB-persisted, rotated on every use) |
+| Refresh Token Reuse Detection | `rotateRefreshToken()` calls `revokeAllByUsername()` when a revoked token is presented — token family invalidation per RFC 6819. A stolen token reused after legitimate rotation immediately logs out the real user and kills all sessions. |
 | Rate Limiting | Bucket4j — 100 req/min per IP on `/api/*` (in-process; see Known Limitations) |
 | RBAC | `ADMIN` + `OPERATOR` roles; method-level `@PreAuthorize` |
-| Secret Management | `JWT_SECRET` required at runtime — no default, no fallback. Use `.env` from `.env.example` |
-| Audit Logging | Login, logout, token-refresh, and alert-ack events persisted to `audit_logs` |
+| CORS | Restricted to `CORS_ALLOWED_ORIGINS` env var (default: `http://localhost:3000`). Set to your production domain — e.g. `https://your-app.vercel.app`. Headers limited to `Authorization`, `Content-Type`, `X-Request-ID`. |
+| CSRF | Disabled — correct for a stateless JWT API. CSRF tokens protect session-cookie flows; this API uses `Authorization: Bearer` headers which browsers never send cross-origin automatically (unlike cookies). |
+| Secret Management | `JWT_SECRET` required at runtime — no default, no fallback. **Production upgrade path:** inject via HashiCorp Vault (`spring-cloud-vault`) or AWS Secrets Manager rather than a `.env` file. |
+| Audit Logging | Every auth event (LOGIN, LOGOUT, REFRESH), alert acknowledgement, and **all device mutations** (CREATE, LIFECYCLE_UPDATE, FIRMWARE_UPDATE) persisted to `audit_logs` with username + IP. |
+| Audit Retention | `audit_logs` purged daily at 03:30 (cron configurable via `AUDIT_RETENTION_DAYS`, default 90 days). |
+| MQTT Topic ACL | Mosquitto ACL file (`mosquitto/acl`) restricts pub/sub to `factory/telemetry` and `factory/telemetry/dlq`. Any other topic is denied. **Production upgrade:** set `allow_anonymous false` + provision `mosquitto_passwd` file; add per-user ACL blocks for device vs backend identities. |
+| Actuator Exposure | `/actuator/health` returns `{"status":"UP/DOWN"}` to unauthenticated callers. Internal details (DB pool, Redis state) shown only to authenticated users (`show-details: when-authorized`). |
 | Request Correlation | `X-Request-ID` echoed; `requestId`, `method`, `path`, `username`, `durationMs` in MDC per log line |
-| Circuit Breaker | Resilience4j `@CircuitBreaker` + `@Retry` on DB writes — falls back to Redis replay queue |
+
+### Known Security Limitations (enterprise hardening upgrade path)
+
+| Gap | Current State | Production Fix |
+| --- | --- | --- |
+| Rate limiting is in-process | Each replica has independent bucket — effective limit is `100 × N` replicas | Swap `ConcurrentHashMap` for `bucket4j-redis` (`ProxyManager` backed by Redis atomic counters) |
+| Access token not revocable | 15-min window survives logout | Add Redis blocklist for access tokens on logout |
+| MQTT anonymous access | `allow_anonymous true` + topic ACL | `allow_anonymous false` + `password_file` + per-client ACL blocks |
+| No mTLS | Plain TCP on port 1883 | Configure Mosquitto TLS listener on 8883; provision device certificates; enforce `require_certificate true` |
+| JWT secret rotation | Restart required to rotate `JWT_SECRET` | Integrate HashiCorp Vault with dynamic secret leases; use `kid` header in JWTs to support dual-key rotation window |
+| No device identity auth | Devices identified by MQTT topic name only | Issue per-device X.509 certificates; enforce mTLS on Mosquitto; reject unauthenticated MQTT connections |
 
 ---
 
