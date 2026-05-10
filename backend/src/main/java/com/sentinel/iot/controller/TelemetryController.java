@@ -2,6 +2,7 @@ package com.sentinel.iot.controller;
 
 import com.sentinel.iot.model.Telemetry;
 import com.sentinel.iot.model.TelemetryHourlyAggregate;
+import com.sentinel.iot.service.DeviceService;
 import com.sentinel.iot.service.RedisService;
 import com.sentinel.iot.service.TelemetryRetentionService;
 import com.sentinel.iot.service.TelemetryService;
@@ -26,18 +27,21 @@ public class TelemetryController {
     private final TelemetryService telemetryService;
     private final TelemetryRetentionService retentionService;
     private final RedisService redisService;
+    private final DeviceService deviceService;
 
     @GetMapping("/{deviceId}/latest")
     @Operation(summary = "Get latest N telemetry readings from PostgreSQL (max 200)")
     public ResponseEntity<List<Telemetry>> getLatest(
             @PathVariable UUID deviceId,
             @RequestParam(defaultValue = "50") int limit) {
+        deviceService.findById(deviceId); // ownership check — throws 404 if device not in caller's org
         return ResponseEntity.ok(telemetryService.getLatest(deviceId, Math.min(limit, 200)));
     }
 
     @GetMapping("/{deviceId}/cache")
     @Operation(summary = "Get the most recent telemetry reading from Redis (sub-millisecond)")
     public ResponseEntity<Map<Object, Object>> getCached(@PathVariable UUID deviceId) {
+        deviceService.findById(deviceId); // ownership check
         return ResponseEntity.ok(redisService.getLatestTelemetry(deviceId.toString()));
     }
 
@@ -47,6 +51,7 @@ public class TelemetryController {
             @PathVariable UUID deviceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        deviceService.findById(deviceId); // ownership check
         return ResponseEntity.ok(telemetryService.getRange(deviceId, from, to));
     }
 
@@ -56,6 +61,7 @@ public class TelemetryController {
             @PathVariable UUID deviceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        deviceService.findById(deviceId); // ownership check
         return ResponseEntity.ok(retentionService.getHourlyAggregates(deviceId, from, to));
     }
 

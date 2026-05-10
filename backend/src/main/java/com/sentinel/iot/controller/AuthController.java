@@ -3,7 +3,9 @@ package com.sentinel.iot.controller;
 import com.sentinel.iot.dto.AuthRequest;
 import com.sentinel.iot.dto.AuthResponse;
 import com.sentinel.iot.dto.RefreshRequest;
+import com.sentinel.iot.model.AppUser;
 import com.sentinel.iot.model.RefreshToken;
+import com.sentinel.iot.repository.AppUserRepository;
 import com.sentinel.iot.service.AuditService;
 import com.sentinel.iot.service.JwtService;
 import com.sentinel.iot.service.UserDetailsServiceImpl;
@@ -30,6 +32,7 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserDetailsServiceImpl userDetailsService;
     private final AuditService auditService;
+    private final AppUserRepository appUserRepository;
 
     @PostMapping("/login")
     @Operation(summary = "Authenticate and receive access + refresh tokens")
@@ -44,7 +47,9 @@ public class AuthController {
                 .orElse("ROLE_OPERATOR")
                 .replace("ROLE_", "");
 
-        String accessToken = jwtService.generateAccessToken(req.getUsername(), role);
+        AppUser appUser = appUserRepository.findByUsername(req.getUsername())
+                .orElseThrow(() -> new IllegalStateException("User not found after successful authentication"));
+        String accessToken = jwtService.generateAccessToken(req.getUsername(), role, appUser.getOrganizationId());
         RefreshToken refreshToken = jwtService.generateRefreshToken(req.getUsername());
 
         auditService.log(req.getUsername(), "LOGIN", "/api/auth/login", null, getClientIp(httpRequest));
@@ -65,7 +70,9 @@ public class AuthController {
                 .orElse("ROLE_OPERATOR")
                 .replace("ROLE_", "");
 
-        String accessToken = jwtService.generateAccessToken(username, role);
+        AppUser appUser = appUserRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalStateException("User not found"));
+        String accessToken = jwtService.generateAccessToken(username, role, appUser.getOrganizationId());
         return ResponseEntity.ok(new AuthResponse(accessToken, newRefreshToken.getToken(), role, username));
     }
 

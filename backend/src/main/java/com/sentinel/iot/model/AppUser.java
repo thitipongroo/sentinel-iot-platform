@@ -25,9 +25,13 @@ public class AppUser {
     @Column(nullable = false)
     private String role; // ADMIN, OPERATOR
 
-    public AppUser(String username, String password, String role) {
+    @Column(name = "organization_id", nullable = false)
+    private UUID organizationId;
+
+    public AppUser(String username, String password, String role, UUID organizationId) {
         this.username = username;
         this.password = password;
         this.role = role;
+        this.organizationId = organizationId;
     }
 }

@@ -34,14 +34,19 @@ public class JwtService {
 
     private final RefreshTokenRepository refreshTokenRepository;
 
-    public String generateAccessToken(String username, String role) {
+    public String generateAccessToken(String username, String role, UUID orgId) {
         return Jwts.builder()
                 .subject(username)
-                .claims(Map.of("role", role))
+                .claims(Map.of("role", role, "orgId", orgId.toString()))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(getKey())
                 .compact();
+    }
+
+    public UUID extractOrgId(String token) {
+        String raw = extractClaim(token, claims -> claims.get("orgId", String.class));
+        return raw != null ? UUID.fromString(raw) : null;
     }
 
     public RefreshToken generateRefreshToken(String username) {

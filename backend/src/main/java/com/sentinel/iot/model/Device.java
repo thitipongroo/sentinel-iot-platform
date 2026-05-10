@@ -50,4 +50,7 @@ public class Device {
 
     @Column(name = "firmware_updated_at")
     private Instant firmwareUpdatedAt;
+
+    @Column(name = "organization_id", nullable = false)
+    private UUID organizationId;
 }

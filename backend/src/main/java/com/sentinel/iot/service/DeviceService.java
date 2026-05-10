@@ -6,6 +6,7 @@ import com.sentinel.iot.dto.FirmwareUpdateRequest;
 import com.sentinel.iot.model.Device;
 import com.sentinel.iot.model.DeviceLifecycleStatus;
 import com.sentinel.iot.repository.DeviceRepository;
+import com.sentinel.iot.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +23,12 @@ public class DeviceService {
     private final RedisService redisService;
 
     public Device create(DeviceRequest req) {
-        if (deviceRepository.existsByName(req.getName())) {
+        UUID orgId = TenantContext.get();
+        if (orgId != null) {
+            if (deviceRepository.existsByNameAndOrganizationId(req.getName(), orgId)) {
+                throw new IllegalArgumentException("Device name already exists: " + req.getName());
+            }
+        } else if (deviceRepository.existsByName(req.getName())) {
             throw new IllegalArgumentException("Device name already exists: " + req.getName());
         }
         Device device = new Device();
@@ -30,13 +36,17 @@ public class DeviceService {
         device.setDescription(req.getDescription());
         device.setLocation(req.getLocation());
         device.setStatus("OFFLINE");
+        device.setOrganizationId(orgId);
         Device saved = deviceRepository.save(device);
         redisService.setDeviceStatus(saved.getId().toString(), "OFFLINE");
         return saved;
     }
 
     public List<Device> findAll() {
-        List<Device> devices = deviceRepository.findAll();
+        UUID orgId = TenantContext.get();
+        List<Device> devices = (orgId != null)
+                ? deviceRepository.findAllByOrganizationId(orgId)
+                : deviceRepository.findAll();
         devices.forEach(d -> {
             String cachedStatus = redisService.getDeviceStatus(d.getId().toString());
             if (cachedStatus != null) {
@@ -47,8 +57,12 @@ public class DeviceService {
     }
 
     public Device findById(UUID id) {
-        Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+        UUID orgId = TenantContext.get();
+        Device device = (orgId != null)
+                ? deviceRepository.findByIdAndOrganizationId(id, orgId)
+                        .orElseThrow(() -> new NoSuchElementException("Device not found: " + id))
+                : deviceRepository.findById(id)
+                        .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
         String cachedStatus = redisService.getDeviceStatus(id.toString());
         if (cachedStatus != null) {
             device.setStatus(cachedStatus);
@@ -57,16 +71,14 @@ public class DeviceService {
     }
 
     public Device updateStatus(UUID id, String status) {
-        Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+        Device device = findById(id);
         device.setStatus(status);
         redisService.setDeviceStatus(id.toString(), status);
         return deviceRepository.save(device);
     }
 
     public Device updateLifecycle(UUID id, DeviceLifecycleRequest req) {
-        Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+        Device device = findById(id);
 
         DeviceLifecycleStatus current = device.getLifecycleStatus();
         DeviceLifecycleStatus next    = req.getLifecycleStatus();
@@ -85,8 +97,7 @@ public class DeviceService {
     }
 
     public Device updateFirmware(UUID id, FirmwareUpdateRequest req) {
-        Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+        Device device = findById(id);
 
         if (device.getLifecycleStatus() == DeviceLifecycleStatus.DECOMMISSIONED) {
             throw new IllegalArgumentException("Cannot update firmware on a decommissioned device");
