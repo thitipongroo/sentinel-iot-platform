@@ -1,513 +1,283 @@
-# ระดับปัจจุบันสถานะของ Project
-
-| ระดับ                         | สถานะ            |
-| ----------------------------- | ---------------- |
-| Tutorial                      | ❌                |
-| Student Project               | ❌                |
-| Strong Junior Portfolio       | ✅                |
-| Mid-level Engineering Project | ✅                |
-| Production-grade Portfolio    | ⚠️ เริ่มเข้าใกล้ |
-| Enterprise-grade System       | ❌ ยังไม่ถึง      |
-
-แก้ไขและปรับปรุงให้ Project ไปอยู่ในสถานะ Enterprise-grade System
-
----
-
-# คะแนนแบบของ Project
-
-| ด้าน                   | คะแนน  |
-| ---------------------- | ------ |
-| Architecture           | 8/10   |
-| Backend Engineering    | 8.5/10 |
-| Infra/DevOps           | 8/10   |
-| Realtime System Design | 7.5/10 |
-| IoT Understanding      | 7.5/10 |
-| Production Readiness   | 7/10   |
-| Testing Maturity       | 6.5/10 |
-| Security               | 6.5/10 |
-| Observability          | 7.5/10 |
-| Recruiter Impact       | 8.5/10 |
-
-แก้ไขและปรับปรุง Project ให้ระดับคะแนนไปอยู่ระดับ 10/10 ในทุกหัวข้อ
-
----
-
-# สิ่งที่ “ดีมาก” จริงๆ
-
-# 1) Architecture “ดูเป็นระบบจริง”
-
-README ไม่ใช่ fake architecture
-
-เพราะมี:
-
-* MQTT broker
-* Redis
-* PostgreSQL
-* WebSocket
-* Alert engine
-* Prometheus
-* Grafana
-
-และ flow เชื่อมกันสมเหตุสมผล
-
-นี่คือจุดที่ profile เริ่มดู “engineer” ไม่ใช่ “student”
-
----
-
-# 2) docker-compose ดีมาก
-
-ไม่ได้มีแค่ app container
-
-แต่มี:
-
-* postgres
-* redis
-* mosquitto
-* backend
-* frontend
-* prometheus
-* grafana
-
-พร้อม:
-
-* healthchecks
-* networks
-* volumes
-* dependency ordering
-
-นี่คือ production mindset
-
----
-
-# 3) Tech stack selection ดี
-
-stack ถูกทาง:
-
-* Spring Boot 3.2
-* Java 21
-* Redis
-* MQTT
-* Prometheus
-* JWT
-* WebSocket
-
-นี่คือ stack ที่ “ดู modern”
-
----
-
-# 4) มี observability จริง
-
-เพราะมี:
-
-* actuator
-* prometheus
-* grafana
-
-อันนี้ทำให้ project mature ขึ้นเยอะ
-
----
-
-# 5) CI/CD มีจริง
-
-เพราะมี:
-
-* GitHub Actions
-* backend build
-* frontend build
-* docker validation
-
-นี่ดีมาก
-
-เพราะส่วนใหญ่ junior ไม่มี CI จริง
-
----
-
-# 6) มี load testing folder
-
-```text
-load-testing/telemetry.js
-```
-
-นี่สำคัญมาก
-
-แปลว่าเริ่มคิดเรื่อง throughput แล้ว
-
----
-
-# 7) Project structure สะอาด
-
-backend structure:
-
-```text
-controller/
-service/
-repository/
-config/
-security/
-dto/
-model/
-```
-
-ถือว่าดี
-
----
-
-# สิ่งที่ยัง “ติด junior/mid-level” ต้องแก้ไขทัน
-
-นี่คือส่วนสำคัญที่สุด
-
----
-
-# 1) README “พูดเกิน implementation” บางจุด
-
-เช่น:
-
-```text
-Handled 10,000+ telemetry events/minute sustained at p95 < 120ms
-```
-
-ปัญหา:
-
-ยังไม่เห็น:
-
-* benchmark report
-* k6 result
-* Grafana screenshot
-* methodology
-* hardware spec
-
-ดังนั้น statement นี้ “ยัง verify ไม่ได้” ต้องปรับปรุงแก้ไขทันที
-
----
-
-## สิ่งที่ต้องทำทันที
-
-เพิ่ม:
-
-```md
-## Load Testing
-
-Tool: k6
-Duration: 5m
-Virtual Users: 200
-
-Results:
-- Throughput: xxxx req/s
-- p95 latency: xxx ms
-- Error rate: xx%
-```
-
-พร้อม screenshot จริง
-
-ต้องปรับปรุงแก้ไขทันที
-
----
-
-# 2) Security ยัง basic มาก
-
-ตอนนี้มี JWT แล้ว ซึ่งดี
-
-แต่ยังไม่เห็น:
-
-* refresh token rotation
-* RBAC ลึก
-* rate limiting
-* secret management จริง
-* audit logging
-
-ต้องปรับปรุงแก้ไขทันที
----
-
-## ถ้าจะดันเป็น production-grade จริง
-
-ควรเพิ่ม:
-
-### A) Rate Limiting
-
-เช่น:
-
-* Bucket4j
-* Redis limiter
-
-ต้องปรับปรุงแก้ไขทันที
-
----
-
-### B) Refresh Token Flow
-
-ตอนนี้น่าจะ access token อย่างเดียว
-
-ต้องปรับปรุงแก้ไขทันที
-
----
-
-### C) Environment Secret Management
-
-ตอนนี้ใน compose:
-
-```yaml
-JWT_SECRET: sentinelSuperSecretKey...
-```
-
-อันนี้ยัง dev-grade ต้องปรับปรุงให้เป็น Enterprise-grade System
-
----
-
-# 3) MQTT ยังเป็น single broker architecture
-
-ตอนนี้ยังเป็น:
-
-```text
-1 Mosquitto broker
-```
-
-ซึ่งโอเคสำหรับ portfolio
-
-แต่ยังไม่ใช่ scalable architecture จริง จำเป็นต้องปรับเป็น scalable architecture จริง
-
----
-
-# 4) ยังไม่มี event persistence strategy
-
-Telemetry ตอนนี้ดูเหมือน:
-
-* MQTT → DB
-
-ตรงๆ
-
-ยังไม่เห็น:
-
-* buffering
-* batching
-* queue durability
-* dead-letter handling
-
-ปรับปรุงแก้ไขตรงจุดนี้โดยด่วน
-
----
-
-# สิ่งที่ขาดมากที่สุดตอนนี้
-
-## “Failure Handling”
-
-นี่คือสิ่งที่แยก mid-level กับ strong engineer ต้องแก้ไขทันที
-
----
-
-## ตัวอย่างที่ควรมี
-
-### ถ้า PostgreSQL down จะเกิดอะไรขึ้น?
-
-ตอนนี้ดูเหมือน:
-
-> telemetry อาจหาย
-
----
-
-## สิ่งที่ควรเพิ่ม
+# 1) เพิ่ม Database Migration System
 
 ได้แก่:
 
-* retry policy
-* circuit breaker
-* local queue buffering
-* DLQ
-* backpressure strategy
+* Flyway
 
----
+ใน backend โดยการ เพิ่ม dependency
 
-# 5) ยังไม่มี distributed architecture จริง
-
-ตอนนี้ยังเป็น:
-
-* modular monolith
-
-ต้องแยก:
-
-* ingestion service
-* alert service
-* websocket gateway
-
-เพื่อที่จะเป็น senior-grade
-
----
-
-# 6) Tests ยังน้อยไป
-
-มี:
-
-```text
-DeviceControllerIntegrationTest
-DeviceServiceTest
+```xml id="ol8xy5"
+flyway-core
 ```
 
-ถือว่าเริ่มดี
+ สร้าง :
 
-แต่ยังไม่พอสำหรับ project ระดับ flagship จำเป็นต้องเพิ่มมากกว่านี้
+```text id="kafag2"
+src/main/resources/db/migration
+```
 
----
+ เช่น :
 
-# สิ่งที่จะเป็นต้องเพิ่มโดยด่วน
-
-## A) MQTT Integration Test
-
-สำคัญมาก
-
----
-
-## B) WebSocket Test
+```sql id="m55zh2"
+V1__create_devices.sql
+V2__create_alerts.sql
+```
 
 ---
 
-## C) Security Test
+# 2) เพิ่ม Global Exception Handling
 
-เช่น:
+โดยการสร้าง :
 
-* invalid JWT
-* expired token
+```text id="v2ozx9"
+GlobalExceptionHandler
+```
 
----
+ใช้ :
 
-## D) Load Test Report
+```java id="wy2fvv"
+@RestControllerAdvice
+```
 
----
+กำหนด standard response เช่น :
 
-# 7) Frontend ยังไม่ใช่ “enterprise dashboard”
-
-จาก structure ตอนนี้ frontend ยังดูเป็น supporting UI มากกว่า product UI ต้องทำ Frontend เป็น “enterprise dashboard” โดยด่วน
-
----
-
-## เพิ่ม:
-
-* device map
-* realtime charts
-* alert timeline
-* filtering
-* device health
-* metrics cards
-
-เพื่อที่จะดัน impact
+```json id="ns9vzk"
+{
+  "timestamp": "...",
+  "status": 400,
+  "error": "Validation Error",
+  "message": "...",
+  "path": "/api/devices"
+}
+```
 
 ---
 
-# 8) ยังไม่มี OpenAPI/Swagger
+# 3) ทำให้ JWT Security เป็น Production-grade
 
-อันนี้สำคัญมาก
+โดยการเพิ่ม :
 
-production backend ควรมี:
+* Refresh Token Table
 
-```text
+* Rotation Strategy
+
+* Logout Revocation
+
+---
+
+# 4) แก้ไข Hardcoded Secret ใน docker-compose
+
+โดยการใช้ :
+
+* Vault
+* AWS Secrets Manager
+
+---
+
+# 5) เพิ่ม Rate Limiting
+
+โดยการเพิ่ม : Backend API
+
+โดยการใช้ : Bucket4j
+
+และ MQTT
+
+เพิ่ม :
+
+* ingestion rate control
+
+---
+
+# 6) เพิ่ม MQTT Failure Handling
+
+โดยการเพิ่ม :
+
+A) Retry Strategy
+
+ใช้ :
+
+* Resilience4j Retry
+
+B) Dead Letter Queue
+
+เช่น :
+
+* failed telemetry topic
+
+C) Payload validation
+
+---
+
+# 7) เพิ่ม Circuit Breaker
+
+โดยการใช้:
+
+* Resilience4j Circuit Breaker
+
+---
+
+# 8) เพิ่ม Telemetry Retention Strategy
+
+โดยการเพิ่ม :
+
+A) Retention policy
+
+เช่น :
+
+* เก็บ raw 30 วัน
+
+B) Archival
+
+C) Aggregation tables
+
+---
+
+# 9) เพิ่ม Database Partitioning
+
+โดยการแก้ PostgreSQL partitioning
+
+เช่น :
+
+* partition by day/month
+
+---
+
+# 10) เพิ่ม Benchmark Evidence จริง
+
+โดยการเพิ่ม :
+
+- k6 report
+
+- Grafana screenshots
+
+- hardware spec
+
+---
+
+# 11) แก้ไข CI Pipeline มี Anti-pattern
+
+โดยการห้าม suppress failure
+
+CI ต้อง :
+
+* fail จริง
+* enforce quality
+
+---
+
+# 12) แก้ปัญหา Testing Coverage ยังไม่พอ
+
+โดยการ :
+
+## A) เพิ่ม MQTT integration test อีก
+
+## B) เพิ่ม WebSocket tests อีก
+
+## C) เพิ่ม Redis integration tests อีก
+
+## D) เพิ่ม Security tests อีก
+
+## E) เพิ่ม Load regression tests อีก
+
+---
+
+# 13) เพิ่ม API Documentation จริงๆ
+
+โดยการเพิ่ม :
+
+```text id="q6cvck"
 /swagger-ui
 ```
 
-อันนี้ต้องเพิ่มโดยด่วน
+---
+
+# 14) เพิ่ม Structured Logging
+
+โดยการใช้ :
+
+* logback JSON encoder
+* request ID middleware
 
 ---
 
-# 9) ยังไม่มี migration tool
+# 15) เพิ่ม Distributed Tracing
 
-เพราะยังไม่เห็น:
+โดยการเพิ่ม :
 
-* Flyway
-* Liquibase
-
-จำเป็นต้องแก้ไขโดยด่วน
+* OpenTelemetry
+* Jaeger/Tempo
 
 ---
 
-## นี่สำคัญมาก
+# 16) ทำให้ Frontend เป็น Product-grade
 
-เพราะ production DB ควร versioned
+# โดยการเพิ่ม
 
-ิัจำเป็นต้องแก้ไขโดยด่วน
+## A) historical analytics
 
----
+## B) filtering/search
 
-# 10) ยังไม่มี caching strategy document
+## C) alert management
 
-แม้มี Redis
-
-แต่ README ยังไม่อธิบาย:
-
-* cache key design
-* TTL strategy
-* eviction policy
-
-จำเป็นต้องแก้ไขโดยด่วน
+## D) device lifecycle
 
 ---
 
-# จุดที่ “ดู senior” ที่สุดใน project นี้
+# 17) เพิ่ม Device Lifecycle Management
 
-มี 3 จุดที่ทำให้ project นี้แตกต่างจาก portfolio ทั่วไป:
+# โดยการเพิ่ม :
 
----
-
-## 1) Full system composition
-
-ไม่ได้ทำแค่ backend
-
-แต่ compose:
-
-* infra
-* monitoring
-* realtime
-* mqtt
-* frontend
-
-พร้อมกัน
-
-อันนี้ดีมาก
+* provisioning
+* activation
+* deactivation
+* firmware metadata
 
 ---
 
-## 2) Production tooling mindset
+# 18) เพิ่ม Offline Recovery Strategy
 
-มี:
+โดยการเพิ่ม :
 
-* healthcheck
-* observability
-* CI/CD
-* Docker networks
-* metrics
-
-นี่คือ mindset ที่ถูกต้อง
+* local buffering
+* replay queue
 
 ---
 
-## 3) Architectural direction ถูกทาง
+# 19) เพิ่ม Async Queue Layer จริง
 
-คุณเลือก:
+โดยการเพิ่ม:
 
-* async communication
-* realtime
-* event-driven flow
-
-แทน CRUD-only
-
-อันนี้ทำให้ profile ดูแข็งขึ้นมาก
+* Kafka
+* RabbitMQ
 
 ---
 
-# เพิ่ม architecture docs
+# 20) แก้ปัญหา README ยัง “marketing-heavy”
 
-ได้แก่:
+# โดยการเพิ่ม
 
-* sequence diagram
-* scaling strategy
-* cache strategy
-* failure recovery
+## A) benchmark artifacts
+
+## B) architecture tradeoffs
+
+## C) failure scenarios
+
+## D) known limitations
 
 ---
 
-# เพิ่ม screenshots จริง
+ถ้าใน Project นี้ยังไม่มี :
 
-ได้แก่:
+* failure engineering
+* resilience
+* recovery strategy
+* operational safety
+* resiliency
+* production hardening
+* operational maturity
+* scalability strategy
+* testing depth
 
-* Grafana
-* dashboard
-* MQTT metrics
-* alerts
+ช่วยออกแบบให้ด้วย
 
 ---
