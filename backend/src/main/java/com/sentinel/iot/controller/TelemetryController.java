@@ -60,8 +60,11 @@ public class TelemetryController {
     }
 
     @GetMapping("/stats")
-    @Operation(summary = "Count telemetry events received in the last 60 seconds")
+    @Operation(summary = "Count telemetry events received in the last 60 seconds and replay queue depth")
     public ResponseEntity<Map<String, Long>> stats() {
-        return ResponseEntity.ok(Map.of("lastMinute", telemetryService.countLastMinute()));
+        return ResponseEntity.ok(Map.of(
+                "lastMinute",      telemetryService.countLastMinute(),
+                "replayQueueSize", redisService.replayQueueSize()
+        ));
     }
 }

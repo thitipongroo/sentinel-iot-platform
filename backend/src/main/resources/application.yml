@@ -56,6 +56,10 @@ telemetry:
   retention-days: ${TELEMETRY_RETENTION_DAYS:30}
   retention:
     cron: "0 30 2 * * *"
+  replay:
+    interval-ms: ${TELEMETRY_REPLAY_INTERVAL_MS:30000}
+    batch-size: ${TELEMETRY_REPLAY_BATCH_SIZE:100}
+    max-queue-size: ${TELEMETRY_REPLAY_MAX_QUEUE:10000}
 
 management:
   endpoints:
