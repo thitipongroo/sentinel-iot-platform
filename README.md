@@ -97,23 +97,32 @@ Invalid MQTT payload / unknown device:
 ![Sentinel Tech Stack](docs/screenshots/sentinel-tech-stack.png)
 -->
 
-| Layer        | Technology                                                   |
-|--------------|--------------------------------------------------------------|
-| Backend      | Spring Boot 3.2, Java 21                                     |
-| Security     | Spring Security + JWT (jjwt 0.12), Bucket4j rate limiting    |
-| Messaging    | Eclipse Mosquitto MQTT + Spring Integration                  |
-| Database     | PostgreSQL 16 + Spring Data JPA + Flyway + range partitioning|
-| Cache        | Redis 7 (Lettuce) — latest value cache + replay queue        |
-| Resiliency   | Resilience4j CircuitBreaker + Retry                          |
-| Realtime     | WebSocket (native Spring WS)                                 |
-| Frontend     | Next.js 14 (App Router) + Tailwind CSS + Recharts            |
-| Observability| Prometheus + Grafana + OTel/Micrometer + Jaeger              |
-| Logging      | Logstash-logback-encoder (JSON) + MDC request correlation    |
-| Testing      | JUnit 5, Testcontainers (Postgres + Redis + Mosquitto)       |
-| Load Test    | k6                                                           |
-| CI/CD        | GitHub Actions                                               |
-| Infra        | Docker Compose                                               |
-| Notify       | LINE Notify                                                  |
+| Layer           | Technology                                                                  |
+|-----------------|-----------------------------------------------------------------------------|
+| Backend         | Spring Boot 3.2, Java 21                                                    |
+| Security        | Spring Security + JWT (jjwt 0.12), Bucket4j rate limiting, ApiVersionFilter |
+| Messaging       | Eclipse Mosquitto MQTT + Spring Integration + Apache Kafka (KRaft)          |
+| Schema Registry | Apache Avro + Confluent Schema Registry (BACKWARD compatibility enforcement)|
+| Database        | PostgreSQL 16 + Spring Data JPA + Flyway + range partitioning               |
+| HA Database     | CloudNativePG (1 primary + hot-standby, Barman WAL backup)                  |
+| Cache           | Redis 7 (Lettuce) — latest value cache + replay queue + WS pub/sub          |
+| Resiliency      | Resilience4j CircuitBreaker + Retry                                         |
+| Realtime        | WebSocket (native Spring WS) + Redis pub/sub cross-replica fan-out          |
+| Frontend        | Next.js 14 (App Router) + Tailwind CSS + Recharts                           |
+| State mgmt      | React Query (@tanstack/react-query) + Zustand (normalised client state)     |
+| UI performance  | @tanstack/react-virtual (virtualised table, 10 000+ devices)                |
+| Design system   | Badge, Select, ErrorBoundary, OfflineBanner primitives                      |
+| Observability   | Prometheus + Grafana + OTel/Micrometer + Jaeger                             |
+| SLO             | Multi-window burn-rate rules + Grafana SLO dashboard                        |
+| Logging         | Logstash-logback-encoder (JSON) + MDC request correlation                   |
+| Testing         | JUnit 5, Testcontainers, schemathesis (contract fuzzing)                    |
+| Load Test       | k6                                                                          |
+| CI/CD           | GitHub Actions (ci.yml + api-contract.yml)                                  |
+| Infra (local)   | Docker Compose                                                              |
+| Infra (cloud)   | Kubernetes (EKS) via Helm + ArgoCD + Terraform (EKS/RDS/ElastiCache/MSK)    |
+| Deployment      | Argo Rollouts (blue/green + canary), KEDA (Kafka-lag autoscaling)           |
+| Backup/DR       | Velero (namespace backup) + pg_dump CronJob + DR restore script             |
+| Notify          | LINE Notify (deprecated — replace with LINE Messaging API)                  |
 
 ---
 
@@ -136,7 +145,7 @@ docker compose up --build
 | Service       | URL                                    |
 |---------------|----------------------------------------|
 | Dashboard     | <http://localhost:3000>                |
-| Backend API   | <http://localhost:8080/api>            |
+| Backend API   | <http://localhost:8080/api/v1>         |
 | Swagger UI    | <http://localhost:8080/swagger-ui.html>|
 | Prometheus    | <http://localhost:9090>                |
 | Grafana       | <http://localhost:3001>                |
@@ -152,24 +161,22 @@ docker compose up --build
 
 ## API Reference
 
+All API endpoints are versioned under `/api/v1/`. Responses always include an `API-Version: 1` header. See [`docs/api.md`](docs/api.md) for the full reference.
+
 ### Authentication
 
 ```http
-POST /api/auth/login
+POST /api/v1/auth/login
 Content-Type: application/json
 
 { "username": "admin", "password": "admin123" }
 
 → 200 { "accessToken": "eyJ...", "refreshToken": "uuid.uuid", "role": "ADMIN", "username": "admin" }
 
-POST /api/auth/refresh
-Content-Type: application/json
-
+POST /api/v1/auth/refresh
 { "refreshToken": "uuid.uuid" }
 
-→ 200 { "accessToken": "eyJ...", "refreshToken": "new-uuid.uuid", ... }
-
-POST /api/auth/logout          # Revokes all refresh tokens for authenticated user
+POST /api/v1/auth/logout          # Revokes all refresh tokens for authenticated user
 Authorization: Bearer <accessToken>
 ```
 
@@ -178,65 +185,36 @@ Authorization: Bearer <accessToken>
 ### Devices
 
 ```http
-POST   /api/devices                           # ADMIN only
-GET    /api/devices                           # ADMIN + OPERATOR
-GET    /api/devices/{id}                      # ADMIN + OPERATOR
-PATCH  /api/devices/{id}/lifecycle            # ADMIN only
-PATCH  /api/devices/{id}/firmware             # ADMIN only
+POST   /api/v1/devices                        # ADMIN only
+GET    /api/v1/devices                        # ADMIN + OPERATOR
+GET    /api/v1/devices/{id}                   # ADMIN + OPERATOR
+PATCH  /api/v1/devices/{id}/lifecycle         # ADMIN only
+PATCH  /api/v1/devices/{id}/firmware          # ADMIN only
+GET    /api/v1/devices/{id}/capabilities      # ADMIN + OPERATOR
+PUT    /api/v1/devices/{id}/capabilities      # ADMIN only — per-sensor thresholds
 ```
 
-**Create device:**
-
-```json
-{ "name": "sensor-1", "description": "Line A temperature sensor", "location": "Factory Hall B" }
-```
-
-**Update lifecycle:**
-
-```json
-{ "lifecycleStatus": "ACTIVE" }
-```
-
-Valid transitions: `PROVISIONED → ACTIVE → INACTIVE → DECOMMISSIONED`.
-`DECOMMISSIONED` is terminal — no further transitions are accepted (HTTP 409).
-Setting `INACTIVE` or `DECOMMISSIONED` also forces the device `status` to `OFFLINE`.
-
-**Update firmware version:**
-
-```json
-{ "firmwareVersion": "1.2.3" }
-```
-
-Version must be semver (`\d+\.\d+\.\d+(-[\w.]+)?`). Rejected for decommissioned devices.
+Valid lifecycle transitions: `PROVISIONED → ACTIVE → INACTIVE → DECOMMISSIONED`.  
+`DECOMMISSIONED` is terminal — no further transitions accepted (HTTP 409).
 
 ### Telemetry
 
 ```http
-GET /api/telemetry/{deviceId}/latest?limit=50          # Last N raw rows (max 200)
-GET /api/telemetry/{deviceId}/cache                    # Sub-ms Redis read — most recent reading
-GET /api/telemetry/{deviceId}/range?from=…&to=…        # Raw rows within a time range (ISO-8601)
-GET /api/telemetry/{deviceId}/hourly?from=…&to=…       # Hourly aggregates (avg/min/max, persists beyond retention)
-GET /api/telemetry/stats                               # { lastMinute, replayQueueSize }
+GET /api/v1/telemetry/{deviceId}/latest?limit=50   # Last N raw rows (max 200)
+GET /api/v1/telemetry/{deviceId}/cache             # Sub-ms Redis read
+GET /api/v1/telemetry/{deviceId}/range?from=…&to=… # ISO-8601 time range
+GET /api/v1/telemetry/{deviceId}/hourly?from=…&to=…# Hourly aggregates
+GET /api/v1/telemetry/stats                        # { lastMinute, replayQueueSize }
 ```
 
-Hourly aggregate response shape:
-
-```json
-{
-  "hourBucket": "2025-01-15T14:00:00Z",
-  "tempAvg": 71.4, "tempMin": 65.2, "tempMax": 88.1,
-  "humAvg": 58.0,  "humMin": 45.0,  "humMax": 72.0,
-  "smokeAvg": 23.5, "smokeMax": 310.0,
-  "motionCount": 7, "sampleCount": 720
-}
-```
+Telemetry rows support two payload generations: `schemaVersion=1` (fixed scalar fields) and `schemaVersion=2` (dynamic `readings` map + `edge` metadata). Both versions are handled transparently by the ingest pipeline.
 
 ### Alerts
 
 ```http
-GET /api/alerts
-GET /api/alerts/unacknowledged
-PUT /api/alerts/{id}/acknowledge    # ADMIN only
+GET /api/v1/alerts
+GET /api/v1/alerts/unacknowledged
+PUT /api/v1/alerts/{id}/acknowledge    # ADMIN only
 ```
 
 ### WebSocket
@@ -259,7 +237,9 @@ Payload (JSON, per message):
 
 ## Threshold Rules
 
-Configured via environment variables:
+**Per-device capability thresholds (preferred):** Each device can carry a `capabilities` map (stored as JSONB) declaring per-sensor `warnThreshold`, `critThreshold`, and `ThresholdDirection` (ABOVE/BELOW). The alert engine uses these when present.
+
+**Global fallback (legacy):** When a device has no capabilities configured, global environment variable thresholds apply:
 
 | Variable              | Default | Description                                           |
 |-----------------------|---------|-------------------------------------------------------|
@@ -267,7 +247,7 @@ Configured via environment variables:
 | `SMOKE_THRESHOLD`     | `200`   | ppm — triggers CRITICAL alert + LINE Notify           |
 | `HUMIDITY_THRESHOLD`  | `90`    | % — triggers WARNING alert                            |
 
-Motion + elevated temperature (>70°C) also triggers a WARNING alert.
+Motion + elevated temperature (>70°C) also triggers a WARNING alert under the legacy engine.
 
 ---
 
