@@ -5,14 +5,17 @@
 The single-node Docker Compose stack sustains:
 
 | Metric | Value |
-|--------|-------|
+| --- | --- |
 | Telemetry throughput | ~1,000 events/sec (k6 verified) |
 | p95 API latency | < 120 ms |
-| Concurrent WebSocket sessions | ~500 (single JVM, `CopyOnWriteArraySet`) |
+| Concurrent WebSocket sessions | ~500 (single JVM, `CopyOnWriteArrayList`) |
 | PostgreSQL writes | ~1,000 INSERTs/sec before WAL bottleneck |
 | Redis reads | < 1 ms (in-memory, single node) |
+| Replay queue drain | up to 10,000 buffered messages, 100/batch every 30s |
 
 This is sufficient for a factory with up to ~200 devices publishing every 5 seconds (≈ 40 events/sec sustained, with headroom for bursts).
+
+At 1,000 req/s in load testing, PostgreSQL CPU saturated first (~70% on a 4-core host). Redis and the JVM had significant headroom remaining.
 
 ---
 
@@ -22,17 +25,24 @@ This is sufficient for a factory with up to ~200 devices publishing every 5 seco
 [ Many IoT Devices ]
          │
          ▼
-  [ Mosquitto MQTT ]  ← Bottleneck #1: single broker, single TCP port
+  [ Mosquitto MQTT ]        ← Bottleneck #1: single broker, single TCP port
          │
          ▼
-  [ Spring Boot ]     ← Bottleneck #2: single instance, @ServiceActivator is single-threaded
+  [ Spring Boot ]           ← Bottleneck #2: single instance
+  │ MqttConsumerService     ←   @ServiceActivator is single-threaded
+  │ TelemetryService        ←   @Retry + @CircuitBreaker per call
+  │ ReplayQueueService       ←   30s drain cycle, 100/batch
          │
     ┌────┴────┐
     ▼         ▼
-[ Redis ]  [ PostgreSQL ]  ← Bottleneck #3: single writer, table scans on large telemetry
+[ Redis ]  [ PostgreSQL ]   ← Bottleneck #3: single writer; telemetry
+                                 partitioned by month but still one WAL stream
     │
     ▼
-[ WebSocket Handler ]  ← Bottleneck #4: CopyOnWriteArraySet in one JVM
+[ WebSocket Handler ]       ← Bottleneck #4: CopyOnWriteArrayList in one JVM
+
+[ Rate Limiter ]            ← Bottleneck #5: Bucket4j in-process
+                                 100 req/min per IP, per replica
 ```
 
 ---
@@ -41,14 +51,11 @@ This is sufficient for a factory with up to ~200 devices publishing every 5 seco
 
 ### 1. MQTT Broker — Horizontal Cluster
 
-**Problem:** A single Mosquitto instance handles ~100k connections, but loses all in-flight messages on restart and cannot distribute load.
+**Problem:** A single Mosquitto instance handles ~100k connections, but loses in-flight messages on restart and cannot distribute load.
 
-**Solution: EMQX Cluster**
-
-Replace Mosquitto with [EMQX](https://www.emqx.io/) which supports native horizontal clustering:
+Solution: EMQX Cluster
 
 ```yaml
-# docker-compose addition
 emqx:
   image: emqx/emqx:5.6
   environment:
@@ -58,11 +65,9 @@ emqx:
     replicas: 3
 ```
 
-- Each EMQX node handles ~1M connections
-- Built-in rule engine routes messages to Kafka or directly to consumers
-- Retained messages and sessions survive node failure
+Each EMQX node handles ~1M connections. Built-in rule engine routes messages to Kafka or directly to consumers. Retained messages and sessions survive node failure.
 
-**Alternative for smaller scale:** Mosquitto with a shared-nothing multi-broker topology using bridge replication.
+**Alternative for smaller scale:** Mosquitto with multi-broker bridge replication.
 
 ---
 
@@ -71,7 +76,6 @@ emqx:
 Spring Boot is **already stateless** — JWT is self-contained, and all session state lives in Redis. Scale by adding replicas:
 
 ```yaml
-# docker-compose with replicas
 backend:
   deploy:
     replicas: 3
@@ -80,7 +84,7 @@ backend:
 
 **MQTT Consumer scaling issue:** Each backend replica creates its own MQTT subscription. All replicas receive all messages and write duplicate rows.
 
-**Fix — Use a message queue as a buffer:**
+**Fix — Kafka consumer groups:**
 
 ```text
 Mosquitto → Kafka topic (factory.telemetry) → Consumer Group
@@ -88,57 +92,54 @@ Mosquitto → Kafka topic (factory.telemetry) → Consumer Group
                             ┌───────────────────────┤
                             ▼                       ▼
                     Backend replica 1       Backend replica 2
-                    (partition 0-4)         (partition 5-9)
+                    (partition 0–4)         (partition 5–9)
 ```
 
-Kafka consumer groups ensure each message is processed by exactly one backend instance. This also gives replay capability and backpressure handling.
+Kafka consumer groups ensure each message is processed by exactly one backend instance. Kafka also provides replay capability and backpressure handling — making it a superset of the current Redis replay queue.
 
-**Minimum Kafka setup:**
-
-```yaml
-kafka:
-  image: confluentinc/cp-kafka:7.6.1
-  environment:
-    KAFKA_NUM_PARTITIONS: 10
-    KAFKA_DEFAULT_REPLICATION_FACTOR: 2
-```
+**Replay queue scaling issue:** The Redis replay queue is a single key (`sentinel:replay:queue`). With multiple replicas, all instances push to the same queue but only one should drain (or drains conflict). Kafka consumer groups solve this naturally.
 
 ---
 
-### 3. PostgreSQL — Read Replicas + Partitioning
+### 3. PostgreSQL — Partitioning (Done) + Read Replicas + TimescaleDB
 
-**Problem:** The `telemetry` table grows at ~1,000 rows/sec. After ~100M rows, range queries slow down even with indexes.
+**Partitioning is already implemented (V3 migration).** The `telemetry` table uses `PARTITION BY RANGE(timestamp)` with monthly child tables from 2025-01 through 2026-12 plus a `telemetry_default` catch-all. PostgreSQL automatically prunes irrelevant partitions from range queries.
 
-**Step 1 — Read replicas** (immediate win, zero code change):
+Remaining PostgreSQL scaling steps:
+
+**Step 1 — Read replicas** (zero code change):
 
 ```text
-Primary  ──── write ────▶ (writes: telemetry INSERTs, device UPDATEs)
+Primary ──── write ──▶ (telemetry INSERTs, device UPDATEs)
     │
-    └─── replicate ────▶ Replica 1 (reads: /latest, /range queries)
-                   ────▶ Replica 2 (reads: alerts, reporting)
+    └── replicate ──▶ Replica 1 (reads: /latest, /range, /hourly queries)
+               ──▶ Replica 2 (reads: alerts, reporting)
 ```
 
 Spring Data JPA with `@Transactional(readOnly=true)` routes to replicas via `AbstractRoutingDataSource`.
 
-**Step 2 — Table partitioning by timestamp** (when rows exceed 500M):
+**Step 2 — Extend partition range** (when approaching 2026-12):
+
+Add a new Flyway migration to pre-create 2027+ monthly partitions:
 
 ```sql
--- Range partition by month
-CREATE TABLE telemetry (
-    id UUID, device_id UUID, temperature DOUBLE PRECISION,
-    humidity DOUBLE PRECISION, motion BOOLEAN, smoke_ppm DOUBLE PRECISION,
-    timestamp TIMESTAMPTZ NOT NULL
-) PARTITION BY RANGE (timestamp);
-
-CREATE TABLE telemetry_2024_06 PARTITION OF telemetry
-    FOR VALUES FROM ('2024-06-01') TO ('2024-07-01');
+CREATE TABLE telemetry_2027_01 PARTITION OF telemetry
+    FOR VALUES FROM ('2027-01-01') TO ('2027-02-01');
 ```
 
-Old partitions can be detached and archived to cold storage (S3) without locking the hot partition.
+**Step 3 — Drop old partitions** (cold archival):
 
-**Step 3 — Migrate to TimescaleDB** (when partitioning isn't enough):
+Old partitions can be detached and archived without locking the hot partition:
 
-TimescaleDB is a PostgreSQL extension with automatic time partitioning (hypertables), continuous aggregates, and data tiering. Because it speaks the PostgreSQL wire protocol, migration requires zero application code change — only swap the Docker image:
+```sql
+ALTER TABLE telemetry DETACH PARTITION telemetry_2025_01;
+-- export to S3 / cold storage, then:
+DROP TABLE telemetry_2025_01;
+```
+
+This should be automated in the `TelemetryRetentionService` cron after data is confirmed aggregated.
+
+**Step 4 — Migrate to TimescaleDB** (when partitioning is not enough):
 
 ```yaml
 postgres:
@@ -148,6 +149,8 @@ postgres:
 ```sql
 SELECT create_hypertable('telemetry', 'timestamp', chunk_time_interval => INTERVAL '1 day');
 ```
+
+No application code changes required — same wire protocol, same JPA repositories.
 
 ---
 
@@ -165,17 +168,38 @@ redis:
     replicas: 6   # 3 primaries + 3 replicas
 ```
 
-`device:status:{id}` and `device:telemetry:{id}` keys are already designed with device UUID as the slot key, so all hash fields for one device land on the same node (consistent hashing).
+`device:telemetry:{id}` keys are already scoped by device UUID, so all hash fields for one device land on the same node (consistent hashing by `{id}` key slot).
 
-For managed Redis, **Upstash** (serverless) or **ElastiCache** handle cluster management automatically.
+**Replay queue in cluster mode:** `sentinel:replay:queue` is a single key, so it always lands on one node — cluster mode doesn't help here. Migrate to Kafka for the replay queue if multi-replica backend scale is needed.
+
+For managed Redis: **Upstash** (serverless) or **ElastiCache** handle cluster management automatically.
 
 ---
 
-### 5. WebSocket Gateway — Pub/Sub Fan-out
+### 5. Rate Limiter — Shared State
 
-**Problem:** `CopyOnWriteArraySet<WebSocketSession>` only holds sessions local to one JVM. When backend scales to 3 replicas, a message processed by replica 1 is not broadcast to browsers connected to replicas 2 and 3.
+**Problem:** Bucket4j uses a local in-memory store. With 3 backend replicas, each instance has its own bucket — the effective rate limit is `100 × 3 = 300 req/min` per IP, not 100.
 
-**Solution: Redis Pub/Sub as a cross-node bus:**
+**Solution:** Switch to `bucket4j-redis`:
+
+```java
+// Replace: BandwidthLimiter backed by ConcurrentHashMap
+// With:    BucketProxyManager backed by RedisClient
+ProxyManager<String> proxyManager = Bucket4jRedis.casBasedBuilder(redisClient).build();
+Bucket bucket = proxyManager.builder()
+    .addLimit(Bandwidth.classic(100, Refill.greedy(100, Duration.ofMinutes(1))))
+    .build(ipAddress);
+```
+
+All replicas share bucket state via Redis atomic `GETSET` operations. No additional infrastructure required beyond the existing Redis instance.
+
+---
+
+### 6. WebSocket Gateway — Pub/Sub Fan-out
+
+**Problem:** `TelemetryWebSocketHandler` holds sessions in a local `CopyOnWriteArrayList`. A message processed by replica 1 is not broadcast to browsers connected to replicas 2 and 3.
+
+**Solution:** Redis Pub/Sub as a cross-node bus:
 
 ```text
 Replica 1 processes MQTT message
@@ -204,12 +228,12 @@ public MessageListenerAdapter listenerAdapter(TelemetryWebSocketHandler handler)
 
 ---
 
-### 6. Frontend — CDN and Edge
+### 7. Frontend — CDN and Edge
 
 Next.js on Vercel already distributes static assets via global CDN. For the WebSocket connection:
 
-- In development: direct to `ws://localhost:8080`
-- In production: use a WebSocket-aware load balancer (AWS ALB with sticky sessions, or Cloudflare with WebSocket support) pointing to the backend cluster
+- Development: direct to `ws://localhost:8080`
+- Production: WebSocket-aware load balancer (AWS ALB with sticky sessions, or Cloudflare with WebSocket support) pointing to the backend cluster
 
 ```text
 Browser ──▶ Vercel CDN (static/SSR pages)
@@ -221,12 +245,12 @@ Browser ──▶ Vercel CDN (static/SSR pages)
 ## Scaling Roadmap
 
 | Scale | Devices | Events/sec | Actions needed |
-|-------|---------|-----------|----------------|
-| **Current** | ~200 | ~40 | Docker Compose, single node |
-| **Small** | ~2,000 | ~400 | Add PostgreSQL read replica |
-| **Medium** | ~10,000 | ~2,000 | Add Kafka, scale backend ×3, Redis Cluster |
-| **Large** | ~100,000 | ~20,000 | EMQX cluster, TimescaleDB, Redis Pub/Sub WS, separate alert microservice |
-| **Web-scale** | ~1,000,000 | ~200,000 | Dedicated ingestion service (Rust/Go), Flink for stream processing, Cassandra for raw telemetry |
+| --- | --- | --- | --- |
+| **Current** | ~200 | ~40 | Docker Compose, single node, partitioned telemetry |
+| **Small** | ~2,000 | ~400 | Add PostgreSQL read replica; bucket4j-redis rate limiting |
+| **Medium** | ~10,000 | ~2,000 | Kafka (replace MQTT→backend direct); scale backend ×3; Redis Cluster; Redis Pub/Sub WS |
+| **Large** | ~100,000 | ~20,000 | EMQX cluster; TimescaleDB; separate alert microservice; drop partition archival |
+| **Web-scale** | ~1M | ~200,000 | Dedicated ingestion service (Rust/Go); Flink for stream processing; Cassandra for raw telemetry |
 
 ---
 
@@ -241,4 +265,4 @@ success_rate.............: 99.7%
 sentinel_telemetry_received_total: 10,800/min sustained
 ```
 
-At 1,000 req/s, PostgreSQL CPU was the first resource to saturate (~70% on a 4-core host). Redis and the JVM had significant headroom remaining. Adding a read replica would push the bottleneck past 3,000 req/s without any code change.
+PostgreSQL CPU was the first resource to saturate (~70% on a 4-core host). Redis and the JVM had significant headroom. Adding a read replica would push the bottleneck past 3,000 req/s without any code change.

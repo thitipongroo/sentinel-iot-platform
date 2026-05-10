@@ -4,9 +4,9 @@ All diagrams use [Mermaid](https://mermaid.js.org/) syntax and render natively o
 
 ---
 
-## 1. MQTT Telemetry Ingestion
+## 1. MQTT Telemetry Ingestion — Normal Path
 
-The core data path from sensor to database, cache, alert engine, and browser.
+The full 5-stage ingestion pipeline from sensor to database, cache, alert engine, and browser.
 
 ```mermaid
 sequenceDiagram
@@ -24,98 +24,199 @@ sequenceDiagram
     MQ-->>SIM: PUBACK
     MQ->>MQTT: DELIVER message (Spring Integration channel)
 
+    Note over MQTT: ① Parse JSON
+    Note over MQTT: ② Validate fields (range checks)
     MQTT->>DB: findByName(deviceId)
     DB-->>MQTT: Device entity
+    Note over MQTT: ③ Lifecycle gate (ACTIVE/PROVISIONED → proceed)
 
-    MQTT->>DB: save(device.status=ONLINE, lastSeen=now)
-    MQTT->>DB: INSERT telemetry row
-    MQTT->>REDIS: HSET device:telemetry:{id} temperature humidity motion smokePpm ts
+    MQTT->>MQTT: ④ TelemetryService.save() [@Retry + @CircuitBreaker]
+    MQTT->>DB: INSERT telemetry row (partitioned table)
+    MQTT->>REDIS: HSET device:telemetry:{id} { temperature, humidity, motion, smokePpm, ts }
+    DB-->>MQTT: saved Telemetry
+    MQTT->>DB: UPDATE devices SET status=ONLINE, last_seen=now
 
-    MQTT->>ALERT: evaluate(deviceId, temp, humidity, motion, smoke)
+    MQTT->>ALERT: evaluate(deviceId, name, temp, humidity, motion, smoke)
 
     alt temperature > 80°C OR smokePpm > 200
         ALERT->>DB: INSERT alert (level=CRITICAL)
-        ALERT->>LINE: POST /api/notify
+        ALERT->>LINE: POST /api/notify (if enabled)
     else humidity > 90% OR (motion AND temp > 70°C)
         ALERT->>DB: INSERT alert (level=WARNING)
     end
 
     MQTT->>WS: broadcast(raw JSON payload)
     WS->>UI: TextMessage over WebSocket
-    UI->>UI: append to chart data / refresh alert list
+    UI->>UI: append to chart / refresh alert list
 ```
 
 ---
 
-## 2. User Authentication (JWT)
+## 2. MQTT Ingestion — DLQ Failure Paths
 
-Login flow that produces a JWT used on all subsequent API calls.
+How invalid payloads and lifecycle-rejected devices are routed to the dead letter queue.
+
+```mermaid
+sequenceDiagram
+    participant MQ as Mosquitto Broker
+    participant MQTT as MqttConsumerService
+    participant DLQ as mqttDlqChannel
+    participant MQ2 as Mosquitto (DLQ topic)
+    participant DB as PostgreSQL
+
+    MQ->>MQTT: DELIVER message
+
+    alt ① JSON parse failure
+        MQTT->>DLQ: route with dlq-error-code=PARSE_ERROR
+    else ② Field validation failure (out of range / null deviceId)
+        MQTT->>DLQ: route with dlq-error-code=VALIDATION_ERROR
+    else ③ Device not found in DB
+        MQTT->>DB: findByName(deviceId)
+        DB-->>MQTT: null
+        MQTT->>DLQ: route with dlq-error-code=UNKNOWN_DEVICE
+    else ④ Device INACTIVE or DECOMMISSIONED
+        MQTT->>DB: findByName(deviceId)
+        DB-->>MQTT: Device { lifecycleStatus=INACTIVE }
+        MQTT->>DLQ: route with dlq-error-code=LIFECYCLE_REJECTED
+    else ⑤ Unexpected processing exception
+        MQTT->>DLQ: route with dlq-error-code=PROCESSING_ERROR
+    end
+
+    DLQ->>MQ2: PUBLISH factory/telemetry/dlq<br/>headers: { dlq-error-code, dlq-error-detail, dlq-timestamp }
+    Note over MQ2: Retained for offline analysis / alerting
+```
+
+---
+
+## 3. DB Outage — Circuit Breaker + Replay Queue
+
+How the system buffers telemetry during a database outage and recovers without data loss.
+
+```mermaid
+sequenceDiagram
+    participant MQTT as MqttConsumerService
+    participant SVC as TelemetryService
+    participant DB as PostgreSQL
+    participant REDIS as Redis
+    participant CB as CircuitBreaker (telemetryDB)
+    participant REPLAY as ReplayQueueService
+
+    Note over DB: Database becomes unavailable
+
+    MQTT->>SVC: save(deviceId, temp, humidity, motion, smoke)
+    SVC->>CB: call attempt
+    CB->>DB: INSERT telemetry
+    DB--xCB: DataAccessException (×5 in sliding window)
+    CB->>CB: state → OPEN
+
+    loop While CB is OPEN
+        MQTT->>SVC: save(...)
+        SVC->>CB: call attempt
+        CB-->>SVC: CallNotPermittedException → saveFallback()
+        SVC->>REDIS: HSET device:telemetry:{id} (cache stays live)
+        SVC->>REDIS: RPUSH sentinel:replay:queue (serialized JSON)
+    end
+
+    Note over DB: Database recovers
+
+    CB->>CB: wait 30s → state → HALF_OPEN
+    REPLAY->>CB: check state (not OPEN)
+    REPLAY->>REDIS: LPOP sentinel:replay:queue (batch 100)
+    loop For each buffered message
+        REPLAY->>DB: TelemetryRepository.save(telemetry)
+        alt save succeeds
+            REPLAY->>REPLAY: replaySuccessCounter++
+        else save fails
+            REPLAY->>REDIS: RPUSH sentinel:replay:queue (re-queue)
+            REPLAY->>REPLAY: replayFailureCounter++
+        end
+    end
+    CB->>CB: sufficient successes → state → CLOSED
+```
+
+---
+
+## 4. User Authentication (Login + Refresh Token Rotation)
+
+Login flow that produces an access token and a refresh token with automatic rotation.
 
 ```mermaid
 sequenceDiagram
     participant Browser as Next.js Browser
     participant API as AuthController
     participant AUTH as AuthenticationManager
-    participant UDS as UserDetailsServiceImpl
-    participant DB as PostgreSQL (app_users)
+    participant DB as PostgreSQL (app_users / refresh_tokens)
     participant JWT as JwtService
 
-    Browser->>API: POST /api/auth/login<br/>{ username, password }
+    Browser->>API: POST /api/auth/login { username, password }
     API->>AUTH: authenticate(username, password)
-    AUTH->>UDS: loadUserByUsername(username)
-    UDS->>DB: SELECT * FROM app_users WHERE username = ?
-    DB-->>UDS: AppUser { password_hash, role }
-    UDS-->>AUTH: UserDetails
+    AUTH->>DB: SELECT * FROM app_users WHERE username = ?
+    DB-->>AUTH: AppUser { password_hash, role }
     AUTH->>AUTH: BCrypt.matches(raw, hash)
 
     alt credentials valid
         AUTH-->>API: Authentication object
-        API->>JWT: generateToken(username, role)
-        JWT-->>API: signed JWT (24h expiry)
-        API-->>Browser: 200 { token, role, username }
-        Browser->>Browser: localStorage.setItem('sentinel_token', token)
+        API->>JWT: generateAccessToken(username, role)
+        JWT-->>API: signed JWT (15-min expiry)
+        API->>DB: INSERT refresh_tokens (uuid, user, expires_in_7_days)
+        API-->>Browser: 200 { accessToken, refreshToken, role, username }
+        Browser->>Browser: store tokens (memory / httpOnly cookie)
     else credentials invalid
         AUTH-->>API: BadCredentialsException
         API-->>Browser: 401 Unauthorized
     end
+
+    Note over Browser: 15 minutes later — access token expires
+
+    Browser->>API: POST /api/auth/refresh { refreshToken: "old-uuid" }
+    API->>DB: SELECT refresh_token WHERE token = "old-uuid" AND NOT expired
+    DB-->>API: valid RefreshToken entity
+    API->>JWT: generateAccessToken(username, role)
+    JWT-->>API: new signed JWT
+    API->>DB: DELETE old refresh token (rotation)
+    API->>DB: INSERT new refresh token (new-uuid, expires_in_7_days)
+    API-->>Browser: 200 { accessToken: newJwt, refreshToken: "new-uuid", ... }
 ```
 
 ---
 
-## 3. Authenticated API Request (JWT Filter)
+## 5. Authenticated API Request (JWT Filter + Request Correlation)
 
-Every protected REST call passes through `JwtAuthFilter` before reaching the controller.
+Every protected REST call passes through `RequestIdFilter` and `JwtAuthFilter` before reaching the controller.
 
 ```mermaid
 sequenceDiagram
     participant Browser as Next.js Browser
+    participant RID as RequestIdFilter
     participant FILTER as JwtAuthFilter
     participant JWT as JwtService
-    participant UDS as UserDetailsServiceImpl
     participant CTRL as Controller
     participant SVC as Service Layer
 
-    Browser->>FILTER: GET /api/devices<br/>Authorization: Bearer eyJ...
+    Browser->>RID: GET /api/devices<br/>Authorization: Bearer eyJ...<br/>X-Request-ID: abc-123
+    RID->>RID: MDC.put(requestId="abc-123", method="GET", path="/api/devices")
+    RID->>FILTER: forward
+
     FILTER->>JWT: extractUsername(token)
     JWT-->>FILTER: "admin"
-    FILTER->>UDS: loadUserByUsername("admin")
-    UDS-->>FILTER: UserDetails { roles: [ROLE_ADMIN] }
     FILTER->>JWT: isTokenValid(token, userDetails)
     JWT-->>FILTER: true
-
     FILTER->>FILTER: set SecurityContext authentication
 
     FILTER->>CTRL: forward request
     CTRL->>SVC: findAll()
     SVC-->>CTRL: List<Device>
-    CTRL-->>Browser: 200 [ { id, name, status, ... } ]
+    CTRL-->>RID: 200 response
+    RID->>RID: MDC.put(durationMs=12)
+    RID->>RID: MDC.clear()
+    RID-->>Browser: 200 [ {...} ]<br/>X-Request-ID: abc-123
 ```
 
 ---
 
-## 4. Alert Trigger and LINE Notification
+## 6. Alert Trigger and LINE Notification
 
-Detail of how a threshold breach propagates to an alert record and external notification.
+Detail of how a threshold breach propagates from ingestion to a persisted alert and external notification.
 
 ```mermaid
 sequenceDiagram
@@ -128,26 +229,26 @@ sequenceDiagram
     MQTT->>ALERT: evaluate(deviceId, "sensor-1", temp=83.2, hum=60, motion=false, smoke=15)
 
     ALERT->>ALERT: check temperature > 80.0 → true
-    ALERT->>DB: INSERT INTO alerts (device_id, level='CRITICAL', message='[sensor-1] CRITICAL: temperature 83.2°C exceeds 80.0°C threshold')
+    ALERT->>DB: INSERT INTO alerts (device_id, level='CRITICAL',<br/>message='[sensor-1] CRITICAL: temperature 83.2°C exceeds 80.0°C')
     DB-->>ALERT: saved Alert entity
 
     ALERT->>NOTIFY: send("[sensor-1] CRITICAL: temperature 83.2°C ...")
 
-    alt LINE_NOTIFY_ENABLED = true AND token set
-        NOTIFY->>LINE: POST https://notify-api.line.me/api/notify<br/>Authorization: Bearer {token}<br/>message=[sensor-1] CRITICAL: ...
+    alt LINE_NOTIFY_ENABLED = true AND token configured
+        NOTIFY->>LINE: POST notify-api.line.me/api/notify<br/>Authorization: Bearer {token}
         LINE-->>NOTIFY: 200 { status: 200, message: "ok" }
     else not configured
         NOTIFY->>NOTIFY: log.debug("LINE Notify disabled")
     end
 
-    ALERT->>ALERT: check smokePpm > 200 → false (skip)
-    ALERT->>ALERT: check humidity > 90 → false (skip)
-    ALERT->>ALERT: check motion AND temp > 70 → false (skip)
+    ALERT->>ALERT: check smokePpm > 200 → false
+    ALERT->>ALERT: check humidity > 90 → false
+    ALERT->>ALERT: check motion AND temp > 70 → false
 ```
 
 ---
 
-## 5. WebSocket Subscription and Realtime Update
+## 7. WebSocket Subscription and Realtime Update
 
 How the browser receives live telemetry without polling.
 
@@ -163,16 +264,16 @@ sequenceDiagram
     HANDLER->>HANDLER: sessions.add(session)
     WS_CFG-->>Browser: 101 Switching Protocols
 
-    Note over Browser,HANDLER: Connection established — browser waits
+    Note over Browser,HANDLER: Connection established — browser waits for messages
 
     MQTT->>HANDLER: broadcast(payload JSON string)
     loop for each open session
-        HANDLER->>Browser: TextMessage { deviceId, temperature, humidity, motion, smokePpm, timestamp }
+        HANDLER->>Browser: TextMessage { deviceId, temperature, humidity, motion, smokePpm, ts }
     end
 
     Browser->>Browser: parse JSON
-    Browser->>Browser: update telemetry chart state
-    Browser->>Browser: check if alert threshold crossed → refresh AlertList
+    Browser->>Browser: update TelemetryChart state
+    Browser->>Browser: if threshold crossed → refresh AlertList
 
     Note over Browser,HANDLER: On disconnect (tab close / network loss)
     Browser--xHANDLER: WebSocket closed
@@ -185,9 +286,55 @@ sequenceDiagram
 
 ---
 
-## 6. Device Registration (ADMIN Flow)
+## 8. Device Registration and Lifecycle Transition (ADMIN Flow)
 
-End-to-end flow for an ADMIN registering a new device via the API.
+End-to-end flow for registering a device and transitioning it through lifecycle states.
+
+```mermaid
+sequenceDiagram
+    participant ADMIN as Admin User (Browser)
+    participant API as DeviceController
+    participant SVC as DeviceService
+    participant DB as PostgreSQL (devices)
+
+    ADMIN->>API: POST /api/devices<br/>Authorization: Bearer {admin_token}<br/>{ name: "sensor-4", location: "Hall C" }
+    API->>API: JwtAuthFilter validates ROLE_ADMIN
+    API->>SVC: create(DeviceRequest)
+    SVC->>DB: existsByName("sensor-4")
+    DB-->>SVC: false
+    SVC->>DB: INSERT device { name, status=OFFLINE, lifecycleStatus=PROVISIONED }
+    DB-->>SVC: Device { id: uuid }
+    SVC-->>API: Device entity
+    API-->>ADMIN: 201 Created { id, name, status="OFFLINE", lifecycleStatus="PROVISIONED" }
+
+    Note over ADMIN: Device is provisioned — now activate it
+
+    ADMIN->>API: PATCH /api/devices/{id}/lifecycle { lifecycleStatus: "ACTIVE" }
+    API->>SVC: updateLifecycle(id, ACTIVE)
+    SVC->>DB: findById(id)
+    DB-->>SVC: Device { lifecycleStatus=PROVISIONED }
+    SVC->>SVC: PROVISIONED → ACTIVE: allowed
+    SVC->>DB: UPDATE devices SET lifecycle_status='ACTIVE'
+    DB-->>SVC: updated Device
+    SVC-->>API: Device entity
+    API-->>ADMIN: 200 { lifecycleStatus: "ACTIVE", ... }
+
+    Note over ADMIN: Later — decommission the device
+
+    ADMIN->>API: PATCH /api/devices/{id}/lifecycle { lifecycleStatus: "DECOMMISSIONED" }
+    API->>SVC: updateLifecycle(id, DECOMMISSIONED)
+    SVC->>SVC: ACTIVE → DECOMMISSIONED: allowed; force status=OFFLINE
+    SVC->>DB: UPDATE devices SET lifecycle_status='DECOMMISSIONED', status='OFFLINE'
+    API-->>ADMIN: 200 { lifecycleStatus: "DECOMMISSIONED", status: "OFFLINE" }
+
+    Note over ADMIN: Any further lifecycle PATCH → 409 Conflict
+```
+
+---
+
+## 9. Device Registration (Legacy API-Only Flow)
+
+Minimal flow for creating a device and verifying it goes online when the simulator publishes.
 
 ```mermaid
 sequenceDiagram
@@ -197,20 +344,13 @@ sequenceDiagram
     participant DB as PostgreSQL (devices)
     participant REDIS as Redis
 
-    ADMIN->>API: POST /api/devices<br/>Authorization: Bearer {admin_token}<br/>{ name: "sensor-4", location: "Hall C" }
-
-    API->>API: JwtAuthFilter validates ROLE_ADMIN
+    ADMIN->>API: POST /api/devices { name: "sensor-4", location: "Hall C" }
     API->>SVC: create(DeviceRequest)
-    SVC->>DB: existsByName("sensor-4")
-    DB-->>SVC: false
-
-    SVC->>SVC: new Device(name="sensor-4", status="OFFLINE")
-    SVC->>DB: save(device)
-    DB-->>SVC: Device { id: uuid, createdAt: now }
-
+    SVC->>DB: existsByName("sensor-4") → false
+    SVC->>DB: INSERT device
     SVC->>REDIS: SET device:status:{uuid} "OFFLINE" EX 600
     SVC-->>API: Device entity
-    API-->>ADMIN: 201 Created { id, name, status="OFFLINE", createdAt }
+    API-->>ADMIN: 201 Created { id, name, status="OFFLINE" }
 
     Note over ADMIN: Simulator must publish deviceId="sensor-4"<br/>for device to appear ONLINE
 ```
