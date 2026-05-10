@@ -1,0 +1,254 @@
+name: API Contract
+
+# Runs when the Java source or pom.xml changes.
+# 1. Boots the backend with a CI Spring profile (no Kafka/Redis/MQTT needed).
+# 2. Generates the live OpenAPI spec from the running app.
+# 3. Runs openapi-typescript to produce frontend/src/api/generated/types.ts.
+# 4. Fails the build if the committed types are stale (drift detection).
+# 5. Runs schemathesis to fuzz the API surface against its own contract.
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/src/**'
+      - 'backend/pom.xml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/src/**'
+      - 'backend/pom.xml'
+      - 'frontend/src/api/**'
+
+jobs:
+  # ── Step 1: Generate the canonical OpenAPI spec ──────────────────────────────
+  generate-spec:
+    name: Generate OpenAPI spec
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sentinel_ci
+          POSTGRES_USER: sentinel
+          POSTGRES_PASSWORD: sentinel
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build backend (skip tests)
+        working-directory: backend
+        run: mvn package -DskipTests -q
+
+      - name: Start backend in CI profile
+        working-directory: backend
+        env:
+          SPRING_PROFILES_ACTIVE: ci
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: sentinel_ci
+          DB_USER: sentinel
+          DB_PASSWORD: sentinel
+          JWT_SECRET: ci-contract-test-secret-minimum-32-chars!
+          # Disable external integrations for contract testing
+          SCHEMA_REGISTRY_ENABLED: "false"
+          LINE_NOTIFY_ENABLED: "false"
+          MQTT_BROKER: "tcp://localhost:11883"  # not running — MQTT is optional at startup
+        run: |
+          java -jar target/*.jar \
+            --spring.kafka.bootstrap-servers=localhost:9999 \
+            --spring.data.redis.host=localhost \
+            --spring.autoconfigure.exclude=\
+              org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,\
+              org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration \
+            &
+          echo $! > /tmp/backend.pid
+
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/actuator/health > /dev/null; then
+              echo "Backend ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Download OpenAPI spec
+        run: |
+          curl -sf http://localhost:8080/api-docs \
+            -H "Accept: application/json" \
+            -o openapi.json
+          echo "--- spec generated ---"
+          cat openapi.json | python3 -m json.tool --no-indent | head -20
+
+      - name: Upload spec artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: openapi.json
+          retention-days: 7
+
+      - name: Stop backend
+        if: always()
+        run: kill $(cat /tmp/backend.pid) || true
+
+  # ── Step 2: Generate and verify TypeScript types ──────────────────────────────
+  typescript-types:
+    name: TypeScript type generation + drift check
+    runs-on: ubuntu-latest
+    needs: generate-spec
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Download spec artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-spec
+
+      - name: Generate TypeScript types from spec
+        working-directory: frontend
+        run: |
+          npx openapi-typescript ../openapi.json \
+            --output src/api/generated/types.ts \
+            --alphabetical \
+            --immutable
+
+      - name: Check for uncommitted type drift
+        run: |
+          if ! git diff --exit-code frontend/src/api/generated/types.ts; then
+            echo "::error::Generated TypeScript types are out of sync with the OpenAPI spec."
+            echo "::error::Run 'npm run generate:types' locally and commit the result."
+            exit 1
+          fi
+          echo "Types are in sync."
+
+      - name: Upload generated types artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-types
+          path: frontend/src/api/generated/types.ts
+          retention-days: 7
+
+  # ── Step 3: Schemathesis contract fuzzing ─────────────────────────────────────
+  contract-test:
+    name: Schemathesis contract testing
+    runs-on: ubuntu-latest
+    needs: generate-spec
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sentinel_ci
+          POSTGRES_USER: sentinel
+          POSTGRES_PASSWORD: sentinel
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Set up Python (for schemathesis)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install schemathesis
+        run: pip install schemathesis
+
+      - name: Build and start backend
+        working-directory: backend
+        env:
+          SPRING_PROFILES_ACTIVE: ci
+          DB_HOST: localhost
+          DB_NAME: sentinel_ci
+          DB_USER: sentinel
+          DB_PASSWORD: sentinel
+          JWT_SECRET: ci-contract-test-secret-minimum-32-chars!
+          SCHEMA_REGISTRY_ENABLED: "false"
+          LINE_NOTIFY_ENABLED: "false"
+        run: |
+          mvn package -DskipTests -q
+          java -jar target/*.jar \
+            --spring.kafka.bootstrap-servers=localhost:9999 \
+            --spring.autoconfigure.exclude=\
+              org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,\
+              org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration \
+            &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/actuator/health && break || sleep 2
+          done
+
+      - name: Obtain test JWT
+        id: auth
+        run: |
+          TOKEN=$(curl -sf -X POST http://localhost:8080/api/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"admin"}' \
+            | python3 -c "import sys, json; print(json.load(sys.stdin)['accessToken'])")
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Run schemathesis
+        run: |
+          schemathesis run http://localhost:8080/api-docs \
+            --auth-type bearer \
+            --auth "${{ steps.auth.outputs.token }}" \
+            --checks all \
+            --max-examples 30 \
+            --hypothesis-suppress-health-check=too_slow \
+            --report-dir schemathesis-report \
+            --junit-xml schemathesis-report/results.xml
+
+      - name: Upload schemathesis report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: schemathesis-report
+          path: schemathesis-report/
+          retention-days: 14
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Contract Tests
+          path: schemathesis-report/results.xml
+          reporter: java-junit

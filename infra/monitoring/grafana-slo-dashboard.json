@@ -1,0 +1,371 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus datasource connected to the Sentinel cluster",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana",    "id": "grafana",    "name": "Grafana",    "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel",      "id": "gauge",      "name": "Gauge",      "version": "" },
+    { "type": "panel",      "id": "stat",       "name": "Stat",       "version": "" },
+    { "type": "panel",      "id": "timeseries", "name": "Time series","version": "" },
+    { "type": "panel",      "id": "table",      "name": "Table",      "version": "" }
+  ],
+  "title": "Sentinel IoT — SLO Dashboard",
+  "uid":   "sentinel-slo-v1",
+  "description": "Service Level Objective tracking for the Sentinel IoT Platform. Availability 99.9%, p95 latency <200ms, p99 latency <500ms.",
+  "tags": ["sentinel", "slo", "platform"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": { "from": "now-7d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "window",
+        "type": "custom",
+        "label": "Burn rate window",
+        "current": { "text": "1h", "value": "1h" },
+        "options": [
+          { "text": "5m",  "value": "5m" },
+          { "text": "1h",  "value": "1h" },
+          { "text": "6h",  "value": "6h" },
+          { "text": "1d",  "value": "1d" },
+          { "text": "7d",  "value": "7d" },
+          { "text": "30d", "value": "30d" }
+        ]
+      }
+    ]
+  },
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "30-day Error Budget Remaining",
+      "type": "gauge",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "text": {},
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 0.1  },
+              { "color": "green",  "value": 0.5  }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "sentinel:error_budget_remaining:30d",
+        "legendFormat": "Budget remaining"
+      }]
+    },
+
+    {
+      "id": 2,
+      "title": "Current Availability (5m)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": "${DS_PROMETHEUS}",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null  },
+              { "color": "orange", "value": 0.999 },
+              { "color": "green",  "value": 1.0   }
+            ]
+          },
+          "mappings": []
+        }
+      },
+      "targets": [{
+        "expr": "sentinel:http_availability_sli:rate5m",
+        "legendFormat": "Availability"
+      }]
+    },
+
+    {
+      "id": 3,
+      "title": "SLO Target",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "color": { "mode": "fixed", "fixedColor": "green" } }
+      },
+      "targets": [{
+        "expr": "vector(0.999)",
+        "legendFormat": "SLO (99.9%)"
+      }]
+    },
+
+    {
+      "id": 4,
+      "title": "Burn Rate (1h window)",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": "${DS_PROMETHEUS}",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "orange", "value": 3.0  },
+              { "color": "red",    "value": 14.4 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "expr": "sentinel:error_budget_burn_rate:1h",
+        "legendFormat": "Burn rate"
+      }]
+    },
+
+    {
+      "id": 5,
+      "title": "Availability SLI — Rolling 30 days",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0.99,
+          "max": 1.0,
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "SLO target" },
+            "properties": [
+              { "id": "color",          "value": { "mode": "fixed", "fixedColor": "red" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "avg_over_time(sentinel:http_availability_sli:rate5m[1h])",
+          "legendFormat": "Availability (1h avg)"
+        },
+        {
+          "expr": "vector(0.999)",
+          "legendFormat": "SLO target (99.9%)"
+        }
+      ]
+    },
+
+    {
+      "id": 6,
+      "title": "Error Budget Burn Rate — Multi-window",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1.5 }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Fast burn threshold (14.4x)" },
+            "properties": [
+              { "id": "color",          "value": { "mode": "fixed", "fixedColor": "red" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dash" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Medium burn threshold (6x)" },
+            "properties": [
+              { "id": "color",          "value": { "mode": "fixed", "fixedColor": "orange" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dash" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "sentinel:error_budget_burn_rate:1h",  "legendFormat": "1h burn rate" },
+        { "expr": "sentinel:error_budget_burn_rate:6h",  "legendFormat": "6h burn rate" },
+        { "expr": "sentinel:error_budget_burn_rate:1d",  "legendFormat": "24h burn rate" },
+        { "expr": "vector(14.4)", "legendFormat": "Fast burn threshold (14.4x)" },
+        { "expr": "vector(6.0)",  "legendFormat": "Medium burn threshold (6x)" }
+      ]
+    },
+
+    {
+      "id": 7,
+      "title": "Latency SLIs",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0.9,
+          "max": 1.0,
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "sentinel:http_latency_p95_under_200ms:rate5m",
+          "legendFormat": "p95 < 200ms (target: 95%)"
+        },
+        {
+          "expr": "sentinel:http_latency_p99_under_500ms:rate5m",
+          "legendFormat": "p99 < 500ms (target: 99%)"
+        },
+        { "expr": "vector(0.95)", "legendFormat": "p95 SLO target" },
+        { "expr": "vector(0.99)", "legendFormat": "p99 SLO target" }
+      ]
+    },
+
+    {
+      "id": 8,
+      "title": "Telemetry Kafka Consumer Lag",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": "${DS_PROMETHEUS}",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null   },
+              { "color": "orange", "value": 10000  },
+              { "color": "red",    "value": 50000  }
+            ]
+          }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [{
+        "expr": "sentinel:telemetry_ingest_lag_current",
+        "legendFormat": "Consumer lag (messages)"
+      }]
+    },
+
+    {
+      "id": 9,
+      "title": "SLO Summary Table",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 6 },
+      "datasource": "${DS_PROMETHEUS}",
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "SLO", "desc": false }]
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Current" },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red",    "value": null  },
+                    { "color": "orange", "value": 0.9   },
+                    { "color": "green",  "value": 0.999 }
+                  ]
+                }
+              },
+              { "id": "unit",   "value": "percentunit" },
+              { "id": "custom.displayMode", "value": "color-background" }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Value #A": "Current",
+              "Value #B": "Target",
+              "Value #C": "Budget Remaining"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "sentinel:http_availability_sli:rate5m",
+          "legendFormat": "Availability",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "vector(0.999)",
+          "legendFormat": "Availability Target",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "sentinel:error_budget_remaining:30d",
+          "legendFormat": "Availability Budget",
+          "instant": true,
+          "refId": "C"
+        }
+      ]
+    }
+
+  ]
+}

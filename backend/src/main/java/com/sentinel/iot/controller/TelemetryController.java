@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/telemetry")
+@RequestMapping("/api/v1/telemetry")
 @RequiredArgsConstructor
 @Tag(name = "Telemetry", description = "Sensor telemetry retrieval")
 public class TelemetryController {

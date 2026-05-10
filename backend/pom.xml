@@ -149,6 +149,13 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
+        <!-- Avro (schema parsing for Schema Registry governance) -->
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+            <version>1.11.3</version>
+        </dependency>
+
         <!-- Structured logging (JSON via Logback) -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
@@ -200,6 +207,14 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <repositories>
+        <repository>
+            <id>confluent</id>
+            <name>Confluent Maven Repository</name>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+    </repositories>
 
     <build>
         <plugins>

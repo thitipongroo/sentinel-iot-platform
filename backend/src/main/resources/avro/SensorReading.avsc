@@ -1,0 +1,29 @@
+{
+  "type": "record",
+  "name": "SensorReading",
+  "namespace": "com.sentinel.iot.avro",
+  "doc": "A single sensor measurement with quality indicator (OPC-UA inspired). Null value means the sensor was unreachable.",
+  "fields": [
+    {
+      "name": "value",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "Numeric sensor value in the declared unit. Null when quality is BAD."
+    },
+    {
+      "name": "unit",
+      "type": "string",
+      "doc": "SI or domain unit string, e.g. '°C', '%RH', 'ppm', 'dBm'."
+    },
+    {
+      "name": "quality",
+      "type": {
+        "type": "enum",
+        "name": "ReadingQuality",
+        "symbols": ["GOOD", "UNCERTAIN", "BAD"],
+        "doc": "OPC-UA quality flags: GOOD = usable, UNCERTAIN = degraded sensor, BAD = reading unavailable."
+      },
+      "default": "GOOD"
+    }
+  ]
+}

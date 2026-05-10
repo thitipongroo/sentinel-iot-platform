@@ -1,0 +1,62 @@
+{
+  "type": "record",
+  "name": "EdgeMetadata",
+  "namespace": "com.sentinel.iot.avro",
+  "doc": "Edge device runtime metadata carried alongside every telemetry payload. All fields optional — omit what the firmware does not report.",
+  "fields": [
+    {
+      "name": "firmwareVersion",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Semantic version string of running firmware, e.g. '2.4.1'."
+    },
+    {
+      "name": "ipAddress",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "IPv4 or IPv6 address of the edge device at time of transmission."
+    },
+    {
+      "name": "uptimeSeconds",
+      "type": ["null", "long"],
+      "default": null,
+      "doc": "Seconds since last device boot. Useful for detecting unexpected reboots."
+    },
+    {
+      "name": "rssi",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "Received signal strength indicator in dBm (negative; closer to 0 is stronger)."
+    },
+    {
+      "name": "snr",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "Signal-to-noise ratio in dB. Relevant for LoRa/LoRaWAN deployments."
+    },
+    {
+      "name": "batteryVoltage",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "Battery terminal voltage in volts."
+    },
+    {
+      "name": "batteryPct",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "Estimated state of charge 0-100%. Derived from voltage curve by firmware."
+    },
+    {
+      "name": "freeHeapBytes",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "Free heap RAM in bytes. Useful for detecting memory leaks over uptime."
+    },
+    {
+      "name": "protocol",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Transport protocol used, e.g. 'MQTT', 'MQTT_TLS', 'LORAWAN', 'COAP'."
+    }
+  ]
+}

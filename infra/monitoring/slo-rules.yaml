@@ -1,0 +1,263 @@
+# Sentinel IoT Platform — SLO Alerting Rules
+#
+# SLO targets:
+#   Availability:   99.9% uptime over rolling 30-day window (error budget: 43 min/month)
+#   API latency:    95% of requests < 200 ms, 99% < 500 ms (rolling 1-hour)
+#   Telemetry E2E:  99.5% of MQTT messages ingested within 5 seconds
+#   Alert delivery: 99% of threshold breaches trigger a notification within 30 seconds
+#
+# Implementation: Google SRE multi-window, multi-burn-rate alerting.
+# Burn rate thresholds (for 99.9% target = 0.1% budget):
+#   1h window,  burn ≥ 14.4  → "fast burn" page (≈ 2% budget consumed in 1h)
+#   6h window,  burn ≥ 6.0   → "medium burn" page (≈ 5% budget in 6h)
+#   1d window,  burn ≥ 3.0   → "slow burn" ticket (≈ 10% budget in 24h)
+#   3d window,  burn ≥ 1.0   → "trend" warning (on track to exhaust budget)
+
+groups:
+
+  # ── Recording rules (materialise SLI metrics) ──────────────────────────────
+  - name: sentinel.slo.recording
+    interval: 30s
+    rules:
+
+      # --- Availability SLI: HTTP 5xx / total requests (per 5m) ---------------
+      - record: sentinel:http_request_errors:rate5m
+        expr: |
+          sum(rate(http_server_requests_seconds_count{
+            job="sentinel-backend",
+            status=~"5.."
+          }[5m]))
+
+      - record: sentinel:http_request_total:rate5m
+        expr: |
+          sum(rate(http_server_requests_seconds_count{
+            job="sentinel-backend"
+          }[5m]))
+
+      # Error ratio (1 = 100% errors, 0 = no errors)
+      - record: sentinel:http_error_ratio:rate5m
+        expr: |
+          sentinel:http_request_errors:rate5m
+          /
+          clamp_min(sentinel:http_request_total:rate5m, 1e-9)
+
+      # Good request ratio (the SLI itself — higher is better)
+      - record: sentinel:http_availability_sli:rate5m
+        expr: 1 - sentinel:http_error_ratio:rate5m
+
+      # --- Latency SLI: fraction of requests below 200 ms (p95 window) --------
+      - record: sentinel:http_latency_p95_under_200ms:rate5m
+        expr: |
+          sum(rate(http_server_requests_seconds_bucket{
+            job="sentinel-backend",
+            le="0.2"
+          }[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count{
+            job="sentinel-backend"
+          }[5m])), 1e-9)
+
+      # --- Latency SLI: fraction of requests below 500 ms (p99 window) --------
+      - record: sentinel:http_latency_p99_under_500ms:rate5m
+        expr: |
+          sum(rate(http_server_requests_seconds_bucket{
+            job="sentinel-backend",
+            le="0.5"
+          }[5m]))
+          /
+          clamp_min(sum(rate(http_server_requests_seconds_count{
+            job="sentinel-backend"
+          }[5m])), 1e-9)
+
+      # --- Telemetry ingest SLI: Kafka lag as a proxy for E2E latency ----------
+      # Assumes KEDA exposes kafka_consumergroup_lag metric (from kube-state-metrics)
+      - record: sentinel:telemetry_ingest_lag_current
+        expr: |
+          sum(kafka_consumergroup_lag{
+            consumergroup="sentinel-telemetry-ingest",
+            topic="telemetry.raw"
+          })
+
+      # --- Error budget burn rate (1-hour window) ——————————————————————————————
+      # Formula: burn_rate = (error_ratio_in_window) / (1 - slo_target)
+      # 99.9% SLO → error budget = 0.001
+      - record: sentinel:error_budget_burn_rate:1h
+        expr: |
+          (
+            1 - avg_over_time(sentinel:http_availability_sli:rate5m[1h])
+          ) / 0.001
+
+      - record: sentinel:error_budget_burn_rate:6h
+        expr: |
+          (
+            1 - avg_over_time(sentinel:http_availability_sli:rate5m[6h])
+          ) / 0.001
+
+      - record: sentinel:error_budget_burn_rate:1d
+        expr: |
+          (
+            1 - avg_over_time(sentinel:http_availability_sli:rate5m[1d])
+          ) / 0.001
+
+      - record: sentinel:error_budget_burn_rate:3d
+        expr: |
+          (
+            1 - avg_over_time(sentinel:http_availability_sli:rate5m[3d])
+          ) / 0.001
+
+      # Remaining error budget fraction (1.0 = full, 0.0 = exhausted)
+      - record: sentinel:error_budget_remaining:30d
+        expr: |
+          1 - (
+            (1 - avg_over_time(sentinel:http_availability_sli:rate5m[30d]))
+            / 0.001
+          )
+
+  # ── Alerting rules ──────────────────────────────────────────────────────────
+  - name: sentinel.slo.alerts
+    rules:
+
+      # ── Fast burn (page immediately) ─────────────────────────────────────────
+      - alert: SentinelSLOFastBurn
+        expr: |
+          sentinel:error_budget_burn_rate:1h > 14.4
+          and
+          sentinel:error_budget_burn_rate:5m > 14.4
+        for: 2m
+        labels:
+          severity: critical
+          slo: availability
+          team: platform
+        annotations:
+          summary: "Sentinel error budget burning fast (>14.4x rate)"
+          description: >
+            The 1-hour burn rate is {{ $value | humanize }}x the sustainable rate.
+            At this pace the monthly error budget will be exhausted in
+            {{ div 720 $value | humanizeDuration }}.
+            Current 5-min availability: {{ sentinel:http_availability_sli:rate5m | humanizePercentage }}.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/slo-fast-burn"
+
+      # ── Medium burn (page) ───────────────────────────────────────────────────
+      - alert: SentinelSLOMediumBurn
+        expr: |
+          sentinel:error_budget_burn_rate:6h > 6.0
+          and
+          sentinel:error_budget_burn_rate:30m > 6.0
+        for: 15m
+        labels:
+          severity: critical
+          slo: availability
+          team: platform
+        annotations:
+          summary: "Sentinel error budget burning at medium rate (>6x)"
+          description: >
+            The 6-hour burn rate is {{ $value | humanize }}x.
+            Estimated budget exhaustion in {{ div 4320 $value | humanizeDuration }}.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/slo-medium-burn"
+
+      # ── Slow burn (ticket) ───────────────────────────────────────────────────
+      - alert: SentinelSLOSlowBurn
+        expr: sentinel:error_budget_burn_rate:1d > 3.0
+        for: 1h
+        labels:
+          severity: warning
+          slo: availability
+          team: platform
+        annotations:
+          summary: "Sentinel error budget slow burn (>3x)"
+          description: >
+            The 24-hour burn rate is {{ $value | humanize }}x. No immediate risk,
+            but investigate before the weekly error budget review.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/slo-slow-burn"
+
+      # ── Error budget trend (informational) ────────────────────────────────────
+      - alert: SentinelErrorBudgetLow
+        expr: sentinel:error_budget_remaining:30d < 0.1
+        for: 30m
+        labels:
+          severity: warning
+          slo: availability
+          team: platform
+        annotations:
+          summary: "Sentinel 30-day error budget below 10%"
+          description: >
+            Only {{ $value | humanizePercentage }} of the monthly error budget remains.
+            All non-critical deploys should be frozen until budget recovers.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/slo-budget-low"
+
+      # ── Latency SLO: p95 ─────────────────────────────────────────────────────
+      - alert: SentinelLatencyP95Breach
+        expr: sentinel:http_latency_p95_under_200ms:rate5m < 0.95
+        for: 5m
+        labels:
+          severity: warning
+          slo: latency-p95
+          team: platform
+        annotations:
+          summary: "Sentinel p95 latency SLO breach (<95% requests under 200ms)"
+          description: >
+            Only {{ $value | humanizePercentage }} of requests completed under 200 ms
+            in the last 5 minutes. SLO target is 95%.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/latency-p95"
+
+      # ── Latency SLO: p99 ─────────────────────────────────────────────────────
+      - alert: SentinelLatencyP99Breach
+        expr: sentinel:http_latency_p99_under_500ms:rate5m < 0.99
+        for: 5m
+        labels:
+          severity: critical
+          slo: latency-p99
+          team: platform
+        annotations:
+          summary: "Sentinel p99 latency SLO breach (<99% requests under 500ms)"
+          description: >
+            Only {{ $value | humanizePercentage }} of requests completed under 500 ms
+            in the last 5 minutes. SLO target is 99%.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/latency-p99"
+
+      # ── Telemetry ingest lag spike ────────────────────────────────────────────
+      - alert: SentinelTelemetryLagHigh
+        expr: sentinel:telemetry_ingest_lag_current > 10000
+        for: 3m
+        labels:
+          severity: warning
+          slo: telemetry-ingest
+          team: platform
+        annotations:
+          summary: "Sentinel Kafka consumer lag exceeds 10 000 messages"
+          description: >
+            Consumer group sentinel-telemetry-ingest has {{ $value }} messages of lag
+            on topic telemetry.raw. Telemetry E2E latency SLO may be at risk.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/kafka-lag"
+
+      - alert: SentinelTelemetryLagCritical
+        expr: sentinel:telemetry_ingest_lag_current > 50000
+        for: 2m
+        labels:
+          severity: critical
+          slo: telemetry-ingest
+          team: platform
+        annotations:
+          summary: "Sentinel Kafka consumer lag critical (>50 000 messages)"
+          description: >
+            Consumer lag is {{ $value }} messages — devices are accumulating data
+            faster than the pipeline can process. Scale the backend KEDA target or
+            investigate consumer deadlock.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/kafka-lag-critical"
+
+      # ── JVM health proxy ──────────────────────────────────────────────────────
+      - alert: SentinelJVMHeapHigh
+        expr: |
+          jvm_memory_used_bytes{area="heap", job="sentinel-backend"}
+          / jvm_memory_max_bytes{area="heap", job="sentinel-backend"}
+          > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Sentinel JVM heap above 85%"
+          description: >
+            Heap usage is at {{ $value | humanizePercentage }}. GC pressure may
+            start impacting p99 latency. Consider increasing heap or investigating leaks.
+          runbook_url: "https://wiki.sentinel-iot.io/runbooks/jvm-heap"

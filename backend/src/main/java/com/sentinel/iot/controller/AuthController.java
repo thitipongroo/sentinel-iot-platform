@@ -23,7 +23,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "Login, token refresh, and logout")
 public class AuthController {
@@ -52,7 +52,7 @@ public class AuthController {
         String accessToken = jwtService.generateAccessToken(req.getUsername(), role, appUser.getOrganizationId());
         RefreshToken refreshToken = jwtService.generateRefreshToken(req.getUsername());
 
-        auditService.log(req.getUsername(), "LOGIN", "/api/auth/login", null, getClientIp(httpRequest));
+        auditService.log(req.getUsername(), "LOGIN", "/api/v1/auth/login", null, getClientIp(httpRequest));
 
         return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken.getToken(), role, req.getUsername()));
     }
@@ -82,7 +82,7 @@ public class AuthController {
                                        HttpServletRequest httpRequest) {
         if (authentication != null) {
             jwtService.revokeAllRefreshTokens(authentication.getName());
-            auditService.log(authentication.getName(), "LOGOUT", "/api/auth/logout", null,
+            auditService.log(authentication.getName(), "LOGOUT", "/api/v1/auth/logout", null,
                     getClientIp(httpRequest));
         }
         return ResponseEntity.noContent().build();

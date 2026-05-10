@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/alerts")
+@RequestMapping("/api/v1/alerts")
 @RequiredArgsConstructor
 @Tag(name = "Alerts", description = "Threshold alert retrieval and acknowledgment")
 public class AlertController {

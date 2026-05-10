@@ -1,0 +1,64 @@
+{
+  "type": "record",
+  "name": "TelemetryMessage",
+  "namespace": "com.sentinel.iot.avro",
+  "doc": "Canonical IoT telemetry event produced by edge devices and consumed by the ingest pipeline. Supports two payload generations: v1 (fixed scalar fields) and v2 (dynamic readings map). v1 devices MUST be accommodated indefinitely — all new fields must carry defaults.",
+  "fields": [
+    {
+      "name": "deviceId",
+      "type": "string",
+      "doc": "Device name/identifier as registered in the Sentinel platform. Used as the Kafka message key."
+    },
+    {
+      "name": "schemaVersion",
+      "type": "int",
+      "default": 1,
+      "doc": "Payload generation: 1 = legacy scalar fields, 2 = dynamic readings map. Ingest pipeline branches on this value."
+    },
+    {
+      "name": "timestamp",
+      "type": ["null", "long"],
+      "default": null,
+      "doc": "Device-local event time as Unix epoch milliseconds. Server assigns ingestion time when null."
+    },
+    {
+      "name": "temperature",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "[v1] Ambient temperature in °C."
+    },
+    {
+      "name": "humidity",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "[v1] Relative humidity in %RH."
+    },
+    {
+      "name": "smokePpm",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "[v1] Smoke/particulate concentration in ppm."
+    },
+    {
+      "name": "motion",
+      "type": ["null", "boolean"],
+      "default": null,
+      "doc": "[v1] Motion detection state."
+    },
+    {
+      "name": "readings",
+      "type": {
+        "type": "map",
+        "values": "SensorReading"
+      },
+      "default": {},
+      "doc": "[v2] Dynamic sensor readings keyed by SensorType name (e.g. 'TEMPERATURE', 'CO2_PPM'). Takes precedence over scalar fields when schemaVersion >= 2."
+    },
+    {
+      "name": "edge",
+      "type": ["null", "EdgeMetadata"],
+      "default": null,
+      "doc": "Optional edge device runtime metadata. Populated by firmware that supports it."
+    }
+  ]
+}

@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/devices")
+@RequestMapping("/api/v1/devices")
 @RequiredArgsConstructor
 @Tag(name = "Devices", description = "Device registration, lifecycle, firmware, and capability management")
 public class DeviceController {

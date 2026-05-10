@@ -1,132 +1,202 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
 import { useWebSocket } from '@/hooks/useWebSocket'
+import { useStore } from '@/lib/store'
+import { qk } from '@/lib/queryClient'
 import { devicesApi, alertsApi, telemetryApi } from '@/api/client'
-import DeviceList from '@/components/DeviceList'
+import DeviceTable from '@/components/DeviceTable'
 import TelemetryChart from '@/components/TelemetryChart'
 import AlertList from '@/components/AlertList'
 import StatsBar from '@/components/StatsBar'
 import DeviceManagement from '@/components/DeviceManagement'
+import OfflineBanner from '@/components/ui/OfflineBanner'
+import ErrorBoundary from '@/components/ui/ErrorBoundary'
 
 export default function DashboardPage() {
   const { user, logout, loading } = useAuth()
   const router = useRouter()
   const { lastMessage, status: wsStatus } = useWebSocket()
+  const qc = useQueryClient()
 
-  const [devices,        setDevices]        = useState([])
-  const [alerts,         setAlerts]         = useState([])
-  const [selectedDevice, setSelectedDevice] = useState(null)
-  const [telemetry,      setTelemetry]      = useState([])
-  const [stats,          setStats]          = useState({ lastMinute: 0, replayQueueSize: 0 })
+  const { selectedDeviceId, setSelectedDeviceId } = useStore()
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
   }, [user, loading, router])
 
-  const loadDevices = useCallback(async () => {
-    try {
-      const { data } = await devicesApi.list()
-      setDevices(data)
-      if (!selectedDevice && data.length > 0) setSelectedDevice(data[0])
-    } catch { /* handled by axios interceptor */ }
-  }, [selectedDevice])
+  // ── Server state via React Query ─────────────────────────────────────────────
+  const { data: devices = [] } = useQuery({
+    queryKey: qk.devices(),
+    queryFn:  () => devicesApi.list().then(r => r.data),
+    enabled:  !!user,
+  })
 
-  const loadAlerts = useCallback(async () => {
-    try {
-      const { data } = await alertsApi.list()
-      setAlerts(data)
-    } catch { /* */ }
-  }, [])
+  const { data: alerts = [] } = useQuery({
+    queryKey: qk.alerts(),
+    queryFn:  () => alertsApi.list().then(r => r.data),
+    enabled:  !!user,
+  })
 
-  const loadStats = useCallback(async () => {
-    try {
-      const { data } = await telemetryApi.stats()
-      setStats(data)
-    } catch { /* */ }
-  }, [])
+  const { data: stats = { lastMinute: 0, replayQueueSize: 0 } } = useQuery({
+    queryKey: qk.stats(),
+    queryFn:  () => telemetryApi.stats().then(r => r.data),
+    enabled:  !!user,
+  })
 
+  // Derive selected device from normalized id in store
+  const selectedDevice = devices.find(d => d.id === selectedDeviceId) ?? devices[0] ?? null
+
+  // Auto-select first device once devices load
   useEffect(() => {
-    if (!user) return
-    loadDevices()
-    loadAlerts()
-    loadStats()
-    const interval = setInterval(() => {
-      loadDevices()
-      loadAlerts()
-      loadStats()
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [user, loadDevices, loadAlerts, loadStats])
+    if (!selectedDeviceId && devices.length > 0) setSelectedDeviceId(devices[0].id)
+  }, [devices, selectedDeviceId, setSelectedDeviceId])
 
-  useEffect(() => {
-    if (!selectedDevice) return
-    telemetryApi.latest(selectedDevice.id, 50).then(({ data }) => setTelemetry(data.reverse()))
-  }, [selectedDevice])
+  const { data: telemetry = [] } = useQuery({
+    queryKey: qk.telemetry(selectedDevice?.id),
+    queryFn:  () => telemetryApi.latest(selectedDevice.id, 50).then(r => [...r.data].reverse()),
+    enabled:  !!selectedDevice,
+  })
 
+  // ── WebSocket: splice live readings into telemetry cache ─────────────────────
   useEffect(() => {
     if (!lastMessage || !selectedDevice) return
-    if (lastMessage.deviceId === selectedDevice.name) {
-      setTelemetry(prev => [...prev.slice(-49), {
+    if (lastMessage.deviceId !== selectedDevice.name) return
+
+    qc.setQueryData(qk.telemetry(selectedDevice.id), (prev = []) =>
+      [...prev.slice(-49), {
         id:          Date.now(),
         temperature: lastMessage.temperature,
         humidity:    lastMessage.humidity,
         motion:      lastMessage.motion,
         smokePpm:    lastMessage.smokePpm,
-        timestamp:   new Date().toISOString()
-      }])
-    }
+        timestamp:   new Date().toISOString(),
+      }]
+    )
+
     if (lastMessage.temperature > 80 || lastMessage.smokePpm > 200) {
-      loadAlerts()
+      qc.invalidateQueries({ queryKey: qk.alerts() })
     }
-  }, [lastMessage, selectedDevice, loadAlerts])
+  }, [lastMessage, selectedDevice, qc])
+
+  // ── Optimistic alert acknowledge ─────────────────────────────────────────────
+  const acknowledgeMutation = useMutation({
+    mutationFn: (alertId) => alertsApi.acknowledge(alertId),
+
+    onMutate: async (alertId) => {
+      await qc.cancelQueries({ queryKey: qk.alerts() })
+      const prev = qc.getQueryData(qk.alerts())
+      qc.setQueryData(qk.alerts(), (old = []) =>
+        old.map(a => a.id === alertId ? { ...a, acknowledged: true } : a)
+      )
+      return { prev }
+    },
+
+    onError: (_err, _alertId, ctx) => {
+      qc.setQueryData(qk.alerts(), ctx.prev)
+    },
+
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.alerts() })
+    },
+  })
 
   if (loading || !user) {
-    return <div className="flex items-center justify-center h-screen text-sentinel-accent">Loading…</div>
+    return (
+      <div className="flex items-center justify-center h-screen text-sentinel-accent">
+        Loading…
+      </div>
+    )
   }
 
   const isAdmin = user?.role === 'ADMIN'
 
   return (
-    <div className="min-h-screen bg-sentinel-900">
-      <header className="bg-sentinel-800 border-b border-sentinel-700 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-sentinel-accent text-2xl font-bold">⚡ Sentinel</span>
-          <span className="text-gray-400 text-sm">IoT Platform</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className={`flex items-center gap-1.5 text-xs ${wsStatus === 'CONNECTED' ? 'text-sentinel-success' : 'text-sentinel-warning'}`}>
-            <span className={`w-2 h-2 rounded-full ${wsStatus === 'CONNECTED' ? 'bg-sentinel-success animate-pulse' : 'bg-sentinel-warning'}`} />
-            WS {wsStatus}
-          </span>
-          <span className="text-sm text-gray-400">{user?.username} ({user?.role})</span>
-          <button onClick={logout} className="text-xs text-gray-500 hover:text-white">Logout</button>
-        </div>
-      </header>
+    <>
+      <OfflineBanner />
 
-      <main className="p-6 space-y-6">
-        <StatsBar devices={devices} alerts={alerts} stats={stats} />
+      <div className="min-h-screen bg-sentinel-900">
+        {/* ── Header ─────────────────────────────────────────────────────────── */}
+        <header className="bg-sentinel-800 border-b border-sentinel-700 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sentinel-accent text-2xl font-bold">⚡ Sentinel</span>
+            <span className="text-gray-400 text-sm">IoT Platform</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span
+              className={`flex items-center gap-1.5 text-xs ${
+                wsStatus === 'CONNECTED' ? 'text-sentinel-success' : 'text-sentinel-warning'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  wsStatus === 'CONNECTED'
+                    ? 'bg-sentinel-success animate-pulse'
+                    : 'bg-sentinel-warning'
+                }`}
+                aria-hidden="true"
+              />
+              <span aria-label={`WebSocket ${wsStatus}`}>WS {wsStatus}</span>
+            </span>
+            <span className="text-sm text-gray-400">
+              {user?.username} ({user?.role})
+            </span>
+            <button
+              onClick={logout}
+              className="text-xs text-gray-500 hover:text-white focus:outline-none focus:underline"
+              aria-label="Log out"
+            >
+              Logout
+            </button>
+          </div>
+        </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1">
-            <DeviceList
-              devices={devices}
-              selected={selectedDevice}
-              onSelect={setSelectedDevice}
-              lastMessage={lastMessage}
-            />
+        {/* ── Main content ───────────────────────────────────────────────────── */}
+        <main className="p-6 space-y-6" id="main-content">
+          <StatsBar devices={devices} alerts={alerts} stats={stats} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Device list — full virtualized table with filtering */}
+            <div className="lg:col-span-1">
+              <ErrorBoundary label="Device list">
+                <DeviceTable
+                  devices={devices}
+                  selected={selectedDevice}
+                  onSelect={(device) => setSelectedDeviceId(device.id)}
+                  lastMessage={lastMessage}
+                />
+              </ErrorBoundary>
+            </div>
+
+            {/* Detail panel */}
+            <div className="lg:col-span-2 space-y-6">
+              <ErrorBoundary label="Telemetry chart">
+                <TelemetryChart data={telemetry} device={selectedDevice} />
+              </ErrorBoundary>
+
+              <ErrorBoundary label="Alert list">
+                <AlertList
+                  alerts={alerts}
+                  onAcknowledge={(id) => acknowledgeMutation.mutate(id)}
+                  userRole={user?.role}
+                />
+              </ErrorBoundary>
+
+              {isAdmin && selectedDevice && (
+                <ErrorBoundary label="Device management">
+                  <DeviceManagement
+                    device={selectedDevice}
+                    onUpdate={() => qc.invalidateQueries({ queryKey: qk.devices() })}
+                  />
+                </ErrorBoundary>
+              )}
+            </div>
           </div>
-          <div className="lg:col-span-2 space-y-6">
-            <TelemetryChart data={telemetry} device={selectedDevice} />
-            <AlertList alerts={alerts} onAcknowledge={loadAlerts} userRole={user?.role} />
-            {isAdmin && selectedDevice && (
-              <DeviceManagement device={selectedDevice} onUpdate={loadDevices} />
-            )}
-          </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   )
 }
