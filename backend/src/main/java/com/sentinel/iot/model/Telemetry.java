@@ -1,0 +1,41 @@
+package com.sentinel.iot.model;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = "telemetry", indexes = {
+    @Index(name = "idx_telemetry_device_id", columnList = "device_id"),
+    @Index(name = "idx_telemetry_timestamp", columnList = "timestamp")
+})
+@Data
+@NoArgsConstructor
+public class Telemetry {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(name = "device_id", nullable = false)
+    private UUID deviceId;
+
+    @Column(nullable = false)
+    private Double temperature;
+
+    @Column(nullable = false)
+    private Double humidity;
+
+    @Column(nullable = false)
+    private Instant timestamp;
+
+    public Telemetry(UUID deviceId, Double temperature, Double humidity) {
+        this.deviceId = deviceId;
+        this.temperature = temperature;
+        this.humidity = humidity;
+        this.timestamp = Instant.now();
+    }
+}

@@ -1,0 +1,157 @@
+version: '3.9'
+
+networks:
+  sentinel-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  mosquitto_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+  # ─── Infrastructure ────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentinel-postgres
+    environment:
+      POSTGRES_DB: sentinel
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: sentinel
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks: [sentinel-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks: [sentinel-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: sentinel-mqtt
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    networks: [sentinel-net]
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -t 'health' -m 'ping' -q 0 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Application ───────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentinel-backend
+    environment:
+      DB_HOST: postgres
+      DB_NAME: sentinel
+      DB_USER: sentinel
+      DB_PASSWORD: sentinel
+      REDIS_HOST: redis
+      MQTT_BROKER: tcp://mosquitto:1883
+      JWT_SECRET: ${JWT_SECRET:-sentinelSuperSecretKeyForJWTSigningPurpose2024}
+      LINE_NOTIFY_TOKEN: ${LINE_NOTIFY_TOKEN:-}
+      LINE_NOTIFY_ENABLED: ${LINE_NOTIFY_ENABLED:-false}
+      TEMP_THRESHOLD: ${TEMP_THRESHOLD:-80}
+    ports:
+      - "8080:8080"
+    networks: [sentinel-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sentinel-frontend
+    ports:
+      - "3000:80"
+    networks: [sentinel-net]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: sentinel-simulator
+    environment:
+      MQTT_BROKER: mqtt://mosquitto:1883
+      MQTT_TOPIC: factory/telemetry
+      INTERVAL_MS: ${SIMULATOR_INTERVAL:-5000}
+      DEVICES: ${SIMULATOR_DEVICES:-sensor-1,sensor-2,sensor-3}
+    networks: [sentinel-net]
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Monitoring ────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: sentinel-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "9090:9090"
+    networks: [sentinel-net]
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: sentinel-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    networks: [sentinel-net]
+    depends_on: [prometheus]
