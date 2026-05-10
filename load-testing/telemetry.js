@@ -43,7 +43,7 @@ function getToken() {
     { headers: { 'Content-Type': 'application/json' } }
   )
   if (resp.status === 200) {
-    token = JSON.parse(resp.body).token
+    token = JSON.parse(resp.body).accessToken
   }
   return token
 }

@@ -3,6 +3,8 @@ package com.sentinel.iot.controller;
 import com.sentinel.iot.model.Telemetry;
 import com.sentinel.iot.service.RedisService;
 import com.sentinel.iot.service.TelemetryService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -16,12 +18,14 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/telemetry")
 @RequiredArgsConstructor
+@Tag(name = "Telemetry", description = "Sensor telemetry retrieval")
 public class TelemetryController {
 
     private final TelemetryService telemetryService;
     private final RedisService redisService;
 
     @GetMapping("/{deviceId}/latest")
+    @Operation(summary = "Get latest N telemetry readings from PostgreSQL (max 200)")
     public ResponseEntity<List<Telemetry>> getLatest(
             @PathVariable UUID deviceId,
             @RequestParam(defaultValue = "50") int limit) {
@@ -29,11 +33,13 @@ public class TelemetryController {
     }
 
     @GetMapping("/{deviceId}/cache")
+    @Operation(summary = "Get the most recent telemetry reading from Redis (sub-millisecond)")
     public ResponseEntity<Map<Object, Object>> getCached(@PathVariable UUID deviceId) {
         return ResponseEntity.ok(redisService.getLatestTelemetry(deviceId.toString()));
     }
 
     @GetMapping("/{deviceId}/range")
+    @Operation(summary = "Get telemetry within a time range")
     public ResponseEntity<List<Telemetry>> getRange(
             @PathVariable UUID deviceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
@@ -42,6 +48,7 @@ public class TelemetryController {
     }
 
     @GetMapping("/stats")
+    @Operation(summary = "Count telemetry events received in the last 60 seconds")
     public ResponseEntity<Map<String, Long>> stats() {
         return ResponseEntity.ok(Map.of("lastMinute", telemetryService.countLastMinute()));
     }

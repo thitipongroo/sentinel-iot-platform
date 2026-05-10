@@ -2,6 +2,8 @@ package com.sentinel.iot.service;
 
 import com.sentinel.iot.model.Telemetry;
 import com.sentinel.iot.repository.TelemetryRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,7 @@ public class TelemetryService {
     private final TelemetryRepository telemetryRepository;
     private final RedisService redisService;
     private final Counter telemetryCounter;
+    private final Counter telemetryDroppedCounter;
 
     public TelemetryService(TelemetryRepository telemetryRepository,
                             RedisService redisService,
@@ -28,14 +31,31 @@ public class TelemetryService {
         this.telemetryCounter = Counter.builder("sentinel.telemetry.received")
                 .description("Total telemetry messages received via MQTT")
                 .register(meterRegistry);
+        this.telemetryDroppedCounter = Counter.builder("sentinel.telemetry.dropped")
+                .description("Telemetry messages dropped due to DB unavailability")
+                .register(meterRegistry);
     }
 
+    @Retry(name = "telemetryDB", fallbackMethod = "saveFallback")
+    @CircuitBreaker(name = "telemetryDB", fallbackMethod = "saveFallback")
     public Telemetry save(UUID deviceId, Double temperature, Double humidity, Boolean motion, Double smokePpm) {
         Telemetry t = new Telemetry(deviceId, temperature, humidity, motion, smokePpm);
         Telemetry saved = telemetryRepository.save(t);
         redisService.setLatestTelemetry(deviceId.toString(), temperature, humidity, motion, smokePpm);
         telemetryCounter.increment();
         return saved;
+    }
+
+    /**
+     * Fallback: DB is unavailable — cache the reading in Redis so it's still visible on the dashboard
+     * and increment the dropped counter for alerting via Prometheus.
+     */
+    public Telemetry saveFallback(UUID deviceId, Double temperature, Double humidity,
+                                  Boolean motion, Double smokePpm, Throwable t) {
+        log.error("DB unavailable, buffering telemetry to Redis for device {}: {}", deviceId, t.getMessage());
+        redisService.setLatestTelemetry(deviceId.toString(), temperature, humidity, motion, smokePpm);
+        telemetryDroppedCounter.increment();
+        return null;
     }
 
     public List<Telemetry> getLatest(UUID deviceId, int limit) {

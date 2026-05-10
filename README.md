@@ -120,8 +120,24 @@ Content-Type: application/json
 
 { "username": "admin", "password": "admin123" }
 
-→ 200 { "token": "eyJ...", "role": "ADMIN", "username": "admin" }
+→ 200 { "accessToken": "eyJ...", "refreshToken": "uuid.uuid", "role": "ADMIN", "username": "admin" }
+
+POST /api/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "uuid.uuid" }
+
+→ 200 { "accessToken": "eyJ...", "refreshToken": "new-uuid.uuid", ... }
+
+POST /api/auth/logout          # Revokes all refresh tokens for authenticated user
+Authorization: Bearer <accessToken>
 ```
+
+> Tokens: access token expires in **15 minutes**; refresh token expires in **7 days** with automatic rotation on every use.
+
+### Swagger UI
+
+Interactive API docs available at [`http://localhost:8080/swagger-ui.html`](http://localhost:8080/swagger-ui.html) after starting the backend.
 
 ### Devices
 
@@ -190,6 +206,17 @@ Motion + elevated temperature (>70°C) also triggers a WARNING alert.
 When any threshold is breached, an `Alert` row is created and LINE Notify fires (if configured).
 
 ---
+
+## Security
+
+| Feature | Implementation |
+| --- | --- |
+| Authentication | JWT access token (15 min) + opaque refresh token (7 days, rotated on use) |
+| Rate Limiting | Bucket4j — 100 req/min per IP on all `/api/*` routes (Redis-upgradeable) |
+| RBAC | Spring Security — `ADMIN` and `OPERATOR` roles with method-level `@PreAuthorize` |
+| Secret Management | `JWT_SECRET` is **required** at runtime — no default, no fallback. Use `.env` from `.env.example` |
+| Audit Logging | All login, logout, token-refresh, and alert-acknowledge events are persisted to `audit_logs` |
+| Circuit Breaker | Resilience4j `@CircuitBreaker` + `@Retry` on telemetry DB writes — falls back to Redis buffering |
 
 ## LINE Notify Setup
 

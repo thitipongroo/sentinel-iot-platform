@@ -2,7 +2,14 @@ package com.sentinel.iot.controller;
 
 import com.sentinel.iot.dto.AuthRequest;
 import com.sentinel.iot.dto.AuthResponse;
+import com.sentinel.iot.dto.RefreshRequest;
+import com.sentinel.iot.model.RefreshToken;
+import com.sentinel.iot.service.AuditService;
 import com.sentinel.iot.service.JwtService;
+import com.sentinel.iot.service.UserDetailsServiceImpl;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -10,18 +17,24 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Tag(name = "Authentication", description = "Login, token refresh, and logout")
 public class AuthController {
 
     private final AuthenticationManager authManager;
     private final JwtService jwtService;
+    private final UserDetailsServiceImpl userDetailsService;
+    private final AuditService auditService;
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest req) {
+    @Operation(summary = "Authenticate and receive access + refresh tokens")
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest req,
+                                              HttpServletRequest httpRequest) {
         Authentication auth = authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword()));
 
@@ -31,7 +44,45 @@ public class AuthController {
                 .orElse("ROLE_OPERATOR")
                 .replace("ROLE_", "");
 
-        String token = jwtService.generateToken(req.getUsername(), role);
-        return ResponseEntity.ok(new AuthResponse(token, role, req.getUsername()));
+        String accessToken = jwtService.generateAccessToken(req.getUsername(), role);
+        RefreshToken refreshToken = jwtService.generateRefreshToken(req.getUsername());
+
+        auditService.log(req.getUsername(), "LOGIN", "/api/auth/login", null, getClientIp(httpRequest));
+
+        return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken.getToken(), role, req.getUsername()));
+    }
+
+    @PostMapping("/refresh")
+    @Operation(summary = "Rotate refresh token and receive a new access token")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest req) {
+        RefreshToken newRefreshToken = jwtService.rotateRefreshToken(req.getRefreshToken());
+        String username = newRefreshToken.getUsername();
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        String role = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .findFirst()
+                .orElse("ROLE_OPERATOR")
+                .replace("ROLE_", "");
+
+        String accessToken = jwtService.generateAccessToken(username, role);
+        return ResponseEntity.ok(new AuthResponse(accessToken, newRefreshToken.getToken(), role, username));
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Revoke all refresh tokens for the authenticated user")
+    public ResponseEntity<Void> logout(Authentication authentication,
+                                       HttpServletRequest httpRequest) {
+        if (authentication != null) {
+            jwtService.revokeAllRefreshTokens(authentication.getName());
+            auditService.log(authentication.getName(), "LOGOUT", "/api/auth/logout", null,
+                    getClientIp(httpRequest));
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        return (forwarded != null) ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
     }
 }

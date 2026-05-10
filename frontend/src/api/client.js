@@ -25,7 +25,9 @@ api.interceptors.response.use(
 )
 
 export const authApi = {
-  login: (username, password) => api.post('/auth/login', { username, password })
+  login: (username, password) => api.post('/auth/login', { username, password }),
+  refresh: (refreshToken) => api.post('/auth/refresh', { refreshToken }),
+  logout: () => api.post('/auth/logout')
 }
 
 export const devicesApi = {

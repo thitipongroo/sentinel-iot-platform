@@ -77,7 +77,7 @@ services:
       DB_PASSWORD: sentinel
       REDIS_HOST: redis
       MQTT_BROKER: tcp://mosquitto:1883
-      JWT_SECRET: ${JWT_SECRET:-sentinelSuperSecretKeyForJWTSigningPurpose2024}
+      JWT_SECRET: ${JWT_SECRET}
       LINE_NOTIFY_TOKEN: ${LINE_NOTIFY_TOKEN:-}
       LINE_NOTIFY_ENABLED: ${LINE_NOTIFY_ENABLED:-false}
       TEMP_THRESHOLD: ${TEMP_THRESHOLD:-80}

@@ -21,16 +21,23 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password) => {
     const { data } = await authApi.login(username, password)
-    localStorage.setItem('sentinel_token', data.token)
+    localStorage.setItem('sentinel_token', data.accessToken)
+    localStorage.setItem('sentinel_refresh_token', data.refreshToken)
     localStorage.setItem('sentinel_user', JSON.stringify({ username: data.username, role: data.role }))
     setUser({ username: data.username, role: data.role })
     return data
   }
 
-  const logout = () => {
-    localStorage.removeItem('sentinel_token')
-    localStorage.removeItem('sentinel_user')
-    setUser(null)
+  const logout = async () => {
+    try {
+      const token = localStorage.getItem('sentinel_token')
+      if (token) await authApi.logout()
+    } catch { /* best-effort */ } finally {
+      localStorage.removeItem('sentinel_token')
+      localStorage.removeItem('sentinel_refresh_token')
+      localStorage.removeItem('sentinel_user')
+      setUser(null)
+    }
   }
 
   return (
