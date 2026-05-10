@@ -1,0 +1,156 @@
+# ── Global ────────────────────────────────────────────────────────────────────
+global:
+  imageRegistry: "ghcr.io/yourorg"
+  imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Backend (Spring Boot) ─────────────────────────────────────────────────────
+backend:
+  image:
+    repository: sentinel-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    jwtExpirationMs: "900000"
+    refreshExpirationMs: "604800000"
+    tempThreshold: "80"
+    smokeThreshold: "200"
+    corsAllowedOrigins: "https://sentinel.example.com"
+    springProfilesActive: "prod"
+  # Secret keys referenced from the ExternalSecret-provisioned K8s Secret
+  secretName: sentinel-secrets
+
+# ── Frontend (Next.js) ───────────────────────────────────────────────────────
+frontend:
+  image:
+    repository: sentinel-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    backendUrl: "http://sentinel-backend:8080"
+    nextPublicWsUrl: "wss://sentinel.example.com/ws/telemetry"
+
+# ── PostgreSQL (in-cluster dev; disabled in prod — use RDS) ──────────────────
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  persistence:
+    size: 10Gi
+    storageClass: ""   # uses cluster default; set to "gp3" on EKS
+  credentials:
+    database: sentinel
+    username: sentinel
+    # password comes from sentinel-secrets
+
+# External PostgreSQL (used when postgres.enabled=false)
+externalPostgres:
+  host: ""
+  port: "5432"
+  database: sentinel
+
+# ── Redis (in-cluster dev; disabled in prod — use ElastiCache) ───────────────
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  persistence:
+    size: 2Gi
+    storageClass: ""
+
+externalRedis:
+  host: ""
+  port: "6379"
+
+# ── Kafka (in-cluster dev; disabled in prod — use MSK) ───────────────────────
+kafka:
+  enabled: true
+  image:
+    repository: apache/kafka
+    tag: "3.7.0"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  persistence:
+    size: 20Gi
+    storageClass: ""
+  clusterId: "MkU3OEVBNTcwNTJENDM2Qk"   # stable KRaft cluster ID
+
+externalKafka:
+  bootstrapServers: ""
+
+# ── Mosquitto MQTT ───────────────────────────────────────────────────────────
+mosquitto:
+  enabled: true
+  image:
+    repository: eclipse-mosquitto
+    tag: "2.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+# ── Ingress ──────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: sentinel.example.com
+  tls:
+    enabled: true
+    secretName: sentinel-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+# ── PodDisruptionBudget ───────────────────────────────────────────────────────
+pdb:
+  backend:
+    minAvailable: 1
+  frontend:
+    minAvailable: 1

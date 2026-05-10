@@ -1,0 +1,114 @@
+{{- if .Values.mosquitto.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-mosquitto-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mosquitto
+data:
+  mosquitto.conf: |
+    listener 1883
+    allow_anonymous false
+    password_file /mosquitto/config/passwd
+    persistence true
+    persistence_location /mosquitto/data/
+    log_dest stdout
+    log_type error
+    log_type warning
+    log_type notice
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-mosquitto
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mosquitto
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "sentinel-iot.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mosquitto
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "sentinel-iot.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mosquitto
+    spec:
+      initContainers:
+        - name: passwd-init
+          image: {{ .Values.mosquitto.image.repository }}:{{ .Values.mosquitto.image.tag }}
+          command:
+            - sh
+            - -c
+            - |
+              mosquitto_passwd -b -c /mosquitto/config/passwd "$MQTT_USERNAME" "$MQTT_PASSWORD"
+          env:
+            - name: MQTT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretName }}
+                  key: MQTT_USERNAME
+            - name: MQTT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretName }}
+                  key: MQTT_PASSWORD
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config
+      containers:
+        - name: mosquitto
+          image: {{ .Values.mosquitto.image.repository }}:{{ .Values.mosquitto.image.tag }}
+          ports:
+            - containerPort: 1883
+              name: mqtt
+          livenessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.mosquitto.resources | nindent 12 }}
+          volumeMounts:
+            - name: mosquitto-config
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+            - name: config
+              mountPath: /mosquitto/config
+      volumes:
+        - name: mosquitto-config
+          configMap:
+            name: {{ include "sentinel-iot.fullname" . }}-mosquitto-config
+        - name: config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-mosquitto
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mosquitto
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "sentinel-iot.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mosquitto
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: mqtt
+{{- end }}

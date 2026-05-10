@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sentinel-iot-envs
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: dev
+            namespace: sentinel-dev
+            valuesFile: values.yaml
+            targetRevision: develop
+          - env: staging
+            namespace: sentinel-staging
+            valuesFile: values-prod.yaml
+            targetRevision: main
+          - env: prod
+            namespace: sentinel
+            valuesFile: values-prod.yaml
+            targetRevision: main
+  template:
+    metadata:
+      name: "sentinel-iot-{{env}}"
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/yourorg/sentinel-iot-platform.git
+        targetRevision: "{{targetRevision}}"
+        path: infra/helm/sentinel-iot
+        helm:
+          valueFiles:
+            - "{{valuesFile}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true
+        retry:
+          limit: 3
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 2m

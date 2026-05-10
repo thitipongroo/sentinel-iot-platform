@@ -1,0 +1,58 @@
+# Production overrides — merge on top of values.yaml.
+#
+# Key differences from dev:
+#   - In-cluster Postgres/Redis/Kafka disabled → use managed AWS services (RDS/ElastiCache/MSK)
+#   - Higher replica counts and resource limits
+#   - gp3 storage class for EKS
+#   - Autoscaling upper bound raised to 20 for backend
+#
+# Deploy with:
+#   helm upgrade --install sentinel-iot ./infra/helm/sentinel-iot \
+#     -f infra/helm/sentinel-iot/values-prod.yaml \
+#     --set backend.secretName=sentinel-prod-secrets \
+#     -n sentinel-prod --create-namespace
+
+# ── In-cluster services disabled (use managed AWS equivalents) ────────────────
+postgres:
+  enabled: false
+
+redis:
+  enabled: false
+
+kafka:
+  enabled: false
+
+# ── External endpoints (Terraform outputs populate these) ─────────────────────
+externalPostgres:
+  host: ""          # set via --set or CI: e.g. rds-endpoint.us-east-1.rds.amazonaws.com
+  port: "5432"
+  database: sentinel
+
+externalRedis:
+  host: ""          # e.g. elasticache-cluster.xxxx.cache.amazonaws.com
+  port: "6379"
+
+externalKafka:
+  bootstrapServers: ""   # e.g. b-1.sentinel.xxxxx.kafka.us-east-1.amazonaws.com:9092
+
+# ── Backend: higher replicas + tighter resources ─────────────────────────────
+backend:
+  replicaCount: 3
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 20
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: 1500m
+      memory: 1536Mi
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend:
+  replicaCount: 2
+
+# ── Storage class for EKS gp3 volumes ────────────────────────────────────────
+mosquitto:
+  enabled: true   # Mosquitto stays in-cluster (managed IoT broker is optional)

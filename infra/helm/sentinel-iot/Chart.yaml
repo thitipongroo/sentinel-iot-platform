@@ -1,0 +1,17 @@
+apiVersion: v2
+name: sentinel-iot
+description: Production-grade Industrial IoT Monitoring Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - iot
+  - mqtt
+  - kafka
+  - telemetry
+  - monitoring
+maintainers:
+  - name: sentinel-team
+home: https://github.com/yourorg/sentinel-iot-platform
+sources:
+  - https://github.com/yourorg/sentinel-iot-platform

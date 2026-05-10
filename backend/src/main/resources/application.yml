@@ -101,6 +101,13 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
   tracing:
     sampling:
       probability: 1.0
