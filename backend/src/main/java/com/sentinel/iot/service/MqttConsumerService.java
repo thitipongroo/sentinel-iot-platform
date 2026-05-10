@@ -3,6 +3,7 @@ package com.sentinel.iot.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinel.iot.dto.TelemetryMessage;
 import com.sentinel.iot.model.Device;
+import com.sentinel.iot.model.DeviceLifecycleStatus;
 import com.sentinel.iot.repository.DeviceRepository;
 import com.sentinel.iot.websocket.TelemetryWebSocketHandler;
 import io.micrometer.core.instrument.Counter;
@@ -85,6 +86,16 @@ public class MqttConsumerService {
         if (deviceOpt.isEmpty()) {
             log.warn("DLQ: telemetry for unknown device={}", msg.getDeviceId());
             sendToDlq(rawPayload, "UNKNOWN_DEVICE", "device not registered: " + msg.getDeviceId());
+            return;
+        }
+
+        // ── 3b. Lifecycle gate ───────────────────────────────────────────────
+        DeviceLifecycleStatus lifecycle = deviceOpt.get().getLifecycleStatus();
+        if (lifecycle == DeviceLifecycleStatus.INACTIVE
+                || lifecycle == DeviceLifecycleStatus.DECOMMISSIONED) {
+            log.warn("DLQ: telemetry rejected — device={} is {}", msg.getDeviceId(), lifecycle);
+            sendToDlq(rawPayload, "LIFECYCLE_REJECTED",
+                    "device " + msg.getDeviceId() + " is " + lifecycle);
             return;
         }
 

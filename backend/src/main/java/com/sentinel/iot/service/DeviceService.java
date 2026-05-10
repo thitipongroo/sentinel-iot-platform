@@ -1,11 +1,15 @@
 package com.sentinel.iot.service;
 
+import com.sentinel.iot.dto.DeviceLifecycleRequest;
 import com.sentinel.iot.dto.DeviceRequest;
+import com.sentinel.iot.dto.FirmwareUpdateRequest;
 import com.sentinel.iot.model.Device;
+import com.sentinel.iot.model.DeviceLifecycleStatus;
 import com.sentinel.iot.repository.DeviceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -57,6 +61,38 @@ public class DeviceService {
                 .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
         device.setStatus(status);
         redisService.setDeviceStatus(id.toString(), status);
+        return deviceRepository.save(device);
+    }
+
+    public Device updateLifecycle(UUID id, DeviceLifecycleRequest req) {
+        Device device = deviceRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+
+        DeviceLifecycleStatus current = device.getLifecycleStatus();
+        DeviceLifecycleStatus next    = req.getLifecycleStatus();
+
+        if (current == DeviceLifecycleStatus.DECOMMISSIONED) {
+            throw new IllegalArgumentException("Cannot transition a decommissioned device");
+        }
+        device.setLifecycleStatus(next);
+
+        // Decommissioned devices are forced offline so the dashboard reflects reality
+        if (next == DeviceLifecycleStatus.DECOMMISSIONED || next == DeviceLifecycleStatus.INACTIVE) {
+            device.setStatus("OFFLINE");
+            redisService.setDeviceStatus(id.toString(), "OFFLINE");
+        }
+        return deviceRepository.save(device);
+    }
+
+    public Device updateFirmware(UUID id, FirmwareUpdateRequest req) {
+        Device device = deviceRepository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+
+        if (device.getLifecycleStatus() == DeviceLifecycleStatus.DECOMMISSIONED) {
+            throw new IllegalArgumentException("Cannot update firmware on a decommissioned device");
+        }
+        device.setFirmwareVersion(req.getFirmwareVersion());
+        device.setFirmwareUpdatedAt(Instant.now());
         return deviceRepository.save(device);
     }
 }

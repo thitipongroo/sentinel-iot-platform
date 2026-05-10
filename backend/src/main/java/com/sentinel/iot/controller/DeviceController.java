@@ -1,6 +1,8 @@
 package com.sentinel.iot.controller;
 
+import com.sentinel.iot.dto.DeviceLifecycleRequest;
 import com.sentinel.iot.dto.DeviceRequest;
+import com.sentinel.iot.dto.FirmwareUpdateRequest;
 import com.sentinel.iot.model.Device;
 import com.sentinel.iot.service.DeviceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,7 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/devices")
 @RequiredArgsConstructor
-@Tag(name = "Devices", description = "Device registration and management")
+@Tag(name = "Devices", description = "Device registration, lifecycle, and firmware management")
 public class DeviceController {
 
     private final DeviceService deviceService;
@@ -38,5 +40,22 @@ public class DeviceController {
     @Operation(summary = "Get device by ID")
     public ResponseEntity<Device> findById(@PathVariable UUID id) {
         return ResponseEntity.ok(deviceService.findById(id));
+    }
+
+    @PatchMapping("/{id}/lifecycle")
+    @Operation(summary = "Transition device lifecycle state (ADMIN only). " +
+               "DECOMMISSIONED is terminal — no further transitions allowed.")
+    public ResponseEntity<Device> updateLifecycle(
+            @PathVariable UUID id,
+            @Valid @RequestBody DeviceLifecycleRequest req) {
+        return ResponseEntity.ok(deviceService.updateLifecycle(id, req));
+    }
+
+    @PatchMapping("/{id}/firmware")
+    @Operation(summary = "Record a firmware version update on the device (ADMIN only)")
+    public ResponseEntity<Device> updateFirmware(
+            @PathVariable UUID id,
+            @Valid @RequestBody FirmwareUpdateRequest req) {
+        return ResponseEntity.ok(deviceService.updateFirmware(id, req));
     }
 }
