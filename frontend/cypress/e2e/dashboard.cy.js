@@ -18,29 +18,39 @@ describe('Sentinel IoT Dashboard', () => {
     cy.intercept('GET', '/api/telemetry/uuid-1/latest*', { statusCode: 200, body: [] }).as('telemetry')
   })
 
-  it('redirects unauthenticated users to login', () => {
+  it('redirects unauthenticated users to /login', () => {
     cy.visit('/')
     cy.url().should('include', '/login')
   })
 
-  it('logs in and shows dashboard', () => {
+  it('logs in and navigates to /dashboard', () => {
     cy.visit('/login')
     cy.get('input[placeholder="admin"]').type('admin')
     cy.get('input[placeholder="••••••••"]').type('admin123')
     cy.get('button[type="submit"]').click()
     cy.wait('@login')
-    cy.url().should('not.include', '/login')
+    cy.url().should('include', '/dashboard')
     cy.contains('Sentinel').should('be.visible')
     cy.wait('@devices')
     cy.contains('sensor-1').should('be.visible')
   })
 
-  it('shows device stats in stats bar', () => {
+  it('shows stats bar with event count', () => {
     localStorage.setItem('sentinel_token', 'fake-jwt-token')
     localStorage.setItem('sentinel_user', JSON.stringify({ username: 'admin', role: 'ADMIN' }))
-    cy.visit('/')
+    cy.visit('/dashboard')
     cy.wait('@devices')
     cy.contains('Total Devices').should('be.visible')
     cy.contains('42').should('be.visible')
+  })
+
+  it('shows all chart tabs', () => {
+    localStorage.setItem('sentinel_token', 'fake-jwt-token')
+    localStorage.setItem('sentinel_user', JSON.stringify({ username: 'admin', role: 'ADMIN' }))
+    cy.visit('/dashboard')
+    cy.wait('@devices')
+    cy.contains('Temperature / Humidity').should('be.visible')
+    cy.contains('Smoke (ppm)').should('be.visible')
+    cy.contains('Motion').should('be.visible')
   })
 })

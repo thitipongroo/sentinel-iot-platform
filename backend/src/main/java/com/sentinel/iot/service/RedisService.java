@@ -26,10 +26,13 @@ public class RedisService {
         return redis.opsForValue().get(STATUS_PREFIX + deviceId);
     }
 
-    public void setLatestTelemetry(String deviceId, double temperature, double humidity) {
+    public void setLatestTelemetry(String deviceId, double temperature, double humidity,
+                                   Boolean motion, Double smokePpm) {
         Map<String, String> fields = new HashMap<>();
         fields.put("temperature", String.valueOf(temperature));
         fields.put("humidity", String.valueOf(humidity));
+        fields.put("motion", motion != null ? String.valueOf(motion) : "false");
+        fields.put("smokePpm", smokePpm != null ? String.valueOf(smokePpm) : "0.0");
         fields.put("ts", String.valueOf(System.currentTimeMillis()));
         redis.opsForHash().putAll(TELEMETRY_PREFIX + deviceId, fields);
         redis.expire(TELEMETRY_PREFIX + deviceId, TTL);

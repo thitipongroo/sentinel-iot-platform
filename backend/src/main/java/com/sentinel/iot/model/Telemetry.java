@@ -29,13 +29,21 @@ public class Telemetry {
     @Column(nullable = false)
     private Double humidity;
 
+    @Column
+    private Boolean motion;
+
+    @Column(name = "smoke_ppm")
+    private Double smokePpm;
+
     @Column(nullable = false)
     private Instant timestamp;
 
-    public Telemetry(UUID deviceId, Double temperature, Double humidity) {
+    public Telemetry(UUID deviceId, Double temperature, Double humidity, Boolean motion, Double smokePpm) {
         this.deviceId = deviceId;
         this.temperature = temperature;
         this.humidity = humidity;
+        this.motion = motion;
+        this.smokePpm = smokePpm;
         this.timestamp = Instant.now();
     }
 }

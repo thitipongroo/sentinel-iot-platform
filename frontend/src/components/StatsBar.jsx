@@ -1,3 +1,5 @@
+'use client'
+
 export default function StatsBar({ devices, alerts, stats }) {
   const online = devices.filter(d => d.status === 'ONLINE').length
   const critical = alerts.filter(a => a.level === 'CRITICAL' && !a.acknowledged).length

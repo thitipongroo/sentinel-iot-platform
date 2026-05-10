@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 export function useWebSocket(url) {
@@ -7,7 +9,10 @@ export function useWebSocket(url) {
   const reconnectTimeout = useRef(null)
 
   const connect = useCallback(() => {
-    const wsUrl = url || `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/telemetry`
+    // NEXT_PUBLIC_WS_URL is set in docker-compose for production (ws://localhost:8080/ws/telemetry)
+    const wsUrl = url
+      || process.env.NEXT_PUBLIC_WS_URL
+      || 'ws://localhost:8080/ws/telemetry'
 
     ws.current = new WebSocket(wsUrl)
 

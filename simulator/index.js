@@ -18,23 +18,32 @@ function randomInRange(min, max) {
 }
 
 function generatePayload(deviceId) {
-  // Occasionally spike above threshold to trigger alerts
-  const spike = Math.random() < 0.05
+  // ~5% chance of temperature spike above threshold
+  const tempSpike = Math.random() < 0.05
+  // ~3% chance of smoke spike above threshold
+  const smokeSpike = Math.random() < 0.03
+  // ~20% chance of motion detection
+  const motionDetected = Math.random() < 0.20
+
   return {
     deviceId,
-    temperature: spike ? randomInRange(81, 95) : randomInRange(60, 78),
+    temperature: tempSpike ? randomInRange(81, 95) : randomInRange(60, 78),
     humidity: randomInRange(35, 85),
+    motion: motionDetected,
+    smokePpm: smokeSpike ? randomInRange(201, 350) : randomInRange(5, 50),
     timestamp: Date.now()
   }
 }
 
 client.on('connect', () => {
   console.log(`[Simulator] Connected to ${BROKER_URL}`)
-  console.log(`[Simulator] Publishing to topic: ${TOPIC}`)
-  console.log(`[Simulator] Simulating devices: ${DEVICES.join(', ')}`)
-  console.log(`[Simulator] Interval: ${INTERVAL_MS}ms`)
+  console.log(`[Simulator] Topic    : ${TOPIC}`)
+  console.log(`[Simulator] Devices  : ${DEVICES.join(', ')}`)
+  console.log(`[Simulator] Sensors  : temperature, humidity, motion, smoke`)
+  console.log(`[Simulator] Interval : ${INTERVAL_MS}ms`)
 
   DEVICES.forEach((deviceId, idx) => {
+    // Stagger device publishes to spread MQTT load
     const offset = idx * Math.floor(INTERVAL_MS / DEVICES.length)
 
     setTimeout(() => {
@@ -43,9 +52,14 @@ client.on('connect', () => {
         const msg = JSON.stringify(payload)
         client.publish(TOPIC, msg, { qos: 1 }, (err) => {
           if (err) {
-            console.error(`[Simulator][${deviceId}] Publish error: ${err.message}`)
+            console.error(`[${deviceId}] Publish error: ${err.message}`)
           } else {
-            console.log(`[Simulator][${deviceId}] temp=${payload.temperature}°C hum=${payload.humidity}%`)
+            console.log(
+              `[${deviceId}] temp=${payload.temperature}°C ` +
+              `hum=${payload.humidity}% ` +
+              `motion=${payload.motion ? 'YES' : 'no'} ` +
+              `smoke=${payload.smokePpm}ppm`
+            )
           }
         })
       }
@@ -61,7 +75,7 @@ client.on('error', (err) => {
 })
 
 client.on('offline', () => {
-  console.warn('[Simulator] MQTT connection lost, reconnecting...')
+  console.warn('[Simulator] Disconnected, reconnecting...')
 })
 
 process.on('SIGINT', () => {

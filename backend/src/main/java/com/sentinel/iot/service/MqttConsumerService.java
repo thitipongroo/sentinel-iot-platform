@@ -61,13 +61,20 @@ public class MqttConsumerService {
             device.setLastSeen(Instant.now());
             deviceRepository.save(device);
 
-            telemetryService.save(deviceId, msg.getTemperature(), msg.getHumidity());
-            alertService.evaluate(deviceId, device.getName(), msg.getTemperature(), msg.getHumidity());
+            telemetryService.save(deviceId,
+                    msg.getTemperature(), msg.getHumidity(),
+                    msg.getMotion(), msg.getSmokePpm());
+
+            alertService.evaluate(deviceId, device.getName(),
+                    msg.getTemperature(), msg.getHumidity(),
+                    msg.getMotion(), msg.getSmokePpm());
 
             webSocketHandler.broadcast(payload);
             mqttCounter.increment();
 
-            log.debug("Processed telemetry from {}: temp={} humidity={}", msg.getDeviceId(), msg.getTemperature(), msg.getHumidity());
+            log.debug("Processed telemetry from {}: temp={} hum={} motion={} smoke={}",
+                    msg.getDeviceId(), msg.getTemperature(), msg.getHumidity(),
+                    msg.getMotion(), msg.getSmokePpm());
         } catch (Exception e) {
             log.error("Failed to process MQTT message: {}", e.getMessage());
         }

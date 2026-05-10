@@ -1,5 +1,7 @@
+'use client'
+
 import { formatDistanceToNow } from 'date-fns'
-import { alertsApi } from '../api/client'
+import { alertsApi } from '@/api/client'
 
 export default function AlertList({ alerts, onAcknowledge, userRole }) {
   const handleAck = async (id) => {

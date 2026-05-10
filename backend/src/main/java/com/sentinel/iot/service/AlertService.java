@@ -24,17 +24,37 @@ public class AlertService {
     @Value("${alert.humidity-threshold}")
     private double humidityThreshold;
 
-    public void evaluate(UUID deviceId, String deviceName, double temperature, double humidity) {
+    @Value("${alert.smoke-threshold}")
+    private double smokeThreshold;
+
+    public void evaluate(UUID deviceId, String deviceName,
+                         double temperature, double humidity,
+                         Boolean motion, Double smokePpm) {
         if (temperature > temperatureThreshold) {
-            String msg = String.format("[%s] CRITICAL: temperature %.1f°C exceeds threshold %.1f°C",
+            String msg = String.format("[%s] CRITICAL: temperature %.1f°C exceeds %.1f°C threshold",
                     deviceName, temperature, temperatureThreshold);
             createAlert(deviceId, "CRITICAL", msg);
             notificationService.send(msg);
-        } else if (humidity > humidityThreshold) {
-            String msg = String.format("[%s] WARNING: humidity %.1f%% exceeds threshold %.1f%%",
+        }
+
+        if (smokePpm != null && smokePpm > smokeThreshold) {
+            String msg = String.format("[%s] CRITICAL: smoke detected at %.1f ppm (threshold %.1f ppm)",
+                    deviceName, smokePpm, smokeThreshold);
+            createAlert(deviceId, "CRITICAL", msg);
+            notificationService.send(msg);
+        }
+
+        if (humidity > humidityThreshold) {
+            String msg = String.format("[%s] WARNING: humidity %.1f%% exceeds %.1f%% threshold",
                     deviceName, humidity, humidityThreshold);
             createAlert(deviceId, "WARNING", msg);
             notificationService.send(msg);
+        }
+
+        if (Boolean.TRUE.equals(motion) && temperature > 70) {
+            String msg = String.format("[%s] WARNING: motion detected at elevated temperature %.1f°C",
+                    deviceName, temperature);
+            createAlert(deviceId, "WARNING", msg);
         }
     }
 

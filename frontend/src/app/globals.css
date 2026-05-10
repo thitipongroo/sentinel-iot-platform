@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0f1e;
+  --bg-secondary: #0d1530;
+  --accent: #00d4ff;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.card {
+  @apply bg-sentinel-800 rounded-xl border border-sentinel-700 p-6;
+}
+
+.badge-online {
+  @apply bg-sentinel-success/20 text-sentinel-success text-xs px-2 py-0.5 rounded-full;
+}
+
+.badge-offline {
+  @apply bg-gray-700/40 text-gray-400 text-xs px-2 py-0.5 rounded-full;
+}
+
+.badge-critical {
+  @apply bg-sentinel-danger/20 text-sentinel-danger text-xs px-2 py-0.5 rounded-full;
+}
+
+.badge-warning {
+  @apply bg-sentinel-warning/20 text-sentinel-warning text-xs px-2 py-0.5 rounded-full;
+}

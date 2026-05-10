@@ -3,7 +3,7 @@
 [![CI](https://github.com/yourusername/sentinel-iot-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/sentinel-iot-platform/actions/workflows/ci.yml)
 [![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2-green?logo=springboot)](https://spring.io/projects/spring-boot)
-[![React](https://img.shields.io/badge/React-18-blue?logo=react)](https://react.dev/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=nextdotjs)](https://nextjs.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -30,7 +30,7 @@
 │  └──────────────┘                │                  │    └──────────┘  │
 │                                  │  • JWT Auth       │                  │
 │  ┌──────────────┐  REST/WS       │  • MQTT Consumer  │    ┌──────────┐  │
-│  │  React       │◀─────────────▶ │  • Alert Engine   │───▶│PostgreSQL│  │
+│  │  Next.js     │◀─────────────▶ │  • Alert Engine   │───▶│PostgreSQL│  │
 │  │  Dashboard   │                │  • WebSocket GW   │    │  (JPA)   │  │
 │  └──────────────┘                │  • Prometheus     │    └──────────┘  │
 │                                  └────────┬─────────┘                  │
@@ -69,7 +69,7 @@ Device/Simulator
 | Database   | PostgreSQL 16 + Spring Data JPA                  |
 | Cache      | Redis 7 (Lettuce)                                |
 | Realtime   | WebSocket (native Spring WS)                     |
-| Frontend   | React 18 + Vite + Tailwind CSS                   |
+| Frontend   | Next.js 14 (App Router) + Tailwind CSS           |
 | Charts     | Recharts                                         |
 | Monitoring | Prometheus + Grafana                             |
 | Testing    | JUnit 5, Testcontainers, Cypress                 |
@@ -168,6 +168,8 @@ Payload (JSON, per message):
   "deviceId": "sensor-1",
   "temperature": 72.4,
   "humidity": 58.2,
+  "motion": false,
+  "smokePpm": 12.5,
   "timestamp": 1717200000000
 }
 ```
@@ -178,12 +180,14 @@ Payload (JSON, per message):
 
 Configured via environment variables:
 
-| Variable              | Default | Description                      |
-|-----------------------|---------|----------------------------------|
-| `TEMP_THRESHOLD`      | `80`    | °C — triggers CRITICAL alert     |
-| `HUMIDITY_THRESHOLD`  | `90`    | % — triggers WARNING alert       |
+| Variable              | Default | Description                                           |
+|-----------------------|---------|-------------------------------------------------------|
+| `TEMP_THRESHOLD`      | `80`    | °C — triggers CRITICAL alert                          |
+| `SMOKE_THRESHOLD`     | `200`   | ppm — triggers CRITICAL alert + LINE Notify           |
+| `HUMIDITY_THRESHOLD`  | `90`    | % — triggers WARNING alert                            |
 
-When breached, an `Alert` row is created and LINE Notify fires (if configured).
+Motion + elevated temperature (>70°C) also triggers a WARNING alert.
+When any threshold is breached, an `Alert` row is created and LINE Notify fires (if configured).
 
 ---
 
@@ -198,7 +202,14 @@ docker compose up -e LINE_NOTIFY_TOKEN=your_token -e LINE_NOTIFY_ENABLED=true
 
 ## Device Simulator
 
-The Node.js simulator publishes synthetic telemetry every 5 seconds for each simulated device. A 5% random spike pushes temperature above 80°C to trigger the alert engine.
+The Node.js simulator publishes 4-sensor telemetry every 5 seconds per device with randomised spikes:
+
+| Sensor        | Normal range    | Spike condition             | Rate  |
+|---------------|-----------------|-----------------------------|-------|
+| `temperature` | 60–78 °C        | 81–95 °C (CRITICAL)         | 5%    |
+| `humidity`    | 35–85 %         | —                           | —     |
+| `motion`      | false           | true (detected)             | 20%   |
+| `smokePpm`    | 5–50 ppm        | 201–350 ppm (CRITICAL)      | 3%    |
 
 ```bash
 cd simulator
@@ -316,6 +327,10 @@ Spring Integration's `MqttPahoMessageDrivenChannelAdapter` handles reconnection,
 
 For this platform's scale (<10M rows/month), indexed PostgreSQL with `timestamp` columns performs excellently. TimescaleDB adds operational overhead and a separate deployment. For production at 100M+ rows/month, migrating to TimescaleDB (a PostgreSQL extension) is straightforward since it shares the wire protocol.
 
+### Why Next.js instead of Vite + React?
+
+Next.js provides file-based routing (no `react-router-dom`), server-side API proxying via `rewrites` in `next.config.mjs` (eliminates a separate nginx reverse proxy), and native Vercel deployment with zero config. For a dashboard that is public-facing, SSR also enables proper meta-tags for social sharing. The App Router's `'use client'` boundary keeps non-interactive layout components as Server Components, reducing client bundle size.
+
 ### Why WebSocket instead of Server-Sent Events (SSE)?
 
 SSE is one-directional (server → client). WebSocket is bidirectional, enabling future features like in-browser device command sending without architectural rework.
@@ -337,12 +352,16 @@ sentinel-iot-platform/
 │   │   ├── service/            # Business logic
 │   │   └── websocket/          # WS broadcast handler
 │   └── src/test/               # Unit + integration tests
-├── frontend/                   # React + Vite + Tailwind
+├── frontend/                   # Next.js 14 (App Router) + Tailwind CSS
 │   ├── src/
-│   │   ├── api/                # Axios client
+│   │   ├── app/                # Next.js App Router
+│   │   │   ├── layout.jsx      # Root layout + Providers
+│   │   │   ├── page.jsx        # Root redirect (/ → /login or /dashboard)
+│   │   │   ├── login/page.jsx  # Login page
+│   │   │   └── dashboard/page.jsx # Protected dashboard
+│   │   ├── api/                # Axios client (proxied via next.config.mjs)
 │   │   ├── components/         # DeviceList, TelemetryChart, AlertList, StatsBar
-│   │   ├── hooks/              # useWebSocket, useAuth
-│   │   └── pages/              # LoginPage, DashboardPage
+│   │   └── hooks/              # useWebSocket, useAuth
 │   └── cypress/                # E2E tests
 ├── simulator/                  # Node.js MQTT publisher
 ├── monitoring/

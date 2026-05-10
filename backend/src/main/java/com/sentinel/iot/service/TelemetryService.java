@@ -30,10 +30,10 @@ public class TelemetryService {
                 .register(meterRegistry);
     }
 
-    public Telemetry save(UUID deviceId, Double temperature, Double humidity) {
-        Telemetry t = new Telemetry(deviceId, temperature, humidity);
+    public Telemetry save(UUID deviceId, Double temperature, Double humidity, Boolean motion, Double smokePpm) {
+        Telemetry t = new Telemetry(deviceId, temperature, humidity, motion, smokePpm);
         Telemetry saved = telemetryRepository.save(t);
-        redisService.setLatestTelemetry(deviceId.toString(), temperature, humidity);
+        redisService.setLatestTelemetry(deviceId.toString(), temperature, humidity, motion, smokePpm);
         telemetryCounter.increment();
         return saved;
     }

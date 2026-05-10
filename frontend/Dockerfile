@@ -3,9 +3,17 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --silent
 COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM nginx:1.27-alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN addgroup -S sentinel && adduser -S sentinel -G sentinel
+COPY --from=builder /app/public* ./public/
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+USER sentinel
+EXPOSE 3000
+CMD ["node", "server.js"]

@@ -42,6 +42,7 @@ notification:
 alert:
   temperature-threshold: ${TEMP_THRESHOLD:80.0}
   humidity-threshold: ${HUMIDITY_THRESHOLD:90.0}
+  smoke-threshold: ${SMOKE_THRESHOLD:200.0}
 
 management:
   endpoints:

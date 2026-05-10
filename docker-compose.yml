@@ -81,6 +81,7 @@ services:
       LINE_NOTIFY_TOKEN: ${LINE_NOTIFY_TOKEN:-}
       LINE_NOTIFY_ENABLED: ${LINE_NOTIFY_ENABLED:-false}
       TEMP_THRESHOLD: ${TEMP_THRESHOLD:-80}
+      SMOKE_THRESHOLD: ${SMOKE_THRESHOLD:-200}
     ports:
       - "8080:8080"
     networks: [sentinel-net]
@@ -102,8 +103,13 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: sentinel-frontend
+    environment:
+      # Server-side: Next.js rewrites proxy /api/* to this URL
+      BACKEND_URL: http://backend:8080
+      # Client-side: browser connects WebSocket directly to backend
+      NEXT_PUBLIC_WS_URL: ws://localhost:8080/ws/telemetry
     ports:
-      - "3000:80"
+      - "3000:3000"
     networks: [sentinel-net]
     depends_on:
       backend:
