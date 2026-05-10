@@ -11,21 +11,6 @@ jobs:
     name: Backend — Build & Test
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: sentinel_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +23,7 @@ jobs:
 
       - name: Lint (Checkstyle)
         working-directory: backend
-        run: mvn checkstyle:check -q || true
+        run: mvn checkstyle:check -q
 
       - name: Build
         working-directory: backend
@@ -46,15 +31,15 @@ jobs:
 
       - name: Unit tests
         working-directory: backend
+        env:
+          JWT_SECRET: ci-test-secret-key-32-chars-minimum!
         run: mvn test -pl . -Dtest="*Test" -q
 
       - name: Integration tests
         working-directory: backend
         env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/sentinel_test
-          SPRING_DATASOURCE_USERNAME: test
-          SPRING_DATASOURCE_PASSWORD: test
-        run: mvn verify -pl . -Dtest="*IntegrationTest" -q || true
+          JWT_SECRET: ci-test-secret-key-32-chars-minimum!
+        run: mvn verify -pl . -Dtest="*IntegrationTest" -q
 
       - name: Upload test report
         uses: actions/upload-artifact@v4
@@ -83,7 +68,7 @@ jobs:
 
       - name: Lint
         working-directory: frontend
-        run: npm run lint || true
+        run: npm run lint
 
       - name: Build
         working-directory: frontend
@@ -110,3 +95,4 @@ jobs:
         run: docker compose build --parallel
         env:
           DOCKER_BUILDKIT: "1"
+          JWT_SECRET: ci-test-secret-placeholder
