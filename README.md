@@ -16,50 +16,50 @@
 ## Architecture Diagram
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                            Sentinel IoT Platform                                 │
-│                                                                                  │
-│  ┌──────────────┐    MQTT        ┌───────────────────┐                           │
-│  │ IoT Devices  │───────────────▶│ Eclipse Mosquitto  │                           │
-│  │  (sensors)   │  factory/      │   MQTT Broker      │◀── DLQ ── factory/       │
-│  └──────────────┘  telemetry     └────────┬──────────┘        telemetry/dlq      │
-│                                           │ subscribe                             │
-│  ┌──────────────┐              ┌──────────▼───────────┐   ┌─────────────────┐   │
-│  │  Simulator   │── MQTT ─────▶│   Spring Boot        │──▶│ Redis 7         │   │
-│  │  (Node.js)   │              │   Backend            │   │ • Latest cache  │   │
-│  └──────────────┘              │                      │   │ • Replay queue  │   │
-│                                │  • JWT Auth           │   └─────────────────┘   │
-│  ┌──────────────┐  REST/WS     │  • MQTT Consumer      │                         │
-│  │  Next.js     │◀────────────▶│    + DLQ routing      │   ┌─────────────────┐   │
-│  │  Dashboard   │              │  • Alert Engine        │──▶│ PostgreSQL 16   │   │
-│  └──────────────┘              │  • WebSocket GW        │   │ • Partitioned   │   │
-│                                │  • Retry + CB          │   │   by month      │   │
-│  ┌──────────────┐              │  • Replay Queue        │   │ • Hourly aggs   │   │
-│  │   Grafana    │◀── scrape ───│  • Prometheus          │   └─────────────────┘   │
-│  │  +Jaeger UI  │              └──────────┬────────────┘                         │
-│  └──────────────┘                         │ OTLP traces                          │
-│                                  ┌────────▼────────┐                             │
-│  ┌──────────────┐                │ Jaeger (OTel)   │                             │
-│  │ LINE Notify  │◀── webhook ─── │ Distributed     │                             │
-│  └──────────────┘                │ Tracing         │                             │
-│                                  └─────────────────┘                             │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                            Sentinel IoT Platform                               │
+│                                                                                │
+│  ┌──────────────┐    MQTT        ┌───────────────────┐                         │
+│  │ IoT Devices  │───────────────▶│ Eclipse Mosquitto │                         │
+│  │  (sensors)   │  factory/      │   MQTT Broker     │◀── DLQ ── factory/      │
+│  └──────────────┘  telemetry     └────────┬──────────┘        telemetry/dlq    │
+│                                           │ subscribe                          │
+│  ┌──────────────┐              ┌──────────▼───────────┐   ┌─────────────────┐  │
+│  │  Simulator   │── MQTT ─────▶│   Spring Boot        │──▶│ Redis 7         │  │
+│  │  (Node.js)   │              │   Backend            │   │ • Latest cache  │  │
+│  └──────────────┘              │                      │   │ • Replay queue  │  │
+│                                │  • JWT Auth          │   └─────────────────┘  │
+│  ┌──────────────┐  REST/WS     │  • MQTT Consumer     │                        │
+│  │  Next.js     │◀────────────▶│    + DLQ routing     │   ┌─────────────────┐  │
+│  │  Dashboard   │              │  • Alert Engine      │──▶│ PostgreSQL 16   │  │
+│  └──────────────┘              │  • WebSocket GW      │   │ • Partitioned   │  │
+│                                │  • Retry + CB        │   │   by month      │  │
+│  ┌──────────────┐              │  • Replay Queue      │   │ • Hourly aggs   │  │
+│  │   Grafana    │◀── scrape ───│  • Prometheus        │   └─────────────────┘  │
+│  │  +Jaeger UI  │              └──────────┬───────────┘                        │
+│  └──────────────┘                         │ OTLP traces                        │
+│                                  ┌────────▼────────┐                           │
+│  ┌──────────────┐                │ Jaeger (OTel)   │                           │
+│  │ LINE Notify  │◀── webhook ─── │ Distributed     │                           │
+│  └──────────────┘                │ Tracing         │                           │
+│                                  └─────────────────┘                           │
+└────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Data Flow — Normal Path
 
 ```text
 Device/Simulator
-     │── MQTT publish ──▶ Mosquitto
-                              │── Spring Integration ──▶ MqttConsumerService
-                                                               │── validate payload
-                                                               │── resolve device (lifecycle gate)
-                                                               │── TelemetryService.save()
-                                                               │        │── PostgreSQL (retry + CB)
-                                                               │        └── Redis cache (setLatestTelemetry)
-                                                               │── AlertService.evaluate()
-                                                               │        └── LINE Notify (if threshold exceeded)
-                                                               └── WebSocket broadcast ──▶ React UI
+  │── MQTT publish ──▶ Mosquitto
+                          │── Spring Integration ──▶ MqttConsumerService
+                                                          │── validate payload
+                                                          │── resolve device (lifecycle gate)
+                                                          │── TelemetryService.save()
+                                                          │        │── PostgreSQL (retry + CB)
+                                                          │        └── Redis cache (setLatestTelemetry)
+                                                          │── AlertService.evaluate()
+                                                          │        └── LINE Notify (if threshold exceeded)
+                                                          └── WebSocket broadcast ──▶ React UI
 ```
 
 ### Data Flow — Failure Paths
