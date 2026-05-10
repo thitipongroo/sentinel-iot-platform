@@ -7,11 +7,17 @@ const TOPIC = process.env.MQTT_TOPIC || 'factory/telemetry'
 const INTERVAL_MS = parseInt(process.env.INTERVAL_MS || '5000')
 const DEVICES = (process.env.DEVICES || 'sensor-1,sensor-2,sensor-3').split(',')
 
-const client = mqtt.connect(BROKER_URL, {
+const connectOpts = {
   clientId: `simulator-${Date.now()}`,
   reconnectPeriod: 3000,
-  connectTimeout: 10000
-})
+  connectTimeout: 10000,
+}
+if (process.env.MQTT_USER) {
+  connectOpts.username = process.env.MQTT_USER
+  connectOpts.password = process.env.MQTT_PASS
+}
+
+const client = mqtt.connect(BROKER_URL, connectOpts)
 
 function randomInRange(min, max) {
   return parseFloat((Math.random() * (max - min) + min).toFixed(2))

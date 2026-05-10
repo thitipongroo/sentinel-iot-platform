@@ -51,16 +51,25 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2.0
     container_name: sentinel-mqtt
+    entrypoint: ["/bin/sh", "/mosquitto/config/docker-entrypoint.sh"]
+    environment:
+      MQTT_USER: ${MQTT_USER:-sentinel-backend}
+      MQTT_PASS: ${MQTT_PASS:-changeme}
+      MQTT_DEVICE_USER: ${MQTT_DEVICE_USER:-sentinel-device}
+      MQTT_DEVICE_PASS: ${MQTT_DEVICE_PASS:-changeme}
     volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/acl:/mosquitto/config/acl:ro
+      - ./mosquitto/docker-entrypoint.sh:/mosquitto/config/docker-entrypoint.sh:ro
+      - ./mosquitto/certs:/mosquitto/certs:ro
       - mosquitto_data:/mosquitto/data
     ports:
       - "1883:1883"
+      - "8883:8883"
       - "9001:9001"
     networks: [sentinel-net]
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_pub -t 'health' -m 'ping' -q 0 || exit 1"]
+      test: ["CMD-SHELL", "mosquitto_pub -t sentinel/health -m ping -q 0 -u \"$$MQTT_USER\" -P \"$$MQTT_PASS\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -79,6 +88,8 @@ services:
       DB_PASSWORD: sentinel
       REDIS_HOST: redis
       MQTT_BROKER: tcp://mosquitto:1883
+      MQTT_USER: ${MQTT_USER:-sentinel-backend}
+      MQTT_PASS: ${MQTT_PASS:-changeme}
       JWT_SECRET: ${JWT_SECRET}
       LINE_NOTIFY_TOKEN: ${LINE_NOTIFY_TOKEN:-}
       LINE_NOTIFY_ENABLED: ${LINE_NOTIFY_ENABLED:-false}
@@ -130,6 +141,8 @@ services:
     environment:
       MQTT_BROKER: mqtt://mosquitto:1883
       MQTT_TOPIC: factory/telemetry
+      MQTT_USER: ${MQTT_DEVICE_USER:-sentinel-device}
+      MQTT_PASS: ${MQTT_DEVICE_PASS:-changeme}
       INTERVAL_MS: ${SIMULATOR_INTERVAL:-5000}
       DEVICES: ${SIMULATOR_DEVICES:-sensor-1,sensor-2,sensor-3}
     networks: [sentinel-net]

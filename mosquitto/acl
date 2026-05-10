@@ -1,21 +1,27 @@
-# Sentinel IoT Platform — Mosquitto Topic ACL
+# Sentinel IoT Platform — Mosquitto Per-User Topic ACL
 #
-# Applied to ALL clients when allow_anonymous true (no per-user rules without password_file).
-# With password_file enabled, add per-user blocks:
+# Requires password_file (allow_anonymous false) so that Mosquitto knows
+# which username each client has authenticated as.
 #
-#   user sentinel-backend
-#   topic readwrite factory/telemetry
-#   topic readwrite factory/telemetry/dlq
+# Mosquitto 2.0: topics not matched by a user's rules are DENIED by default.
 #
-#   user sensor-device
-#   topic write factory/telemetry
-#
-# Mosquitto 2.0: topics not matched by any rule are DENIED by default when acl_file is set.
+# To add a real per-device account (replacing the shared sentinel-device role):
+#   1. Add `mosquitto_passwd -b /mosquitto/config/passwd sensor-NNN <pass>` in docker-entrypoint.sh
+#   2. Add a per-device block below:
+#      user sensor-NNN
+#      topic write factory/telemetry
 
-# Telemetry ingestion — devices publish, backend subscribes
-topic write factory/telemetry
+# ── Backend service account ─────────────────────────────────────────────────
+# Subscribes to inbound telemetry, publishes rejected messages to DLQ,
+# and publishes to the health topic used by the Docker healthcheck.
+user sentinel-backend
 topic read  factory/telemetry
-
-# Dead-letter queue — backend publishes rejected messages, operators may read
 topic write factory/telemetry/dlq
 topic read  factory/telemetry/dlq
+topic write sentinel/health
+
+# ── Device / simulator account ───────────────────────────────────────────────
+# Publish-only to the telemetry topic.
+# Cannot subscribe to any topic and cannot touch the DLQ.
+user sentinel-device
+topic write factory/telemetry
