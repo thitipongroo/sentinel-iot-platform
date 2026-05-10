@@ -47,6 +47,7 @@ public abstract class BaseIntegrationTest {
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         registry.add("mqtt.broker", () ->
             "tcp://" + mosquitto.getHost() + ":" + mosquitto.getMappedPort(1883));
+        registry.add("mqtt.dlq-topic", () -> "factory/telemetry/dlq");
         registry.add("jwt.secret", () -> "test-secret-key-at-least-32-chars-long!");
     }
 }

@@ -4,12 +4,15 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.mqtt.core.DefaultMqttPahoClientFactory;
 import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
+import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
 import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.MessageHandler;
 
 @Configuration
 public class MqttConfig {
@@ -22,6 +25,9 @@ public class MqttConfig {
 
     @Value("${mqtt.topic}")
     private String topic;
+
+    @Value("${mqtt.dlq-topic}")
+    private String dlqTopic;
 
     @Value("${mqtt.username}")
     private String username;
@@ -58,5 +64,23 @@ public class MqttConfig {
         adapter.setQos(1);
         adapter.setOutputChannel(mqttInputChannel());
         return adapter;
+    }
+
+    // ── Dead Letter Queue outbound ──────────────────────────────────────────
+
+    @Bean
+    public MessageChannel mqttDlqChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttDlqChannel")
+    public MessageHandler mqttDlqOutbound() {
+        MqttPahoMessageHandler handler =
+                new MqttPahoMessageHandler(clientId + "-dlq-pub", mqttClientFactory());
+        handler.setAsync(true);
+        handler.setDefaultTopic(dlqTopic);
+        handler.setDefaultQos(0);
+        return handler;
     }
 }

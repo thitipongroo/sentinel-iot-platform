@@ -31,6 +31,7 @@ mqtt:
   broker: ${MQTT_BROKER:tcp://localhost:1883}
   client-id: sentinel-backend
   topic: factory/telemetry
+  dlq-topic: factory/telemetry/dlq
   username: ${MQTT_USER:}
   password: ${MQTT_PASS:}
 
