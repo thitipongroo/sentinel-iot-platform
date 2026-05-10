@@ -93,6 +93,9 @@ Invalid MQTT payload / unknown device:
 
 ## Tech Stack
 
+![Sentinel Tech Stack](docs/screenshots/sentinel-tech-stack.png)
+
+<!-- ASCII Table
 | Layer        | Technology                                                   |
 |--------------|--------------------------------------------------------------|
 | Backend      | Spring Boot 3.2, Java 21                                     |
@@ -110,6 +113,7 @@ Invalid MQTT payload / unknown device:
 | CI/CD        | GitHub Actions                                               |
 | Infra        | Docker Compose                                               |
 | Notify       | LINE Notify                                                  |
+-->
 
 ---
 
