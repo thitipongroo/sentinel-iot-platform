@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: ${SPRING_APPLICATION_NAME:sentinel-iot-platform}
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:sentinel}
     username: ${DB_USER:sentinel}
@@ -70,6 +72,8 @@ management:
   tracing:
     sampling:
       probability: 1.0
+    # Propagates traceId + spanId into MDC so every log line is correlated with its trace
+    enabled: true
   otlp:
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}

@@ -10,6 +10,7 @@ volumes:
   mosquitto_data:
   prometheus_data:
   grafana_data:
+  jaeger_data:
 
 services:
   # ─── Infrastructure ────────────────────────────────────────────────────────
@@ -82,6 +83,9 @@ services:
       LINE_NOTIFY_ENABLED: ${LINE_NOTIFY_ENABLED:-false}
       TEMP_THRESHOLD: ${TEMP_THRESHOLD:-80}
       SMOKE_THRESHOLD: ${SMOKE_THRESHOLD:-200}
+      SPRING_APPLICATION_NAME: sentinel-iot-platform
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
+      SPRING_PROFILES_ACTIVE: prod
     ports:
       - "8080:8080"
     networks: [sentinel-net]
@@ -91,6 +95,8 @@ services:
       redis:
         condition: service_healthy
       mosquitto:
+        condition: service_healthy
+      jaeger:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
@@ -132,6 +138,29 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  # ─── Tracing ───────────────────────────────────────────────────────────────
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: sentinel-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: badger
+      BADGER_EPHEMERAL: "false"
+      BADGER_DIRECTORY_VALUE: /badger/data
+      BADGER_DIRECTORY_KEY: /badger/key
+    volumes:
+      - jaeger_data:/badger
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4318:4318"     # OTLP HTTP receiver
+    networks: [sentinel-net]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:14269/metrics || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   # ─── Monitoring ────────────────────────────────────────────────────────────
 

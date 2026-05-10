@@ -2,6 +2,8 @@ package com.sentinel.iot.service;
 
 import com.sentinel.iot.model.Alert;
 import com.sentinel.iot.repository.AlertRepository;
+import io.micrometer.tracing.annotation.NewSpan;
+import io.micrometer.tracing.annotation.SpanTag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +29,9 @@ public class AlertService {
     @Value("${alert.smoke-threshold}")
     private double smokeThreshold;
 
-    public void evaluate(UUID deviceId, String deviceName,
+    @NewSpan("alert.evaluate")
+    public void evaluate(@SpanTag("device.id") UUID deviceId,
+                         @SpanTag("device.name") String deviceName,
                          double temperature, double humidity,
                          Boolean motion, Double smokePpm) {
         if (temperature > temperatureThreshold) {

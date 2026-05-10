@@ -6,6 +6,8 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.annotation.NewSpan;
+import io.micrometer.tracing.annotation.SpanTag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -36,9 +38,11 @@ public class TelemetryService {
                 .register(meterRegistry);
     }
 
+    @NewSpan("telemetry.save")
     @Retry(name = "telemetryDB", fallbackMethod = "saveFallback")
     @CircuitBreaker(name = "telemetryDB", fallbackMethod = "saveFallback")
-    public Telemetry save(UUID deviceId, Double temperature, Double humidity, Boolean motion, Double smokePpm) {
+    public Telemetry save(@SpanTag("device.id") UUID deviceId,
+                          Double temperature, Double humidity, Boolean motion, Double smokePpm) {
         Telemetry t = new Telemetry(deviceId, temperature, humidity, motion, smokePpm);
         Telemetry saved = telemetryRepository.save(t);
         redisService.setLatestTelemetry(deviceId.toString(), temperature, humidity, motion, smokePpm);
