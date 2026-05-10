@@ -16,13 +16,34 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * Drains the Redis replay queue and re-persists buffered telemetry to PostgreSQL
- * once the circuit breaker reports the database is healthy again.
+ * @deprecated Superseded by the Kafka Dead Letter Topic (telemetry.dlq) pattern.
  *
- * The job runs every {@code telemetry.replay.interval-ms} milliseconds (default 30 s).
- * It is skipped entirely when the telemetryDB circuit breaker is OPEN.
- * Failed messages are pushed back to the tail of the queue for the next cycle.
+ * <p><b>Why this existed:</b> Before Kafka was introduced, the MQTT consumer wrote
+ * directly to PostgreSQL. On DB failure, the Resilience4j circuit breaker opened and
+ * {@code TelemetryService.saveFallback()} buffered records to a Redis List. This service
+ * drained that list once the circuit re-closed.
+ *
+ * <p><b>Why Redis Lists are not sufficient for durability:</b>
+ * <ul>
+ *   <li>Redis data lives in memory — a crash, eviction under memory pressure, or
+ *       accidental {@code FLUSHALL} silently loses every buffered record.</li>
+ *   <li>AOF persistence mitigates crash loss but does not protect against eviction
+ *       or administrative errors.</li>
+ *   <li>Redis has no built-in replay semantics — the drain loop is custom code
+ *       with its own failure modes (push-back creates unbounded queue growth).</li>
+ * </ul>
+ *
+ * <p><b>Current design:</b> The Kafka consumer ({@code KafkaTelemetryConsumer}) uses
+ * {@code AckMode.BATCH}: on {@code saveAll()} failure the offset is not committed and
+ * Kafka redelivers. After 3 retries the {@code DefaultErrorHandler} routes each record
+ * individually to {@code telemetry.dlq} (7-day retention, replicated Kafka topic).
+ * {@code TelemetryDlqConsumer} then reprocesses with exponential backoff until the DB
+ * recovers — no Redis involved, no data loss risk beyond Kafka's own retention window.
+ *
+ * <p>This class is kept to drain any records that were buffered before the migration.
+ * It will be removed once the Redis replay queue is confirmed empty in all environments.
  */
+@Deprecated(since = "Kafka DLQ introduced", forRemoval = true)
 @Service
 @Slf4j
 public class ReplayQueueService {

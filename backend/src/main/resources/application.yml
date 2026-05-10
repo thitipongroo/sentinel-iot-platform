@@ -51,6 +51,7 @@ spring:
 kafka:
   topics:
     telemetry-raw: telemetry.raw
+    telemetry-dlq: telemetry.dlq   # durable fallback; 7-day retention configured in KafkaConfig
 
 mqtt:
   broker: ${MQTT_BROKER:tcp://localhost:1883}
