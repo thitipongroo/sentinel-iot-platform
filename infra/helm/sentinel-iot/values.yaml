@@ -57,6 +57,9 @@ frontend:
 # ── PostgreSQL (in-cluster dev; disabled in prod — use RDS) ──────────────────
 postgres:
   enabled: true
+  # ha: true → uses CloudNativePG Cluster (1 primary + 1 replica, auto-failover)
+  # ha: false → uses the simple single-instance StatefulSet
+  ha: false
   image:
     repository: postgres
     tag: "16-alpine"
@@ -154,3 +157,58 @@ pdb:
     minAvailable: 1
   frontend:
     minAvailable: 1
+
+# ── Argo Rollouts — Blue/Green & Canary ──────────────────────────────────────
+# When enabled=true, backend-rollout.yaml is used instead of backend-deployment.yaml.
+rollout:
+  enabled: false
+  strategy: blueGreen     # blueGreen | canary
+
+  blueGreen:
+    # false = require manual `kubectl argo rollouts promote` before cutover
+    autoPromotionEnabled: false
+    # Seconds to keep old (blue) ReplicaSet around after promotion so HAProxy/nginx drains
+    scaleDownDelaySeconds: 60
+    # Run analysis against preview stack before allowing promotion
+    prePromotionAnalysis:
+      enabled: true
+
+  canary:
+    steps:
+      - setWeight: 10
+      - pause:
+          duration: 2m
+      - setWeight: 25
+      - analysis:
+          templates:
+            - templateName: sentinel-iot-backend-health
+      - setWeight: 50
+      - pause:
+          duration: 2m
+      - setWeight: 100
+
+# ── KEDA — Kafka-lag-based autoscaling (replaces HPA when enabled) ────────────
+keda:
+  enabled: false
+  minReplicaCount: 2
+  maxReplicaCount: 20
+  # Scale 1 replica per N lagging messages across all partitions
+  lagThreshold: "1000"
+  activationLagThreshold: "100"   # start scaling from 0 only after this lag
+  kafkaTopic: telemetry.raw
+  consumerGroup: sentinel-telemetry-ingest
+
+# ── Velero — cluster-state backup ─────────────────────────────────────────────
+velero:
+  enabled: false
+  schedule: "0 2 * * *"   # 2 am UTC daily
+  ttl: 720h                # 30-day retention
+  storageLocation: default
+
+# ── Backup — logical pg_dump to S3 ────────────────────────────────────────────
+backup:
+  enabled: false
+  schedule: "0 3 * * *"   # 3 am UTC daily (1 h after Velero)
+  s3Bucket: ""
+  s3Region: ap-southeast-1
+  image: postgres:16-alpine

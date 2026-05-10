@@ -1,0 +1,67 @@
+{{- if and .Values.postgres.enabled .Values.postgres.ha }}
+# CloudNativePG Cluster — 1 primary + 1 streaming replica, automated failover.
+# Requires the CloudNativePG operator installed in the cluster:
+#   helm install cnpg cloudnative-pg/cloudnative-pg -n cnpg-system --create-namespace
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  instances: 2   # 1 primary + 1 hot-standby replica
+
+  imageName: {{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}
+
+  primaryUpdateStrategy: unsupervised   # operator handles rolling updates
+
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "256MB"
+      effective_cache_size: "512MB"
+      wal_level: replica
+      max_wal_senders: "10"
+      hot_standby: "on"
+
+  bootstrap:
+    initdb:
+      database: {{ .Values.postgres.credentials.database }}
+      owner: sentinel
+      secret:
+        name: {{ .Values.backend.secretName }}   # uses DB_USER + DB_PASSWORD keys
+
+  # Continuous backup to S3 via Barman (enabled when backup.s3Bucket is set)
+  {{- if .Values.backup.s3Bucket }}
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://{{ .Values.backup.s3Bucket }}/postgres/cnpg
+      s3Credentials:
+        inheritFromIAMRole: true
+      wal:
+        compression: gzip
+        maxParallel: 8
+      data:
+        compression: gzip
+    retentionPolicy: "30d"
+  {{- end }}
+
+  storage:
+    size: {{ .Values.postgres.persistence.size }}
+    {{- if .Values.postgres.persistence.storageClass }}
+    storageClass: {{ .Values.postgres.persistence.storageClass }}
+    {{- end }}
+
+  resources:
+    {{- toYaml .Values.postgres.resources | nindent 4 }}
+
+  monitoring:
+    enablePodMonitor: true
+
+  # Replica probes — operator manages health automatically; this controls pod placement
+  affinity:
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: preferred
+{{- end }}

@@ -103,6 +103,12 @@ resource "aws_security_group" "node" {
   tags = { Name = "${var.name_prefix}-eks-node-sg" }
 }
 
+resource "aws_iam_openid_connect_provider" "main" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = ["9e99a48a9960b14926bb7f3b02e22da2b0ab7280"]
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.name_prefix}-nodes"

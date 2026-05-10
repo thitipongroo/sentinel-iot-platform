@@ -1,0 +1,50 @@
+{{- if .Values.velero.enabled }}
+# Velero Schedule — daily cluster-state backup.
+# Requires Velero installed: helm install velero vmware-tanzu/velero -n velero --create-namespace
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-daily
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.velero.schedule | quote }}
+  template:
+    # Scope backup to this namespace only
+    includedNamespaces:
+      - {{ .Release.Namespace }}
+    # Include PVCs (Redis AOF + Kafka log data for in-cluster dev)
+    includedResources:
+      - "*"
+    # Exclude ephemeral / large resources that don't need backup
+    excludedResources:
+      - events
+      - events.events.k8s.io
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    # Snapshot PVs if CSI plugin is configured
+    snapshotVolumes: true
+    storageLocation: {{ .Values.velero.storageLocation }}
+    volumeSnapshotLocations:
+      - {{ .Values.velero.storageLocation }}
+    ttl: {{ .Values.velero.ttl }}
+    # Hooks: quiesce Redis AOF before snapshot for consistency
+    hooks:
+      resources:
+        - name: redis-quiesce
+          includedNamespaces:
+            - {{ .Release.Namespace }}
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: redis
+          pre:
+            - exec:
+                container: redis
+                command:
+                  - redis-cli
+                  - BGSAVE
+                timeout: 30s
+                onError: Continue
+{{- end }}

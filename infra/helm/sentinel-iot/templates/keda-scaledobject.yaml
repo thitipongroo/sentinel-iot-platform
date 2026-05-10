@@ -1,0 +1,50 @@
+{{- if .Values.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-keda-kafka-auth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+spec:
+  # SASL/PLAINTEXT for MSK; empty for in-cluster Kafka (no auth)
+  secretTargetRef: []
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  scaleTargetRef:
+    {{- if .Values.rollout.enabled }}
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    {{- else }}
+    apiVersion: apps/v1
+    kind: Deployment
+    {{- end }}
+    name: {{ include "sentinel-iot.fullname" . }}-backend
+
+  minReplicaCount: {{ .Values.keda.minReplicaCount }}
+  maxReplicaCount: {{ .Values.keda.maxReplicaCount }}
+
+  # KEDA checks every 15s; cooldown 5 min before scale-down to avoid flapping
+  pollingInterval: 15
+  cooldownPeriod: 300
+
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: {{ include "sentinel-iot.kafkaBootstrap" . | quote }}
+        consumerGroup: {{ .Values.keda.consumerGroup }}
+        topic: {{ .Values.keda.kafkaTopic }}
+        # Number of messages per partition that triggers +1 replica
+        lagThreshold: {{ .Values.keda.lagThreshold | quote }}
+        # Don't scale to 0 unless lag drops below activationLagThreshold
+        activationLagThreshold: {{ .Values.keda.activationLagThreshold | quote }}
+        offsetResetPolicy: latest
+{{- end }}

@@ -183,6 +183,171 @@ resource "helm_release" "external_secrets" {
   depends_on = [module.eks]
 }
 
+# ── Argo Rollouts (Blue/Green + Canary controller) ────────────────────────────
+
+resource "helm_release" "argo_rollouts" {
+  name             = "argo-rollouts"
+  namespace        = "argo-rollouts"
+  create_namespace = true
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-rollouts"
+  version          = var.argo_rollouts_chart_version
+
+  set {
+    name  = "dashboard.enabled"
+    value = "true"
+  }
+
+  depends_on = [module.eks]
+}
+
+# ── KEDA (Kafka-lag-based autoscaling) ────────────────────────────────────────
+
+resource "helm_release" "keda" {
+  name             = "keda"
+  namespace        = "keda"
+  create_namespace = true
+  repository       = "https://kedacore.github.io/charts"
+  chart            = "keda"
+  version          = var.keda_chart_version
+
+  depends_on = [module.eks]
+}
+
+# ── Velero (cluster-state backup) ─────────────────────────────────────────────
+
+resource "aws_s3_bucket" "backup" {
+  bucket        = "${local.name_prefix}-backup-${data.aws_caller_identity.current.account_id}"
+  force_destroy = false
+
+  tags = { Name = "${local.name_prefix}-backup" }
+}
+
+resource "aws_s3_bucket_versioning" "backup" {
+  bucket = aws_s3_bucket.backup.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "backup" {
+  bucket = aws_s3_bucket.backup.id
+
+  rule {
+    id     = "expire-old-backups"
+    status = "Enabled"
+
+    expiration {
+      days = 90
+    }
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "backup" {
+  bucket = aws_s3_bucket.backup.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "backup" {
+  bucket                  = aws_s3_bucket.backup.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "helm_release" "velero" {
+  name             = "velero"
+  namespace        = "velero"
+  create_namespace = true
+  repository       = "https://vmware-tanzu.github.io/helm-charts"
+  chart            = "velero"
+  version          = var.velero_chart_version
+
+  values = [yamlencode({
+    configuration = {
+      backupStorageLocation = [{
+        name     = "default"
+        provider = "aws"
+        bucket   = aws_s3_bucket.backup.id
+        config = {
+          region = var.aws_region
+        }
+      }]
+      volumeSnapshotLocation = [{
+        name     = "default"
+        provider = "aws"
+        config = {
+          region = var.aws_region
+        }
+      }]
+    }
+    serviceAccount = {
+      server = {
+        annotations = {
+          "eks.amazonaws.com/role-arn" = aws_iam_role.velero.arn
+        }
+      }
+    }
+  })]
+
+  depends_on = [module.eks, aws_s3_bucket.backup]
+}
+
+# IAM role for Velero (IRSA)
+resource "aws_iam_role" "velero" {
+  name = "${local.name_prefix}-velero-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = module.eks.oidc_provider_arn
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${module.eks.oidc_provider}:sub" = "system:serviceaccount:velero:velero-server"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "velero" {
+  name = "${local.name_prefix}-velero-policy"
+  role = aws_iam_role.velero.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = [
+          aws_s3_bucket.backup.arn,
+          "${aws_s3_bucket.backup.arn}/*"
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:CreateSnapshot", "ec2:CreateTags", "ec2:DeleteSnapshot", "ec2:DescribeSnapshots", "ec2:DescribeVolumes"]
+        Resource = ["*"]
+      }
+    ]
+  })
+}
+
 # ── Secrets Manager entries (initial creation only) ───────────────────────────
 
 resource "aws_secretsmanager_secret" "sentinel" {
@@ -190,3 +355,5 @@ resource "aws_secretsmanager_secret" "sentinel" {
   description             = "Sentinel IoT platform runtime secrets"
   recovery_window_in_days = 7
 }
+
+data "aws_caller_identity" "current" {}

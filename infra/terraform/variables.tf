@@ -114,3 +114,18 @@ variable "external_secrets_chart_version" {
   type    = string
   default = "0.9.20"
 }
+
+variable "argo_rollouts_chart_version" {
+  type    = string
+  default = "2.37.3"
+}
+
+variable "keda_chart_version" {
+  type    = string
+  default = "2.14.2"
+}
+
+variable "velero_chart_version" {
+  type    = string
+  default = "7.0.0"
+}

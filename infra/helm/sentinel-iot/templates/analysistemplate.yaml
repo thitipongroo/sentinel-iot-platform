@@ -1,0 +1,79 @@
+{{- if .Values.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-backend-health
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: service-name
+
+  metrics:
+    # ── HTTP 5xx error rate < 5% ───────────────────────────────────────────────
+    - name: error-rate
+      interval: 30s
+      count: 5
+      successCondition: result[0] < 0.05
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus-operated.monitoring.svc:9090
+          query: |
+            sum(rate(http_server_requests_seconds_count{
+              service="{{ `{{args.service-name}}` }}",
+              status=~"5.."
+            }[2m]))
+            /
+            sum(rate(http_server_requests_seconds_count{
+              service="{{ `{{args.service-name}}` }}"
+            }[2m]))
+
+    # ── P99 request latency < 500ms ────────────────────────────────────────────
+    - name: p99-latency
+      interval: 30s
+      count: 5
+      successCondition: result[0] < 0.5
+      failureLimit: 2
+      provider:
+        prometheus:
+          address: http://prometheus-operated.monitoring.svc:9090
+          query: |
+            histogram_quantile(0.99,
+              sum(rate(http_server_requests_seconds_bucket{
+                service="{{ `{{args.service-name}}` }}"
+              }[2m])) by (le)
+            )
+
+    # ── JVM heap usage < 85% ───────────────────────────────────────────────────
+    - name: jvm-heap-usage
+      interval: 60s
+      count: 3
+      successCondition: result[0] < 0.85
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://prometheus-operated.monitoring.svc:9090
+          query: |
+            sum(jvm_memory_used_bytes{
+              service="{{ `{{args.service-name}}` }}",
+              area="heap"
+            })
+            /
+            sum(jvm_memory_max_bytes{
+              service="{{ `{{args.service-name}}` }}",
+              area="heap"
+            })
+
+    # ── Readiness probe: service must respond 200 ──────────────────────────────
+    - name: readiness-check
+      interval: 15s
+      count: 4
+      successCondition: result == "Healthy"
+      failureLimit: 2
+      provider:
+        web:
+          url: "http://{{ `{{args.service-name}}` }}.{{ .Release.Namespace }}.svc:8080/actuator/health/readiness"
+          jsonPath: "{$.status}"
+{{- end }}

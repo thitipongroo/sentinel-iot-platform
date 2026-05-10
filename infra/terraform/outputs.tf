@@ -36,3 +36,12 @@ output "vpc_id" {
 output "private_subnet_ids" {
   value = aws_subnet.private[*].id
 }
+
+output "backup_s3_bucket" {
+  description = "S3 bucket for Velero + pg_dump backups"
+  value       = aws_s3_bucket.backup.id
+}
+
+output "velero_iam_role_arn" {
+  value = aws_iam_role.velero.arn
+}

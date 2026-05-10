@@ -1,35 +1,65 @@
-{{- if not .Values.rollout.enabled }}
-apiVersion: apps/v1
-kind: Deployment
+{{- if .Values.rollout.enabled }}
+{{- $fullname := include "sentinel-iot.fullname" . }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
 metadata:
-  name: {{ include "sentinel-iot.fullname" . }}-backend
+  name: {{ $fullname }}-backend
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "sentinel-iot.labels" . | nindent 4 }}
     app.kubernetes.io/component: backend
 spec:
-  {{- if not .Values.backend.autoscaling.enabled }}
+  {{- if not .Values.keda.enabled }}
   replicas: {{ .Values.backend.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
       {{- include "sentinel-iot.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: backend
+  revisionHistoryLimit: 3
+
+  {{- if eq .Values.rollout.strategy "blueGreen" }}
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0    # zero-downtime deploys
-      maxSurge: 1
+    blueGreen:
+      activeService: {{ $fullname }}-backend
+      previewService: {{ $fullname }}-backend-preview
+      autoPromotionEnabled: {{ .Values.rollout.blueGreen.autoPromotionEnabled }}
+      scaleDownDelaySeconds: {{ .Values.rollout.blueGreen.scaleDownDelaySeconds }}
+      {{- if .Values.rollout.blueGreen.prePromotionAnalysis.enabled }}
+      prePromotionAnalysis:
+        templates:
+          - templateName: {{ $fullname }}-backend-health
+        args:
+          - name: service-name
+            value: {{ $fullname }}-backend-preview
+      {{- end }}
+      postPromotionAnalysis:
+        templates:
+          - templateName: {{ $fullname }}-backend-health
+        args:
+          - name: service-name
+            value: {{ $fullname }}-backend
+  {{- else }}
+  strategy:
+    canary:
+      canaryService: {{ $fullname }}-backend-preview
+      stableService: {{ $fullname }}-backend
+      steps:
+        {{- toYaml .Values.rollout.canary.steps | nindent 8 }}
+      analysis:
+        templates:
+          - templateName: {{ $fullname }}-backend-health
+        startingStep: 2
+  {{- end }}
+
   template:
     metadata:
       labels:
         {{- include "sentinel-iot.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: backend
       annotations:
-        # Restart pods when the ConfigMap changes
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
-      # Spread across availability zones; fall back to node-level spread if only 1 zone
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
@@ -43,7 +73,6 @@ spec:
           labelSelector:
             matchLabels:
               app.kubernetes.io/component: backend
-      # Prefer different nodes for HA
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -53,7 +82,7 @@ spec:
                 labelSelector:
                   matchLabels:
                     app.kubernetes.io/component: backend
-      terminationGracePeriodSeconds: 60   # allow in-flight requests to complete
+      terminationGracePeriodSeconds: 60
       containers:
         - name: backend
           image: {{ include "sentinel-iot.image" (dict "registry" .Values.global.imageRegistry "repo" .Values.backend.image.repository "tag" .Values.backend.image.tag) }}
@@ -64,7 +93,7 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "sentinel-iot.fullname" . }}-config
+                name: {{ $fullname }}-config
           env:
             - name: JWT_SECRET
               valueFrom:
@@ -103,7 +132,6 @@ spec:
                   name: {{ .Values.backend.secretName }}
                   key: LINE_NOTIFY_TOKEN
                   optional: true
-          # Spring Boot takes ~30s to start; startupProbe gives it 3 min max
           startupProbe:
             httpGet:
               path: /actuator/health/liveness
@@ -115,7 +143,6 @@ spec:
             httpGet:
               path: /actuator/health/liveness
               port: http
-            initialDelaySeconds: 0
             periodSeconds: 15
             failureThreshold: 3
             timeoutSeconds: 5
@@ -123,7 +150,6 @@ spec:
             httpGet:
               path: /actuator/health/readiness
               port: http
-            initialDelaySeconds: 0
             periodSeconds: 10
             failureThreshold: 3
             timeoutSeconds: 5
@@ -133,7 +159,7 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false   # Spring Boot writes temp files
+            readOnlyRootFilesystem: false
             capabilities:
               drop: [ALL]
       securityContext:
@@ -142,4 +168,25 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+---
+# Preview service: receives canary/blue traffic before promotion
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-backend-preview
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+    sentinel-iot.io/slot: preview
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "sentinel-iot.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
 {{- end }}

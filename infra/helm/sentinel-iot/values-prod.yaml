@@ -56,3 +56,41 @@ frontend:
 # ── Storage class for EKS gp3 volumes ────────────────────────────────────────
 mosquitto:
   enabled: true   # Mosquitto stays in-cluster (managed IoT broker is optional)
+
+# ── Argo Rollouts — Blue/Green in prod ───────────────────────────────────────
+rollout:
+  enabled: true
+  strategy: blueGreen
+  blueGreen:
+    autoPromotionEnabled: false   # manual promote gate — engineer reviews preview stack
+    scaleDownDelaySeconds: 120
+    prePromotionAnalysis:
+      enabled: true
+
+# ── KEDA — Kafka-lag autoscaling in prod ─────────────────────────────────────
+keda:
+  enabled: true
+  minReplicaCount: 3
+  maxReplicaCount: 20
+  lagThreshold: "500"             # more aggressive in prod (lower threshold → faster scale-up)
+  activationLagThreshold: "50"
+
+# ── Velero backup — enabled in prod ──────────────────────────────────────────
+velero:
+  enabled: true
+  schedule: "0 2 * * *"
+  ttl: 720h
+
+# ── pg_dump backup — enabled in prod ─────────────────────────────────────────
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  s3Bucket: ""     # set via --set backup.s3Bucket=... during helm upgrade
+  s3Region: ap-southeast-1
+
+# ── PodDisruptionBudget — stricter in prod ────────────────────────────────────
+pdb:
+  backend:
+    minAvailable: 2
+  frontend:
+    minAvailable: 1

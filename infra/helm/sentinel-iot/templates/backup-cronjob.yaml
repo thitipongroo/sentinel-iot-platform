@@ -1,0 +1,109 @@
+{{- if and .Values.backup.enabled .Values.backup.s3Bucket }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+  annotations:
+    # IRSA — pods using this SA can assume the backup IAM role without credentials
+    eks.amazonaws.com/role-arn: arn:aws:iam::$(AWS_ACCOUNT_ID):role/sentinel-backup-role
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-pg-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600   # abort if pg_dump runs > 1 hour
+      template:
+        metadata:
+          labels:
+            {{- include "sentinel-iot.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          serviceAccountName: {{ include "sentinel-iot.fullname" . }}-backup
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-dump
+              image: {{ .Values.backup.image }}
+              command:
+                - sh
+                - -c
+                - |
+                  set -euo pipefail
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  BACKUP_KEY="postgres/${NAMESPACE}/${TIMESTAMP}.sql.gz"
+                  echo "Starting backup: s3://${BACKUP_BUCKET}/${BACKUP_KEY}"
+                  pg_dump \
+                    -h "${DB_HOST}" \
+                    -U "${DB_USER}" \
+                    -d "${DB_NAME}" \
+                    --no-password \
+                    --format=custom \
+                    --compress=9 \
+                    | aws s3 cp - "s3://${BACKUP_BUCKET}/${BACKUP_KEY}" \
+                        --storage-class STANDARD_IA \
+                        --region "${AWS_REGION}"
+                  echo "Backup complete: ${BACKUP_KEY}"
+                  # Prune backups older than 30 days
+                  CUTOFF=$(date -d '30 days ago' +%Y%m%d 2>/dev/null || date -v-30d +%Y%m%d)
+                  aws s3 ls "s3://${BACKUP_BUCKET}/postgres/${NAMESPACE}/" \
+                    | awk '{print $4}' \
+                    | while read key; do
+                        keydate=$(echo "$key" | grep -oE '[0-9]{8}' | head -1)
+                        if [ -n "$keydate" ] && [ "$keydate" -lt "$CUTOFF" ]; then
+                          aws s3 rm "s3://${BACKUP_BUCKET}/postgres/${NAMESPACE}/${key}"
+                          echo "Pruned old backup: ${key}"
+                        fi
+                      done
+              env:
+                - name: NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: BACKUP_BUCKET
+                  value: {{ .Values.backup.s3Bucket | quote }}
+                - name: AWS_REGION
+                  value: {{ .Values.backup.s3Region | quote }}
+                - name: DB_HOST
+                  valueFrom:
+                    configMapKeyRef:
+                      name: {{ include "sentinel-iot.fullname" . }}-config
+                      key: DB_HOST
+                - name: DB_NAME
+                  value: {{ .Values.postgres.credentials.database | quote }}
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backend.secretName }}
+                      key: DB_USER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backend.secretName }}
+                      key: DB_PASSWORD
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 999
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+{{- end }}
