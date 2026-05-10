@@ -309,6 +309,20 @@ GitHub Actions runs on every push and PR:
 
 ---
 
+## Documentation
+
+Detailed documentation lives in [`docs/`](docs/):
+
+| Document | Contents |
+| -------- | -------- |
+| [Architecture](docs/architecture.md) | Component descriptions, data model, deployment topology |
+| [API Reference](docs/api.md) | All endpoints, request/response examples, role matrix |
+| [Sequence Diagrams](docs/sequence-diagrams.md) | 6 Mermaid diagrams — ingestion, auth, JWT filter, alert, WebSocket, device registration |
+| [Scaling Discussion](docs/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap |
+| [Design Tradeoffs](docs/tradeoffs.md) | 7 decisions — Next.js, MQTT, Redis, PostgreSQL, Spring Integration, WebSocket, JWT |
+
+---
+
 ## Design Tradeoffs
 
 ### Why Redis instead of Memcached?
