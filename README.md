@@ -87,9 +87,9 @@ Invalid MQTT payload / unknown device:
      └── mqttDlqChannel ──▶ factory/telemetry/dlq
            headers: dlq-error-code, dlq-error-detail, dlq-timestamp
 ```
--->
 
 ---
+-->
 
 ## Tech Stack
 
