@@ -214,6 +214,113 @@ The tradeoff vs TimescaleDB: monthly partitions must be pre-created in migration
 
 ---
 
+## 13. API Versioning — URL Prefix vs Accept Header vs Query Parameter
+
+**Chosen:** URL prefix (`/api/v1/`) with `ApiVersionFilter`
+
+| Aspect | URL prefix `/v1/` | Accept header `application/vnd.api.v1+json` | Query param `?version=1` |
+| --- | --- | --- | --- |
+| Discoverability | Obvious in browser, logs, network tabs | Invisible without header inspection | Visible but stripped by some proxies |
+| CDN caching | CDN caches `/v1/` and `/v2/` separately | Requires `Vary: Accept` header | Cache-Control must include `Vary` |
+| Routing | Simple path-based routing | Content negotiation (complex middleware) | Leaks into query string |
+| Breaking change isolation | Separate URL tree per version | Same URL, different serialisation | Same URL, different content |
+
+**Reasoning:** URL prefix is the most explicit and debuggable choice — version is visible in curl output, browser network tabs, and server logs with zero extra tooling. `ApiVersionFilter` adds `API-Version: 1` to every versioned response and emits `Deprecation`, `Sunset: Sat, 01 Jan 2027`, and `Link` headers for any caller still hitting the unversioned `/api/` path, giving a graceful migration window.
+
+**Tradeoff accepted:** Every client must include the version prefix in its base URL. Unversioned paths (`/api/auth/login`) remain functional until 2027-01-01 but receive deprecation headers.
+
+---
+
+## 14. Schema Evolution — Dual Payload Shapes (v1 scalar + v2 dynamic readings)
+
+**Chosen:** Branched schema versions with Avro as the canonical Kafka wire format
+
+| Aspect | v1 (fixed scalar fields) | v2 (dynamic `readings` map) | Avro + Schema Registry |
+| --- | --- | --- | --- |
+| Supported sensor types | 4 hard-coded | Any `SensorType` enum value | Enforced by schema at publish time |
+| Adding a new sensor type | Requires DB migration + code change | Zero code change | New field in Avro schema (BACKWARD-compatible) |
+| DB storage | Fixed columns (`temperature`, `humidity`, ...) | `readings JSONB` column | Decoded at ingest, stored as v2 |
+| Alert engine | Hard-coded field access | Map lookup by `SensorType` | Same as v2 |
+
+**Reasoning:** Field devices cannot be updated simultaneously. The ingest pipeline branches on `schemaVersion`: v1 payloads decode scalar fields and synthesise a `readings` map for the alert engine; v2 payloads carry the full readings map natively. Avro enforces the schema on every Kafka message; `SchemaCompatibilityService` runs on startup, checks BACKWARD compatibility against the Schema Registry, and aborts startup if any registered schema is incompatible.
+
+**Tradeoff accepted:** Two code paths increase ingest complexity. The v1 path will be removed once all field devices have upgraded to v2 firmware.
+
+---
+
+## 15. KEDA vs Kubernetes HPA for Autoscaling
+
+**Chosen:** KEDA (Kubernetes Event-Driven Autoscaling) with Kafka lag trigger; HPA as fallback when KEDA is disabled
+
+| Aspect | KEDA | HPA |
+| --- | --- | --- |
+| Scale trigger | Kafka consumer lag (leading indicator) | CPU / memory (lagging indicator) |
+| Minimum replicas | 0 (scale-to-zero in staging) | 1 |
+| Custom metrics | Native (Kafka, Redis, 60+ scalers) | Requires custom metrics adapter |
+| Automated cooldown | Configurable per ScaledObject | 5-minute default |
+| Complexity | KEDA operator required | Built-in to Kubernetes |
+
+**Reasoning:** CPU usage is a lagging indicator for a Kafka consumer — a spike in consumer lag is a leading indicator that shows a replica is falling behind before CPU saturates. KEDA's Kafka scaler triggers scale-out when `consumerLag > lagThreshold`, adding replicas before messages accumulate. Scale-to-zero reduces staging cluster costs.
+
+**Tradeoff accepted:** KEDA requires an operator in the cluster. The Helm chart falls back to the standard HPA on CPU when `keda.enabled=false`.
+
+---
+
+## 16. React Query + Zustand vs useState + useEffect for Frontend State
+
+**Chosen:** `@tanstack/react-query` for server state; Zustand for UI client state
+
+| Aspect | React Query + Zustand | useState + useEffect |
+| --- | --- | --- |
+| Cache invalidation | Automatic (staleTime, refetchOnFocus) | Manual (ref juggling, cleanup) |
+| Optimistic updates | Built-in (onMutate / onError rollback) | Complex custom logic |
+| Background refetch | Yes (configurable interval) | setInterval in useEffect |
+| Request deduplication | Automatic (same queryKey shares one request) | Race condition-prone |
+| Global client state | Zustand normalized store (selectedDeviceId, filters) | Context + reducer (prop-drilling) |
+| DevTools | React Query Devtools | None |
+
+**Reasoning:** Dashboard panels (devices, alerts, telemetry stats) share cache keys via `queryKey` factories. `invalidateQueries({ queryKey: qk.alerts() })` instantly refreshes every panel that depends on alerts. `useMutation` with `onMutate` gives instant optimistic feedback on alert acknowledgement; `onError` rolls back to the previous snapshot. Zustand holds only derived UI state — no server data is duplicated in client state.
+
+**Tradeoff accepted:** React Query adds ~47 KB to the bundle. `staleTime` and `gcTime` must be tuned per endpoint or stale data will be served after cache expiry.
+
+---
+
+## 17. Argo Rollouts vs Kubernetes Rolling Update for Deployments
+
+**Chosen:** Argo Rollouts with blue/green deployment strategy
+
+| Aspect | Argo Rollouts (Blue/Green) | Kubernetes Rolling Update |
+| --- | --- | --- |
+| Traffic shift | Instant cutover after health check | Gradual pod replacement |
+| Rollback speed | Instant (flip active service selector) | Waits for pod termination + startup |
+| Schema migration safety | Old pods fully stopped before new pods take traffic | Old + new pods run simultaneously |
+| Canary option | Yes (weight-based traffic splitting) | Requires a service mesh |
+| Complexity | Argo Rollouts operator required | Built-in |
+
+**Reasoning:** Flyway schema migrations run in an init container before new pods start. With a rolling update, old pods (expecting the previous schema) and new pods (expecting the new schema) can run simultaneously during the rollout window, risking schema mismatch errors. Blue/green ensures only one schema version is active at any time — old pods are fully replaced before new pods begin serving traffic.
+
+**Tradeoff accepted:** Blue/green requires ~2× compute during the transition window. Canary deployments (gradual weight shift) are available as an alternative for releases with no DB migrations.
+
+---
+
+## 18. CloudNativePG vs Self-Managed PostgreSQL for HA
+
+**Chosen:** CloudNativePG (CNPG) Kubernetes operator
+
+| Aspect | CloudNativePG | Self-managed Postgres + Patroni |
+| --- | --- | --- |
+| Automatic failover | Yes (<30s via Kubernetes leader election) | Yes (requires etcd / Consul / ZooKeeper) |
+| WAL archival / backup | Built-in (S3 / GCS / Azure Blob) | pg_basebackup + custom cron |
+| Connection pooling | PgBouncer sidecar (built-in CRD option) | Separate PgBouncer deployment |
+| Kubernetes-native | Yes (CRD-based, `status.conditions`) | Manual Helm chart wiring |
+| Operational overhead | Low | High (manage Patroni + etcd separately) |
+
+**Reasoning:** The CNPG `Cluster` CRD handles primary election, streaming replication, and WAL archival in a single spec. Spring Data JPA's `AbstractRoutingDataSource` routes `@Transactional(readOnly=true)` calls to the CNPG read service and write transactions to the primary service — no application code changes. Point-in-time recovery is built in, essential for the replicated telemetry data.
+
+**Tradeoff accepted:** CloudNativePG is a newer operator (GA 2023) with a smaller ecosystem than self-managed Patroni. Requires the CNPG operator to be installed in the cluster before deploying the Helm chart.
+
+---
+
 ## Summary Table
 
 | Decision | Chosen | Main Alternative | Key Reason |
@@ -230,3 +337,9 @@ The tradeoff vs TimescaleDB: monthly partitions must be pre-created in migration
 | Lifecycle terminal | DECOMMISSIONED blocked | Allow re-activation | Audit integrity, unambiguous removal |
 | Replay loop | Direct repository | TelemetryService | Avoid double CB/retry during recovery |
 | Tracing backend | Jaeger (OTLP) | Zipkin | Native OTLP, no bridge, Badger dev storage |
+| API versioning | URL prefix `/v1/` | Accept header | Visible in logs, CDN cache isolation |
+| Schema evolution | v1 scalar + v2 readings + Avro | Single fixed schema | Field device upgrade without downtime |
+| Autoscaling | KEDA (Kafka lag) | HPA (CPU) | Leading indicator, scale-to-zero |
+| Frontend state | React Query + Zustand | useState + useEffect | Cache invalidation, optimistic updates |
+| Deployments | Argo Rollouts blue/green | Rolling update | Schema migration safety, instant rollback |
+| HA database | CloudNativePG operator | Patroni + etcd | CRD-native, built-in WAL archival |

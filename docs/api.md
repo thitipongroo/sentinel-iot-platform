@@ -2,6 +2,8 @@
 
 Base URL: `http://localhost:8080` (local) or your deployed backend URL.
 
+**Versioning:** All endpoints are under `/api/v1/`. Every response includes an `API-Version: 1` header. Unversioned `/api/*` requests receive additional `Deprecation: true`, `Sunset`, and `Link` headers pointing to the versioned equivalent.
+
 All protected endpoints require:
 
 ```http
@@ -12,14 +14,14 @@ Authorization: Bearer <access_token>
 
 ## Authentication
 
-### POST /api/auth/login
+### POST /api/v1/auth/login
 
 Obtain an access token and refresh token. No authentication required.
 
-**Request**
+#### Request
 
 ```http
-POST /api/auth/login
+POST /api/v1/auth/login
 Content-Type: application/json
 ```
 
@@ -43,28 +45,19 @@ Content-Type: application/json
 
 **Response 401** — Wrong credentials
 
-```json
-{
-  "status": 401,
-  "error": "Unauthorized"
-}
-```
-
 **Token lifetimes:**
 
 - `accessToken`: 15 minutes (configurable via `JWT_EXPIRATION_MS`)
-- `refreshToken`: 7 days (configurable via `JWT_REFRESH_EXPIRATION_MS`); **rotated** on every use — each `/auth/refresh` call invalidates the old token and issues a new one
+- `refreshToken`: 7 days (configurable via `JWT_REFRESH_EXPIRATION_MS`); **rotated** on every use
 
 ---
 
-### POST /api/auth/refresh
+### POST /api/v1/auth/refresh
 
 Exchange a refresh token for a new access token + rotated refresh token.
 
-**Request**
-
 ```http
-POST /api/auth/refresh
+POST /api/v1/auth/refresh
 Content-Type: application/json
 ```
 
@@ -85,16 +78,16 @@ Content-Type: application/json
 }
 ```
 
-**Response 401** — Expired or unknown refresh token
+**Response 401** — Expired, unknown, or already-rotated refresh token
 
 ---
 
-### POST /api/auth/logout
+### POST /api/v1/auth/logout
 
 Revoke all refresh tokens for the authenticated user.
 
 ```http
-POST /api/auth/logout
+POST /api/v1/auth/logout
 Authorization: Bearer <access_token>
 ```
 
@@ -104,14 +97,12 @@ Authorization: Bearer <access_token>
 
 ## Devices
 
-### POST /api/devices
+### POST /api/v1/devices
 
 Register a new device. **Requires ADMIN role.**
 
-**Request**
-
 ```http
-POST /api/devices
+POST /api/v1/devices
 Authorization: Bearer <token>
 Content-Type: application/json
 ```
@@ -119,10 +110,12 @@ Content-Type: application/json
 ```json
 {
   "name": "sensor-1",
-  "description": "Line A temperature sensor",
-  "location": "Factory Hall B"
+  "location": "Factory Hall B",
+  "firmwareVersion": "2.0.0"
 }
 ```
+
+> `location` and `firmwareVersion` are optional. There is no `description` field.
 
 **Response 201**
 
@@ -132,121 +125,194 @@ Content-Type: application/json
   "name": "sensor-1",
   "status": "OFFLINE",
   "lifecycleStatus": "PROVISIONED",
-  "firmwareVersion": null,
-  "firmwareUpdatedAt": null,
-  "description": "Line A temperature sensor",
   "location": "Factory Hall B",
-  "createdAt": "2024-06-01T08:00:00Z",
-  "lastSeen": null
+  "firmwareVersion": "2.0.0",
+  "lastSeen": null,
+  "capabilities": null
 }
 ```
 
-**Response 400** — Name already exists
-
+**Response 400** — Name already exists  
 **Response 403** — OPERATOR role attempting to create
 
 ---
 
-### GET /api/devices
+### GET /api/v1/devices
 
-List all registered devices. **Requires ADMIN or OPERATOR role.**
+List all registered devices with live status from Redis. **Requires ADMIN or OPERATOR role.**
 
 **Response 200** — Array; each item has the same shape as the POST 201 response above.
 
 ---
 
-### GET /api/devices/{id}
+### GET /api/v1/devices/{id}
 
 Fetch a single device by UUID. Returns 404 if not found.
 
 ---
 
-### PATCH /api/devices/{id}/lifecycle
+### PATCH /api/v1/devices/{id}/lifecycle
 
 Transition a device's lifecycle status. **Requires ADMIN role.**
 
-**Request**
-
 ```http
-PATCH /api/devices/3fa85f64-5717-4562-b3fc-2c963f66afa6/lifecycle
+PATCH /api/v1/devices/3fa85f64-5717-4562-b3fc-2c963f66afa6/lifecycle
 Authorization: Bearer <admin_token>
 Content-Type: application/json
 ```
 
 ```json
-{
-  "lifecycleStatus": "ACTIVE"
-}
+{ "lifecycleStatus": "ACTIVE" }
 ```
 
 Valid states: `PROVISIONED → ACTIVE → INACTIVE → DECOMMISSIONED`.
 
-`DECOMMISSIONED` is terminal — further transitions return 409. Transitioning to `INACTIVE` or `DECOMMISSIONED` also forces `status = OFFLINE`.
+`DECOMMISSIONED` is terminal — further transitions return **409**. Transitioning to `INACTIVE` or `DECOMMISSIONED` also forces `status = OFFLINE`.
 
 **Response 200** — Updated device object.
 
-**Response 409** — Attempt to transition from `DECOMMISSIONED`.
-
-**Response 403** — Non-ADMIN token.
-
 ---
 
-### PATCH /api/devices/{id}/firmware
+### PATCH /api/v1/devices/{id}/firmware
 
 Update a device's recorded firmware version. **Requires ADMIN role.**
 
-**Request**
-
 ```http
-PATCH /api/devices/3fa85f64-5717-4562-b3fc-2c963f66afa6/firmware
+PATCH /api/v1/devices/3fa85f64-5717-4562-b3fc-2c963f66afa6/firmware
 Authorization: Bearer <admin_token>
 Content-Type: application/json
 ```
 
 ```json
+{ "firmwareVersion": "2.1.0" }
+```
+
+Version must match semver (`\d+\.\d+\.\d+(-[\w.]+)?`). Rejected for `DECOMMISSIONED` devices (400).
+
+**Response 200** — Updated device object.
+
+---
+
+### GET /api/v1/devices/{id}/capabilities
+
+Retrieve the sensor capability map for a device. **Requires ADMIN or OPERATOR role.**
+
+When `capabilities` is null, the alert engine falls back to global environment-variable thresholds.
+
+**Response 200**
+
+```json
 {
-  "firmwareVersion": "1.2.3"
+  "TEMPERATURE": {
+    "unit": "°C",
+    "minOperational": -40.0,
+    "maxOperational": 200.0,
+    "warnThreshold": 75.0,
+    "critThreshold": 85.0,
+    "thresholdDirection": "ABOVE",
+    "enabled": true,
+    "decimalPlaces": 1
+  },
+  "HUMIDITY": {
+    "unit": "%RH",
+    "warnThreshold": 85.0,
+    "critThreshold": 95.0,
+    "thresholdDirection": "ABOVE",
+    "enabled": true,
+    "decimalPlaces": 0
+  }
 }
 ```
 
-Version must match semver pattern (`\d+\.\d+\.\d+(-[\w.]+)?`). Rejected for `DECOMMISSIONED` devices (400).
+Keys are `SensorType` names (e.g. `TEMPERATURE`, `HUMIDITY`, `SMOKE_PPM`, `CO2_PPM`, `MOTION`).
 
-**Response 200** — Updated device object with `firmwareVersion` and `firmwareUpdatedAt` set.
+---
+
+### PUT /api/v1/devices/{id}/capabilities
+
+Replace the full sensor capability map. **Requires ADMIN role.**  
+Send an empty object `{}` to revert to global thresholds.
+
+**Request body** — same shape as the GET response above.
+
+**Response 200** — Updated device object (with new `capabilities` embedded).
+
+**Response 400** — Device is `DECOMMISSIONED`.
 
 ---
 
 ## Telemetry
 
-### GET /api/telemetry/{deviceId}/latest
+### GET /api/v1/telemetry/{deviceId}/latest
 
 Returns the most recent telemetry rows from PostgreSQL, ordered by timestamp descending. Default limit: 50, max: 200.
 
-**Request**
-
 ```http
-GET /api/telemetry/3fa85f64-5717-4562-b3fc-2c963f66afa6/latest?limit=10
+GET /api/v1/telemetry/3fa85f64-5717-4562-b3fc-2c963f66afa6/latest?limit=10
 Authorization: Bearer <token>
 ```
 
-**Response 200**
+**Response 200** — Array of telemetry objects.
+
+**v1 payload** (`schemaVersion=1` — fixed scalar fields):
 
 ```json
 [
   {
     "id": "uuid",
     "deviceId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "schemaVersion": 1,
+    "timestamp": "2025-06-01T09:45:12Z",
     "temperature": 72.4,
     "humidity": 58.2,
     "motion": false,
     "smokePpm": 12.5,
-    "timestamp": "2024-06-01T09:45:12Z"
+    "readings": {
+      "TEMPERATURE": { "value": 72.4, "unit": "°C",   "quality": "GOOD" },
+      "HUMIDITY":    { "value": 58.2, "unit": "%RH",  "quality": "GOOD" },
+      "SMOKE_PPM":   { "value": 12.5, "unit": "ppm",  "quality": "GOOD" },
+      "MOTION":      { "value": 0.0,  "unit": "bool", "quality": "GOOD" }
+    }
+  }
+]
+```
+
+> For v1 payloads, `readings` is synthesised from scalar fields by the ingest pipeline — both representations are present.
+
+**v2 payload** (`schemaVersion=2` — dynamic readings + edge metadata):
+
+```json
+[
+  {
+    "id": "uuid",
+    "deviceId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "schemaVersion": 2,
+    "timestamp": "2025-06-01T09:45:12Z",
+    "temperature": null,
+    "humidity": null,
+    "motion": null,
+    "smokePpm": null,
+    "readings": {
+      "TEMPERATURE": { "value": 72.4,   "unit": "°C",   "quality": "GOOD" },
+      "HUMIDITY":    { "value": 58.2,   "unit": "%RH",  "quality": "GOOD" },
+      "CO2_PPM":     { "value": 412.0,  "unit": "ppm",  "quality": "GOOD" },
+      "BATTERY_PCT": { "value": 87.0,   "unit": "%",    "quality": "GOOD" },
+      "SIGNAL_RSSI": { "value": -67.0,  "unit": "dBm",  "quality": "GOOD" }
+    },
+    "edgeFirmwareVersion": "2.4.1",
+    "edgeIp": "192.168.1.42",
+    "edgeUptimeSeconds": 86400,
+    "edgeRssi": -67,
+    "edgeBatteryPct": 87,
+    "edgeFreeHeapBytes": 42680,
+    "edgeProtocol": "MQTT_TLS"
   }
 ]
 ```
 
 ---
 
-### GET /api/telemetry/{deviceId}/cache
+### GET /api/v1/telemetry/{deviceId}/cache
 
 Returns the latest telemetry values from Redis (sub-millisecond). All values are strings (Redis hash field type).
 
@@ -264,12 +330,12 @@ Returns the latest telemetry values from Redis (sub-millisecond). All values are
 
 ---
 
-### GET /api/telemetry/{deviceId}/range
+### GET /api/v1/telemetry/{deviceId}/range
 
 Returns raw telemetry within a time window. Use ISO 8601 timestamps.
 
 ```http
-GET /api/telemetry/{deviceId}/range?from=2024-06-01T00:00:00Z&to=2024-06-01T23:59:59Z
+GET /api/v1/telemetry/{deviceId}/range?from=2025-06-01T00:00:00Z&to=2025-06-01T23:59:59Z
 Authorization: Bearer <token>
 ```
 
@@ -277,12 +343,12 @@ Authorization: Bearer <token>
 
 ---
 
-### GET /api/telemetry/{deviceId}/hourly
+### GET /api/v1/telemetry/{deviceId}/hourly
 
-Returns hourly aggregated telemetry for a time window. Aggregates persist beyond the raw telemetry retention window and are used by the dashboard's 24h and 7d chart modes.
+Returns hourly aggregated telemetry. Aggregates persist beyond the raw retention window and power the dashboard 24h / 7d chart modes.
 
 ```http
-GET /api/telemetry/{deviceId}/hourly?from=2024-06-01T00:00:00Z&to=2024-06-07T23:59:59Z
+GET /api/v1/telemetry/{deviceId}/hourly?from=2025-06-01T00:00:00Z&to=2025-06-07T23:59:59Z
 Authorization: Bearer <token>
 ```
 
@@ -293,15 +359,10 @@ Authorization: Bearer <token>
   {
     "id": "uuid",
     "deviceId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "hourBucket": "2024-06-01T14:00:00Z",
-    "tempAvg": 71.4,
-    "tempMin": 65.2,
-    "tempMax": 88.1,
-    "humAvg": 58.0,
-    "humMin": 45.0,
-    "humMax": 72.0,
-    "smokeAvg": 23.5,
-    "smokeMax": 310.0,
+    "hourBucket": "2025-06-01T14:00:00Z",
+    "tempAvg": 71.4, "tempMin": 65.2, "tempMax": 88.1,
+    "humAvg": 58.0,  "humMin": 45.0,  "humMax": 72.0,
+    "smokeAvg": 23.5, "smokeMax": 310.0,
     "motionCount": 7,
     "sampleCount": 720
   }
@@ -310,7 +371,7 @@ Authorization: Bearer <token>
 
 ---
 
-### GET /api/telemetry/stats
+### GET /api/v1/telemetry/stats
 
 Returns event throughput and replay queue depth.
 
@@ -323,15 +384,15 @@ Returns event throughput and replay queue depth.
 }
 ```
 
-`replayQueueSize` is the current depth of the Redis replay queue (`sentinel:replay:queue`). A non-zero value indicates the circuit breaker has tripped and telemetry is being buffered.
+`replayQueueSize > 0` means the circuit breaker has tripped and telemetry is being buffered to the Redis replay queue.
 
 ---
 
 ## Alerts
 
-### GET /api/alerts
+### GET /api/v1/alerts
 
-Returns the 50 most recent alerts (acknowledged and unacknowledged).
+Returns the 50 most recent alerts (acknowledged and unacknowledged), newest first.
 
 **Response 200**
 
@@ -343,7 +404,7 @@ Returns the 50 most recent alerts (acknowledged and unacknowledged).
     "level": "CRITICAL",
     "message": "[sensor-1] CRITICAL: temperature 83.2°C exceeds 80.0°C threshold",
     "acknowledged": false,
-    "createdAt": "2024-06-01T09:45:12Z"
+    "createdAt": "2025-06-01T09:45:12Z"
   }
 ]
 ```
@@ -352,23 +413,22 @@ Returns the 50 most recent alerts (acknowledged and unacknowledged).
 
 | Level | Trigger |
 | --- | --- |
-| `CRITICAL` | temperature > 80 °C or smoke > 200 ppm |
-| `WARNING` | humidity > 90 % or (motion true and temperature > 70 °C) |
+| `CRITICAL` | Per-device `critThreshold` breached (capability-aware), OR temperature > 80 °C / smoke > 200 ppm (global fallback) |
+| `WARNING` | Per-device `warnThreshold` breached (capability-aware), OR humidity > 90 % / motion+temp>70 °C (global fallback) |
 
 ---
 
-### GET /api/alerts/unacknowledged
+### GET /api/v1/alerts/unacknowledged
 
 Returns only unacknowledged alerts, ordered newest first.
 
 ---
 
-### PUT /api/alerts/{id}/acknowledge
+### PUT /api/v1/alerts/{id}/acknowledge
 
 Mark an alert as acknowledged. **Requires ADMIN role.**
 
-**Response 204** — No content.
-
+**Response 204** — No content.  
 **Response 403** — Non-ADMIN token.
 
 ---
@@ -377,7 +437,7 @@ Mark an alert as acknowledged. **Requires ADMIN role.**
 
 ### WS /ws/telemetry
 
-Real-time telemetry stream. The connection is not authenticated at the transport layer — add a `HandshakeInterceptor` to validate a token query parameter for production hardening.
+Real-time telemetry stream.
 
 **Connect**
 
@@ -398,7 +458,7 @@ const ws = new WebSocket('ws://localhost:8080/ws/telemetry')
 }
 ```
 
-The backend broadcasts to **all** connected sessions. Filter by `deviceId` on the client side.
+The backend broadcasts to **all** connected sessions. Filter by `deviceId` on the client side. In a multi-replica deployment the Redis Pub/Sub channel `ws:telemetry` ensures every replica broadcasts to its own local sessions.
 
 ---
 
@@ -406,15 +466,16 @@ The backend broadcasts to **all** connected sessions. Filter by `deviceId` on th
 
 ### GET /actuator/health
 
-No authentication required.
+No authentication required. Returns liveness and readiness probe status (K8s-compatible when `management.endpoint.health.probes.enabled=true`).
 
 ```json
 {
   "status": "UP",
   "components": {
-    "db":        { "status": "UP" },
-    "redis":     { "status": "UP" },
-    "diskSpace": { "status": "UP" }
+    "db":           { "status": "UP" },
+    "redis":        { "status": "UP" },
+    "livenessState":  { "status": "UP" },
+    "readinessState": { "status": "UP" }
   }
 }
 ```
@@ -430,11 +491,11 @@ Prometheus text format. No authentication required (restrict in production via f
 Every response includes an `X-Request-ID` header echoing the request ID. Send your own to trace distributed calls:
 
 ```http
-GET /api/devices
+GET /api/v1/devices
 X-Request-ID: my-frontend-correlation-id
 ```
 
-The value is also injected into every backend log line as `requestId` in the MDC.
+The value is injected into every backend log line as `requestId` in the MDC.
 
 ---
 
@@ -459,14 +520,17 @@ The value is also injected into every backend log line as `requestId` in the MDC
 
 | Endpoint | ADMIN | OPERATOR |
 | --- | --- | --- |
-| POST /api/auth/login | ✅ | ✅ |
-| POST /api/auth/refresh | ✅ | ✅ |
-| POST /api/auth/logout | ✅ | ✅ |
-| POST /api/devices | ✅ | ❌ |
-| GET /api/devices | ✅ | ✅ |
-| GET /api/devices/{id} | ✅ | ✅ |
-| PATCH /api/devices/{id}/lifecycle | ✅ | ❌ |
-| PATCH /api/devices/{id}/firmware | ✅ | ❌ |
-| GET /api/telemetry/* | ✅ | ✅ |
-| GET /api/alerts | ✅ | ✅ |
-| PUT /api/alerts/{id}/acknowledge | ✅ | ❌ |
+| POST /api/v1/auth/login | ✅ | ✅ |
+| POST /api/v1/auth/refresh | ✅ | ✅ |
+| POST /api/v1/auth/logout | ✅ | ✅ |
+| POST /api/v1/devices | ✅ | ❌ |
+| GET /api/v1/devices | ✅ | ✅ |
+| GET /api/v1/devices/{id} | ✅ | ✅ |
+| PATCH /api/v1/devices/{id}/lifecycle | ✅ | ❌ |
+| PATCH /api/v1/devices/{id}/firmware | ✅ | ❌ |
+| GET /api/v1/devices/{id}/capabilities | ✅ | ✅ |
+| PUT /api/v1/devices/{id}/capabilities | ✅ | ❌ |
+| GET /api/v1/telemetry/* | ✅ | ✅ |
+| GET /api/v1/alerts | ✅ | ✅ |
+| GET /api/v1/alerts/unacknowledged | ✅ | ✅ |
+| PUT /api/v1/alerts/{id}/acknowledge | ✅ | ❌ |

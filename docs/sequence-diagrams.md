@@ -36,12 +36,12 @@ sequenceDiagram
     DB-->>MQTT: saved Telemetry
     MQTT->>DB: UPDATE devices SET status=ONLINE, last_seen=now
 
-    MQTT->>ALERT: evaluate(deviceId, name, temp, humidity, motion, smoke)
+    MQTT->>ALERT: evaluate(deviceId, name, readings, capabilities)
 
-    alt temperature > 80°C OR smokePpm > 200
+    alt per-device critThreshold breached (capability-aware)<br/>OR temperature > 80°C / smokePpm > 200 ppm (global fallback)
         ALERT->>DB: INSERT alert (level=CRITICAL)
         ALERT->>LINE: POST /api/notify (if enabled)
-    else humidity > 90% OR (motion AND temp > 70°C)
+    else per-device warnThreshold breached (capability-aware)<br/>OR humidity > 90% / (motion AND temp > 70°C) (global fallback)
         ALERT->>DB: INSERT alert (level=WARNING)
     end
 
@@ -148,7 +148,7 @@ sequenceDiagram
     participant DB as PostgreSQL (app_users / refresh_tokens)
     participant JWT as JwtService
 
-    Browser->>API: POST /api/auth/login { username, password }
+    Browser->>API: POST /api/v1/auth/login { username, password }
     API->>AUTH: authenticate(username, password)
     AUTH->>DB: SELECT * FROM app_users WHERE username = ?
     DB-->>AUTH: AppUser { password_hash, role }
@@ -168,7 +168,7 @@ sequenceDiagram
 
     Note over Browser: 15 minutes later — access token expires
 
-    Browser->>API: POST /api/auth/refresh { refreshToken: "old-uuid" }
+    Browser->>API: POST /api/v1/auth/refresh { refreshToken: "old-uuid" }
     API->>DB: SELECT refresh_token WHERE token = "old-uuid" AND NOT expired
     DB-->>API: valid RefreshToken entity
     API->>JWT: generateAccessToken(username, role)
@@ -193,8 +193,8 @@ sequenceDiagram
     participant CTRL as Controller
     participant SVC as Service Layer
 
-    Browser->>RID: GET /api/devices<br/>Authorization: Bearer eyJ...<br/>X-Request-ID: abc-123
-    RID->>RID: MDC.put(requestId="abc-123", method="GET", path="/api/devices")
+    Browser->>RID: GET /api/v1/devices<br/>Authorization: Bearer eyJ...<br/>X-Request-ID: abc-123
+    RID->>RID: MDC.put(requestId="abc-123", method="GET", path="/api/v1/devices")
     RID->>FILTER: forward
 
     FILTER->>JWT: extractUsername(token)
@@ -226,9 +226,9 @@ sequenceDiagram
     participant NOTIFY as NotificationService
     participant LINE as LINE Notify API
 
-    MQTT->>ALERT: evaluate(deviceId, "sensor-1", temp=83.2, hum=60, motion=false, smoke=15)
+    MQTT->>ALERT: evaluate(deviceId, "sensor-1",<br/>readings={TEMPERATURE:{value:83.2,unit:"°C"}, HUMIDITY:{value:60,unit:"%RH"}, ...},<br/>capabilities={TEMPERATURE:{critThreshold:80.0, warnThreshold:75.0, ...}})
 
-    ALERT->>ALERT: check temperature > 80.0 → true
+    ALERT->>ALERT: TEMPERATURE 83.2 > critThreshold 80.0 → CRITICAL
     ALERT->>DB: INSERT INTO alerts (device_id, level='CRITICAL',<br/>message='[sensor-1] CRITICAL: temperature 83.2°C exceeds 80.0°C')
     DB-->>ALERT: saved Alert entity
 
@@ -241,9 +241,8 @@ sequenceDiagram
         NOTIFY->>NOTIFY: log.debug("LINE Notify disabled")
     end
 
-    ALERT->>ALERT: check smokePpm > 200 → false
-    ALERT->>ALERT: check humidity > 90 → false
-    ALERT->>ALERT: check motion AND temp > 70 → false
+    ALERT->>ALERT: SMOKE_PPM 15 < critThreshold 200 → skip
+    ALERT->>ALERT: HUMIDITY 60 < warnThreshold 90 → skip
 ```
 
 ---
@@ -297,7 +296,7 @@ sequenceDiagram
     participant SVC as DeviceService
     participant DB as PostgreSQL (devices)
 
-    ADMIN->>API: POST /api/devices<br/>Authorization: Bearer {admin_token}<br/>{ name: "sensor-4", location: "Hall C" }
+    ADMIN->>API: POST /api/v1/devices<br/>Authorization: Bearer {admin_token}<br/>{ name: "sensor-4", location: "Hall C" }
     API->>API: JwtAuthFilter validates ROLE_ADMIN
     API->>SVC: create(DeviceRequest)
     SVC->>DB: existsByName("sensor-4")
@@ -309,7 +308,7 @@ sequenceDiagram
 
     Note over ADMIN: Device is provisioned — now activate it
 
-    ADMIN->>API: PATCH /api/devices/{id}/lifecycle { lifecycleStatus: "ACTIVE" }
+    ADMIN->>API: PATCH /api/v1/devices/{id}/lifecycle { lifecycleStatus: "ACTIVE" }
     API->>SVC: updateLifecycle(id, ACTIVE)
     SVC->>DB: findById(id)
     DB-->>SVC: Device { lifecycleStatus=PROVISIONED }
@@ -321,7 +320,7 @@ sequenceDiagram
 
     Note over ADMIN: Later — decommission the device
 
-    ADMIN->>API: PATCH /api/devices/{id}/lifecycle { lifecycleStatus: "DECOMMISSIONED" }
+    ADMIN->>API: PATCH /api/v1/devices/{id}/lifecycle { lifecycleStatus: "DECOMMISSIONED" }
     API->>SVC: updateLifecycle(id, DECOMMISSIONED)
     SVC->>SVC: ACTIVE → DECOMMISSIONED: allowed; force status=OFFLINE
     SVC->>DB: UPDATE devices SET lifecycle_status='DECOMMISSIONED', status='OFFLINE'
@@ -344,7 +343,7 @@ sequenceDiagram
     participant DB as PostgreSQL (devices)
     participant REDIS as Redis
 
-    ADMIN->>API: POST /api/devices { name: "sensor-4", location: "Hall C" }
+    ADMIN->>API: POST /api/v1/devices { name: "sensor-4", location: "Hall C" }
     API->>SVC: create(DeviceRequest)
     SVC->>DB: existsByName("sensor-4") → false
     SVC->>DB: INSERT device

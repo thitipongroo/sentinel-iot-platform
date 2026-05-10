@@ -28,20 +28,25 @@ At 1,000 req/s in load testing, PostgreSQL CPU saturated first (~70% on a 4-core
   [ Mosquitto MQTT ]        ← Bottleneck #1: single broker, single TCP port
          │
          ▼
-  [ Spring Boot ]           ← Bottleneck #2: single instance
-  │ MqttConsumerService     ←   @ServiceActivator is single-threaded
-  │ TelemetryService        ←   @Retry + @CircuitBreaker per call
-  │ ReplayQueueService       ←   30s drain cycle, 100/batch
+  [ Kafka ]                 ← factory.telemetry topic (Avro-encoded)
+  (sentinel-backend              consumer group partitions across replicas;
+   consumer group)               schema enforced by Schema Registry at startup
          │
     ┌────┴────┐
     ▼         ▼
-[ Redis ]  [ PostgreSQL ]   ← Bottleneck #3: single writer; telemetry
+[ Spring Boot ] [ Spring Boot ] ← Each replica owns a subset of partitions
+  │ TelemetryService           ←   @Retry + @CircuitBreaker per call
+  │ ReplayQueueService          ←   30s drain cycle, 100/batch
+         │
+    ┌────┴────┐
+    ▼         ▼
+[ Redis ]  [ PostgreSQL ]   ← Bottleneck #2: single writer; telemetry
                                  partitioned by month but still one WAL stream
     │
     ▼
-[ WebSocket Handler ]       ← Bottleneck #4: CopyOnWriteArrayList in one JVM
+[ WebSocket Handler ]       ← Bottleneck #3: CopyOnWriteArrayList in one JVM
 
-[ Rate Limiter ]            ← Bottleneck #5: Bucket4j in-process
+[ Rate Limiter ]            ← Bottleneck #4: Bucket4j in-process
                                  100 req/min per IP, per replica
 ```
 
@@ -82,12 +87,10 @@ backend:
   # add a load balancer in front (nginx, Traefik, or cloud LB)
 ```
 
-**MQTT Consumer scaling issue:** Each backend replica creates its own MQTT subscription. All replicas receive all messages and write duplicate rows.
-
-**Fix — Kafka consumer groups:**
+**MQTT Consumer scaling (implemented):** Mosquitto publishes all inbound telemetry to the `factory.telemetry` Kafka topic (Avro-encoded, 10 partitions). The `sentinel-backend` consumer group distributes partitions across replicas — each message is processed by exactly one instance:
 
 ```text
-Mosquitto → Kafka topic (factory.telemetry) → Consumer Group
+Mosquitto → Kafka topic (factory.telemetry) → Consumer Group (sentinel-backend)
                                                     │
                             ┌───────────────────────┤
                             ▼                       ▼
@@ -95,9 +98,9 @@ Mosquitto → Kafka topic (factory.telemetry) → Consumer Group
                     (partition 0–4)         (partition 5–9)
 ```
 
-Kafka consumer groups ensure each message is processed by exactly one backend instance. Kafka also provides replay capability and backpressure handling — making it a superset of the current Redis replay queue.
+Kafka committed offsets provide durable replay — if a replica restarts, it picks up from the last committed offset with no message loss.
 
-**Replay queue scaling issue:** The Redis replay queue is a single key (`sentinel:replay:queue`). With multiple replicas, all instances push to the same queue but only one should drain (or drains conflict). Kafka consumer groups solve this naturally.
+**Replay queue:** The Redis replay queue (`sentinel:replay:queue`) handles the DB circuit-breaker fallback path — buffering processed messages when PostgreSQL is unavailable and draining them on recovery. This is a separate concern from Kafka partitioning.
 
 ---
 
@@ -246,9 +249,9 @@ Browser ──▶ Vercel CDN (static/SSR pages)
 
 | Scale | Devices | Events/sec | Actions needed |
 | --- | --- | --- | --- |
-| **Current** | ~200 | ~40 | Docker Compose, single node, partitioned telemetry |
+| **Current** | ~200 | ~40 | Docker Compose, single node, partitioned telemetry; Kafka consumer group (sentinel-backend) |
 | **Small** | ~2,000 | ~400 | Add PostgreSQL read replica; bucket4j-redis rate limiting |
-| **Medium** | ~10,000 | ~2,000 | Kafka (replace MQTT→backend direct); scale backend ×3; Redis Cluster; Redis Pub/Sub WS |
+| **Medium** | ~10,000 | ~2,000 | Scale backend ×3; Redis Cluster; Redis Pub/Sub WS fan-out |
 | **Large** | ~100,000 | ~20,000 | EMQX cluster; TimescaleDB; separate alert microservice; drop partition archival |
 | **Web-scale** | ~1M | ~200,000 | Dedicated ingestion service (Rust/Go); Flink for stream processing; Cassandra for raw telemetry |
 

@@ -168,31 +168,43 @@ Sub-millisecond reads from the `device:telemetry` hash power the `/cache` API en
 
 ### PostgreSQL
 
-Five domain tables:
+Six domain tables (schema at V6 migration):
 
 ```text
-app_users         devices               telemetry (partitioned by month)
-──────────        ──────────────────    ─────────────────────────
-id UUID           id UUID               id UUID (UNIQUE INDEX, not PK)
-username          name UNIQUE           device_id UUID FK
-password          status                temperature DOUBLE
-role              description           humidity DOUBLE
-                  location              motion BOOLEAN
-                  created_at            smoke_ppm DOUBLE
-                  last_seen             timestamp TIMESTAMPTZ  ← partition key
-                  lifecycle_status
-                  firmware_version      telemetry_hourly_aggregates
-                  firmware_updated_at   ─────────────────────────────
-                                        id UUID PK
-alerts                                  device_id UUID FK
-──────────────    ──────────────────    hour_bucket TIMESTAMPTZ
-id UUID PK        refresh_tokens        temp_avg/min/max DOUBLE
-device_id FK                            hum_avg/min/max DOUBLE
-level VARCHAR                           smoke_avg/max DOUBLE
-message TEXT                            motion_count / sample_count
-acknowledged BOOL                       UNIQUE(device_id, hour_bucket)
+app_users         devices                         telemetry (partitioned by month)
+──────────        ─────────────────────────────   ──────────────────────────────────
+id UUID           id UUID                         id UUID (UNIQUE INDEX, not PK)
+username          name UNIQUE                     device_id UUID FK
+password          status                          schema_version INT DEFAULT 1
+role              location                        temperature DOUBLE
+                  created_at                      humidity DOUBLE
+                  last_seen                       motion BOOLEAN
+                  lifecycle_status                smoke_ppm DOUBLE
+                  firmware_version                timestamp TIMESTAMPTZ  ← partition key
+                  firmware_updated_at             readings JSONB          ← v2 dynamic sensors
+                  capabilities JSONB              edge_firmware_version VARCHAR
+                                                  edge_ip VARCHAR
+alerts                                            edge_uptime_seconds BIGINT
+──────────────    ──────────────────              edge_rssi INT
+id UUID PK        refresh_tokens                  edge_snr INT
+device_id FK                                      edge_battery_voltage DOUBLE
+level VARCHAR                                     edge_battery_pct INT
+message TEXT                                      edge_free_heap_bytes INT
+acknowledged BOOL                                 edge_protocol VARCHAR
 created_at
+                  telemetry_hourly_aggregates
+                  ─────────────────────────────
+                  id UUID PK
+                  device_id UUID FK
+                  hour_bucket TIMESTAMPTZ
+                  temp_avg/min/max DOUBLE
+                  hum_avg/min/max DOUBLE
+                  smoke_avg/max DOUBLE
+                  motion_count / sample_count
+                  UNIQUE(device_id, hour_bucket)
 ```
+
+**Key indexes:** `idx_telemetry_readings` (GIN on `readings` JSONB), `idx_telemetry_battery_pct`, `idx_telemetry_rssi` (scalar indexes for trending queries), `idx_devices_capabilities` (GIN on capabilities JSONB).
 
 **Partitioning:** The `telemetry` table uses `PARTITION BY RANGE(timestamp)` with monthly child tables (`telemetry_2025_01` through `telemetry_2026_12`) plus `telemetry_default` for rows outside the range. PostgreSQL partition pruning eliminates child tables from range queries automatically.
 
@@ -203,14 +215,19 @@ created_at
 ### Next.js 14 Dashboard
 
 - **App Router** with `'use client'` boundaries only where browser APIs are needed
-- API calls proxied through `next.config.mjs` rewrites (`/api/*` → backend) — no CORS configuration required
+- API calls proxied through `next.config.mjs` rewrites (`/api/v1/*` → backend) — no CORS configuration required
 - WebSocket connects directly to backend port 8080 via `NEXT_PUBLIC_WS_URL`
 - Auto-reconnects with 3-second backoff on disconnect
-- **DeviceList**: search/filter by name or location; lifecycle status badge; firmware version
+- **Server state:** React Query (`@tanstack/react-query`) — `useQuery` for devices/alerts/stats/telemetry; `useMutation` with `onMutate` rollback for optimistic alert acknowledgement; 30-second background refetch
+- **Client state:** Zustand store — `selectedDeviceId` (normalized UUID, not the full object), `filters` (search/status/lifecycle/sort), `isOffline` flag
+- **DeviceTable**: `@tanstack/react-virtual` row virtualisation — renders only visible rows regardless of list size (handles 10 000+ devices); keyboard-navigable (Tab/Enter/Space); ARIA grid semantics
 - **TelemetryChart**: Live / 1h / 6h / 24h / 7d time window selector; 24h and 7d use hourly aggregates with shaded min/max bands
-- **AlertList**: All / Unacknowledged filter tabs
+- **AlertList**: All / Unacknowledged filter tabs; optimistic acknowledge (UI updates instantly, rolls back on error)
 - **StatsBar**: 6 tiles including Buffered (replay queue depth, orange when > 0)
-- **DeviceManagement**: ADMIN-only panel for lifecycle transitions and firmware version updates
+- **DeviceManagement**: ADMIN-only panel for lifecycle transitions, firmware version, and sensor capability map
+- **OfflineBanner**: Listens to `window` online/offline events; shows fixed banner; pauses live data description
+- **ErrorBoundary**: Scoped per panel — a crash in one panel does not unmount the whole dashboard
+- **Design system primitives:** Badge (variant-aware), Select (accessible label+options), used consistently across all components
 
 ### Observability Stack
 
@@ -244,11 +261,14 @@ The `traceId` and `spanId` are injected into MDC via Micrometer Tracing so every
 
 ## Sensor Data Schema
 
-Each MQTT message on `factory/telemetry` is a JSON object:
+The platform supports two payload generations. The ingest pipeline (Kafka consumer) branches on `schemaVersion`.
+
+**v1 — fixed scalar fields** (legacy devices, backward-compatible):
 
 ```json
 {
   "deviceId": "sensor-1",
+  "schemaVersion": 1,
   "temperature": 72.4,
   "humidity": 58.2,
   "motion": false,
@@ -257,15 +277,39 @@ Each MQTT message on `factory/telemetry` is a JSON object:
 }
 ```
 
-Validation rules enforced by `MqttConsumerService` before any DB/cache write:
+**v2 — dynamic readings map + edge metadata** (firmware 2.x+):
+
+```json
+{
+  "deviceId": "sensor-1",
+  "schemaVersion": 2,
+  "timestamp": 1717200000000,
+  "readings": {
+    "TEMPERATURE": { "value": 72.4,  "unit": "°C",  "quality": "GOOD" },
+    "CO2_PPM":     { "value": 412.0, "unit": "ppm", "quality": "GOOD" },
+    "BATTERY_PCT": { "value": 87.0,  "unit": "%",   "quality": "GOOD" }
+  },
+  "edge": {
+    "firmwareVersion": "2.4.1",
+    "uptimeSeconds": 86400,
+    "rssi": -67,
+    "batteryPct": 87,
+    "protocol": "MQTT_TLS"
+  }
+}
+```
+
+v1 validation rules (enforced before any DB/cache write):
 
 | Field | Type | Valid range | Alert threshold |
 | --- | --- | --- | --- |
 | `deviceId` | String | Not null/blank | — |
-| `temperature` | Double | -40 to 200 °C | > 80 °C → CRITICAL |
-| `humidity` | Double | 0 to 100 % | > 90 % → WARNING |
+| `temperature` | Double | -40 to 200 °C | > 80 °C → CRITICAL (global fallback) |
+| `humidity` | Double | 0 to 100 % | > 90 % → WARNING (global fallback) |
 | `motion` | Boolean | true / false | true + temp > 70 °C → WARNING |
-| `smokePpm` | Double | ≥ 0 ppm | > 200 ppm → CRITICAL |
+| `smokePpm` | Double | ≥ 0 ppm | > 200 ppm → CRITICAL (global fallback) |
+
+v2 alert evaluation uses per-device `capabilities` JSONB thresholds; falls back to global rules when capabilities are not configured.
 
 ---
 

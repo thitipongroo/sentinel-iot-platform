@@ -156,24 +156,18 @@ export interface SensorCapability {
 
 // ── Alerts ───────────────────────────────────────────────────────────────────
 
-export type AlertSeverity = "WARNING" | "CRITICAL";
+export type AlertLevel = "WARNING" | "CRITICAL" | "INFO";
 
 export interface Alert {
   /** UUID */
   id: string;
   /** UUID */
   deviceId: string;
-  deviceName: string;
-  severity: AlertSeverity;
+  /** "CRITICAL" | "WARNING" | "INFO" — maps to Alert.level in the Java entity */
+  level: AlertLevel;
   message: string;
   acknowledged: boolean;
-  acknowledgedBy?: string;
-  acknowledgedAt?: string; // ISO-8601
   createdAt: string; // ISO-8601
-  /** SensorType name if from capability-aware alert engine, e.g. "TEMPERATURE" */
-  sensorType?: string;
-  triggeringValue?: number;
-  threshold?: number;
 }
 
 // ── API Error ────────────────────────────────────────────────────────────────
