@@ -15,6 +15,9 @@
 
 ## Architecture Diagram
 
+![Sentinel IoT Platform Architecture](docs/screenshots/sentinel-architecture-diagram.png)
+
+<!-- ASCII fallback — do not remove: renders in terminals, plain-text viewers, and GitHub PR diffs -->
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────┐
 │                            Sentinel IoT Platform                               │
@@ -48,6 +51,9 @@
 
 ### Data Flow — Normal Path
 
+![Normal Ingestion Data Flow](docs/screenshots/sentinel-dataflow-normal-path.png)
+
+<!-- ASCII fallback — do not remove -->
 ```text
 Device/Simulator
   │── MQTT publish ──▶ Mosquitto
@@ -597,7 +603,7 @@ Detailed documentation lives in [`docs/`](docs/):
 | --- | --- |
 | [Architecture](docs/architecture.md) | Component descriptions, data model, deployment topology |
 | [API Reference](docs/api.md) | All endpoints, request/response examples, role matrix |
-| [Sequence Diagrams](docs/sequence-diagrams.md) | 6 Mermaid diagrams — ingestion, auth, JWT filter, alert, WebSocket, device registration |
+| [Sequence Diagrams](docs/sequence-diagrams.md) | 9 Mermaid diagrams — ingestion, DLQ paths, DB outage/replay, auth, JWT filter, alert, WebSocket, lifecycle, device registration |
 | [Scaling Discussion](docs/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap |
 | [Design Tradeoffs](docs/tradeoffs.md) | Decisions — Next.js, MQTT, Redis, PostgreSQL, Spring Integration, WebSocket, JWT |
 
