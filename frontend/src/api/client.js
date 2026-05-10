@@ -25,27 +25,36 @@ api.interceptors.response.use(
 )
 
 export const authApi = {
-  login: (username, password) => api.post('/auth/login', { username, password }),
-  refresh: (refreshToken) => api.post('/auth/refresh', { refreshToken }),
-  logout: () => api.post('/auth/logout')
+  login:   (username, password) => api.post('/auth/login', { username, password }),
+  refresh: (refreshToken)       => api.post('/auth/refresh', { refreshToken }),
+  logout:  ()                   => api.post('/auth/logout')
 }
 
 export const devicesApi = {
-  list: () => api.get('/devices'),
-  get: (id) => api.get(`/devices/${id}`),
-  create: (data) => api.post('/devices', data)
+  list:            ()              => api.get('/devices'),
+  get:             (id)            => api.get(`/devices/${id}`),
+  create:          (data)          => api.post('/devices', data),
+  updateLifecycle: (id, status)    => api.patch(`/devices/${id}/lifecycle`, { lifecycleStatus: status }),
+  updateFirmware:  (id, version)   => api.patch(`/devices/${id}/firmware`, { firmwareVersion: version })
 }
 
 export const telemetryApi = {
-  latest: (deviceId, limit = 50) => api.get(`/telemetry/${deviceId}/latest`, { params: { limit } }),
-  cached: (deviceId) => api.get(`/telemetry/${deviceId}/cache`),
-  stats: () => api.get('/telemetry/stats')
+  latest: (deviceId, limit = 50) =>
+    api.get(`/telemetry/${deviceId}/latest`, { params: { limit } }),
+  cached: (deviceId) =>
+    api.get(`/telemetry/${deviceId}/cache`),
+  range: (deviceId, from, to) =>
+    api.get(`/telemetry/${deviceId}/range`, { params: { from: from.toISOString(), to: to.toISOString() } }),
+  hourly: (deviceId, from, to) =>
+    api.get(`/telemetry/${deviceId}/hourly`, { params: { from: from.toISOString(), to: to.toISOString() } }),
+  stats: () =>
+    api.get('/telemetry/stats')
 }
 
 export const alertsApi = {
-  list: () => api.get('/alerts'),
-  unacknowledged: () => api.get('/alerts/unacknowledged'),
-  acknowledge: (id) => api.put(`/alerts/${id}/acknowledge`)
+  list:            ()    => api.get('/alerts'),
+  unacknowledged:  ()    => api.get('/alerts/unacknowledged'),
+  acknowledge:     (id)  => api.put(`/alerts/${id}/acknowledge`)
 }
 
 export default api

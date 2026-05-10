@@ -9,16 +9,18 @@ import DeviceList from '@/components/DeviceList'
 import TelemetryChart from '@/components/TelemetryChart'
 import AlertList from '@/components/AlertList'
 import StatsBar from '@/components/StatsBar'
+import DeviceManagement from '@/components/DeviceManagement'
 
 export default function DashboardPage() {
   const { user, logout, loading } = useAuth()
   const router = useRouter()
   const { lastMessage, status: wsStatus } = useWebSocket()
-  const [devices, setDevices] = useState([])
-  const [alerts, setAlerts] = useState([])
+
+  const [devices,        setDevices]        = useState([])
+  const [alerts,         setAlerts]         = useState([])
   const [selectedDevice, setSelectedDevice] = useState(null)
-  const [telemetry, setTelemetry] = useState([])
-  const [stats, setStats] = useState({ lastMinute: 0 })
+  const [telemetry,      setTelemetry]      = useState([])
+  const [stats,          setStats]          = useState({ lastMinute: 0, replayQueueSize: 0 })
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login')
@@ -68,12 +70,12 @@ export default function DashboardPage() {
     if (!lastMessage || !selectedDevice) return
     if (lastMessage.deviceId === selectedDevice.name) {
       setTelemetry(prev => [...prev.slice(-49), {
-        id: Date.now(),
+        id:          Date.now(),
         temperature: lastMessage.temperature,
-        humidity: lastMessage.humidity,
-        motion: lastMessage.motion,
-        smokePpm: lastMessage.smokePpm,
-        timestamp: new Date().toISOString()
+        humidity:    lastMessage.humidity,
+        motion:      lastMessage.motion,
+        smokePpm:    lastMessage.smokePpm,
+        timestamp:   new Date().toISOString()
       }])
     }
     if (lastMessage.temperature > 80 || lastMessage.smokePpm > 200) {
@@ -82,8 +84,10 @@ export default function DashboardPage() {
   }, [lastMessage, selectedDevice, loadAlerts])
 
   if (loading || !user) {
-    return <div className="flex items-center justify-center h-screen text-sentinel-accent">Loading...</div>
+    return <div className="flex items-center justify-center h-screen text-sentinel-accent">Loading…</div>
   }
+
+  const isAdmin = user?.role === 'ADMIN'
 
   return (
     <div className="min-h-screen bg-sentinel-900">
@@ -117,6 +121,9 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 space-y-6">
             <TelemetryChart data={telemetry} device={selectedDevice} />
             <AlertList alerts={alerts} onAcknowledge={loadAlerts} userRole={user?.role} />
+            {isAdmin && selectedDevice && (
+              <DeviceManagement device={selectedDevice} onUpdate={loadDevices} />
+            )}
           </div>
         </div>
       </main>
