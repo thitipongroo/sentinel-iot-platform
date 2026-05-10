@@ -17,7 +17,7 @@
 
 ![Sentinel IoT Platform Architecture](docs/screenshots/sentinel-architecture-diagram.png)
 
-<!-- ASCII fallback — do not remove: renders in terminals, plain-text viewers, and GitHub PR diffs -->
+<!-- ASCII Diagram
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────┐
 │                            Sentinel IoT Platform                               │
@@ -48,12 +48,13 @@
 │                                  └─────────────────┘                           │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
+-->
 
 ### Data Flow — Normal Path
 
 ![Normal Ingestion Data Flow](docs/screenshots/sentinel-dataflow-normal-path.png)
 
-<!-- ASCII fallback — do not remove -->
+<!-- ASCII Diagram
 ```text
 Device/Simulator
   │── MQTT publish ──▶ Mosquitto
@@ -67,9 +68,13 @@ Device/Simulator
                                                           │        └── LINE Notify (if threshold exceeded)
                                                           └── WebSocket broadcast ──▶ React UI
 ```
+-->
 
 ### Data Flow — Failure Paths
 
+![Failure Ingestion Data Flow](docs/screenshots/sentinel-dataflow-failure-path.png)
+
+<-- ASCII Diagram
 ```text
 DB unavailable (circuit breaker OPEN):
   TelemetryService.saveFallback()
@@ -82,6 +87,7 @@ Invalid MQTT payload / unknown device:
      └── mqttDlqChannel ──▶ factory/telemetry/dlq
            headers: dlq-error-code, dlq-error-detail, dlq-timestamp
 ```
+-->
 
 ---
 
