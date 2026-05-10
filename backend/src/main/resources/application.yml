@@ -6,7 +6,7 @@ spring:
     username: ${DB_USER:sentinel}
     password: ${DB_PASSWORD:sentinel}
     hikari:
-      maximum-pool-size: 10
+      maximum-pool-size: 20               # bumped: Kafka consumer batch commits can be concurrent
   jpa:
     hibernate:
       ddl-auto: validate
@@ -14,6 +14,25 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc.batch_size: 50               # JDBC batching: N individual INSERTs → ceil(N/50) batch statements
+        order_inserts: true               # required for batching to be effective
+        order_updates: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: 1                             # leader ack — balances durability vs. latency
+      compression-type: lz4
+      linger-ms: 5                        # micro-batching on producer side
+      batch-size: 32768                   # 32 KB producer batch
+    consumer:
+      group-id: sentinel-telemetry-ingest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false           # manual offset commit via AckMode.BATCH
+      max-poll-records: 500
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -28,6 +47,10 @@ spring:
         pool:
           max-active: 8
           max-idle: 4
+
+kafka:
+  topics:
+    telemetry-raw: telemetry.raw
 
 mqtt:
   broker: ${MQTT_BROKER:tcp://localhost:1883}

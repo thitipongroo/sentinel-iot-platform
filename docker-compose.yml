@@ -8,6 +8,7 @@ volumes:
   postgres_data:
   redis_data:
   mosquitto_data:
+  kafka_data:
   prometheus_data:
   grafana_data:
   jaeger_data:
@@ -74,6 +75,35 @@ services:
       timeout: 5s
       retries: 5
 
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: sentinel-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"   # topics created by KafkaConfig bean on startup
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk       # stable KRaft cluster ID (base64, 22 chars)
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    ports:
+      - "9092:9092"
+    networks: [sentinel-net]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
   # ─── Application ───────────────────────────────────────────────────────────
 
   backend:
@@ -95,6 +125,7 @@ services:
       LINE_NOTIFY_ENABLED: ${LINE_NOTIFY_ENABLED:-false}
       TEMP_THRESHOLD: ${TEMP_THRESHOLD:-80}
       SMOKE_THRESHOLD: ${SMOKE_THRESHOLD:-200}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_APPLICATION_NAME: sentinel-iot-platform
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
       SPRING_PROFILES_ACTIVE: prod
@@ -109,6 +140,8 @@ services:
       mosquitto:
         condition: service_healthy
       jaeger:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
