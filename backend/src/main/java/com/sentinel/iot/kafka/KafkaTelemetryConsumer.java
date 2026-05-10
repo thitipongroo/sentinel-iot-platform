@@ -9,7 +9,7 @@ import com.sentinel.iot.repository.DeviceRepository;
 import com.sentinel.iot.repository.TelemetryRepository;
 import com.sentinel.iot.service.AlertService;
 import com.sentinel.iot.service.RedisService;
-import com.sentinel.iot.websocket.TelemetryWebSocketHandler;
+import com.sentinel.iot.websocket.WebSocketBroadcastPublisher;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +38,7 @@ public class KafkaTelemetryConsumer {
     private final TelemetryRepository telemetryRepository;
     private final DeviceRepository deviceRepository;
     private final AlertService alertService;
-    private final TelemetryWebSocketHandler webSocketHandler;
+    private final WebSocketBroadcastPublisher wsBroadcastPublisher;
     private final RedisService redisService;
     private final ObjectMapper objectMapper;
     private final Counter processedCounter;
@@ -47,15 +47,15 @@ public class KafkaTelemetryConsumer {
     public KafkaTelemetryConsumer(TelemetryRepository telemetryRepository,
                                    DeviceRepository deviceRepository,
                                    AlertService alertService,
-                                   TelemetryWebSocketHandler webSocketHandler,
+                                   WebSocketBroadcastPublisher wsBroadcastPublisher,
                                    RedisService redisService,
                                    ObjectMapper objectMapper,
                                    MeterRegistry meterRegistry) {
-        this.telemetryRepository = telemetryRepository;
-        this.deviceRepository    = deviceRepository;
-        this.alertService        = alertService;
-        this.webSocketHandler    = webSocketHandler;
-        this.redisService        = redisService;
+        this.telemetryRepository  = telemetryRepository;
+        this.deviceRepository     = deviceRepository;
+        this.alertService         = alertService;
+        this.wsBroadcastPublisher = wsBroadcastPublisher;
+        this.redisService         = redisService;
         this.objectMapper        = objectMapper;
         this.processedCounter    = Counter.builder("sentinel.kafka.telemetry.processed")
                 .description("Telemetry records written to PostgreSQL via Kafka batch ingest")
@@ -127,7 +127,7 @@ public class KafkaTelemetryConsumer {
                     msg.getTemperature(), msg.getHumidity(), msg.getMotion(), msg.getSmokePpm());
             alertService.evaluate(device.getId(), device.getName(),
                     msg.getTemperature(), msg.getHumidity(), msg.getMotion(), msg.getSmokePpm());
-            webSocketHandler.broadcast(p.rawPayload());
+            wsBroadcastPublisher.publish(p.rawPayload());
         }
 
         // ── 4. Batch DB writes ───────────────────────────────────────────────────
