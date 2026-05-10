@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!-- ── Local / CI: human-readable with requestId ── -->
+  <springProfile name="!prod">
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder>
+        <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) [%X{requestId:--}] [%thread] %cyan(%logger{36}) - %msg%n</pattern>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+    </root>
+  </springProfile>
+
+  <!-- ── Production: structured JSON consumed by log aggregators ── -->
+  <springProfile name="prod">
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+        <includeContext>false</includeContext>
+        <includeCallerData>false</includeCallerData>
+        <fieldNames>
+          <timestamp>timestamp</timestamp>
+          <message>message</message>
+          <logger>logger</logger>
+          <thread>thread</thread>
+          <levelValue>[ignore]</levelValue>
+        </fieldNames>
+        <!-- Emit all MDC fields (requestId, method, path, username, traceId, spanId) -->
+        <includeMdcKeyName>requestId</includeMdcKeyName>
+        <includeMdcKeyName>method</includeMdcKeyName>
+        <includeMdcKeyName>path</includeMdcKeyName>
+        <includeMdcKeyName>username</includeMdcKeyName>
+        <includeMdcKeyName>traceId</includeMdcKeyName>
+        <includeMdcKeyName>spanId</includeMdcKeyName>
+      </encoder>
+    </appender>
+    <root level="INFO">
+      <appender-ref ref="JSON"/>
+    </root>
+  </springProfile>
+
+  <!-- Noise reduction regardless of profile -->
+  <logger name="org.springframework.security"          level="WARN"/>
+  <logger name="org.springframework.integration.mqtt"  level="WARN"/>
+  <logger name="io.github.resilience4j"                level="WARN"/>
+  <logger name="org.eclipse.paho"                      level="WARN"/>
+  <logger name="com.sentinel"                          level="INFO"/>
+
+</configuration>
