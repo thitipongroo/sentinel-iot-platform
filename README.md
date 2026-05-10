@@ -74,7 +74,7 @@ Device/Simulator
 
 ![Failure Ingestion Data Flow](docs/screenshots/sentinel-dataflow-failure-path.png)
 
-<-- ASCII Diagram
+<!-- ASCII Diagram
 ```text
 DB unavailable (circuit breaker OPEN):
   TelemetryService.saveFallback()
