@@ -9,8 +9,10 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "telemetry", indexes = {
-    @Index(name = "idx_telemetry_device_id", columnList = "device_id"),
-    @Index(name = "idx_telemetry_timestamp", columnList = "timestamp")
+    @Index(name = "idx_telemetry_id",         columnList = "id",              unique = true),
+    @Index(name = "idx_telemetry_device_id",  columnList = "device_id"),
+    @Index(name = "idx_telemetry_timestamp",  columnList = "timestamp"),
+    @Index(name = "idx_telemetry_device_ts",  columnList = "device_id, timestamp")
 })
 @Data
 @NoArgsConstructor
