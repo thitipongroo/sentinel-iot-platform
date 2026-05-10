@@ -1,10 +1,12 @@
 package com.sentinel.iot.service;
 
+import com.sentinel.iot.dto.DeviceCapabilityRequest;
 import com.sentinel.iot.dto.DeviceLifecycleRequest;
 import com.sentinel.iot.dto.DeviceRequest;
 import com.sentinel.iot.dto.FirmwareUpdateRequest;
 import com.sentinel.iot.model.Device;
 import com.sentinel.iot.model.DeviceLifecycleStatus;
+import com.sentinel.iot.model.SensorCapability;
 import com.sentinel.iot.repository.DeviceRepository;
 import com.sentinel.iot.security.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.UUID;
 
@@ -104,6 +107,29 @@ public class DeviceService {
         }
         device.setFirmwareVersion(req.getFirmwareVersion());
         device.setFirmwareUpdatedAt(Instant.now());
+        return deviceRepository.save(device);
+    }
+
+    // ── Capability management ─────────────────────────────────────────────────
+
+    /**
+     * Returns the current sensor capability map for the device.
+     * Null means no capabilities declared; global thresholds apply.
+     */
+    public Map<String, SensorCapability> getCapabilities(UUID id) {
+        return findById(id).getCapabilities();
+    }
+
+    /**
+     * Replaces the device's entire capability map.
+     * An empty map clears all capabilities (reverts to global thresholds).
+     */
+    public Device updateCapabilities(UUID id, DeviceCapabilityRequest req) {
+        Device device = findById(id);
+        if (device.getLifecycleStatus() == DeviceLifecycleStatus.DECOMMISSIONED) {
+            throw new IllegalArgumentException("Cannot modify capabilities of a decommissioned device");
+        }
+        device.setCapabilities(req.capabilities());
         return deviceRepository.save(device);
     }
 }

@@ -99,8 +99,7 @@ public class TelemetryDlqConsumer {
         // If save() throws, AckMode.RECORD withholds the offset commit.
         // The dlqKafkaListenerContainerFactory's ExponentialBackOff will redeliver
         // this record with increasing delay until the DB is available.
-        Telemetry t = new Telemetry(device.getId(),
-                msg.getTemperature(), msg.getHumidity(), msg.getMotion(), msg.getSmokePpm());
+        Telemetry t = Telemetry.from(msg, device.getId());
         telemetryRepository.save(t);
 
         // Best-effort Redis cache update — DLQ processing is already delayed,

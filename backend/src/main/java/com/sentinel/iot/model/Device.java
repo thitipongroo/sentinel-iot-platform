@@ -1,5 +1,6 @@
 package com.sentinel.iot.model;
 
+import com.sentinel.iot.converter.DeviceCapabilitiesConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -7,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.sentinel.iot.model.DeviceLifecycleStatus.PROVISIONED;
@@ -53,4 +55,18 @@ public class Device {
 
     @Column(name = "organization_id", nullable = false)
     private UUID organizationId;
+
+    /**
+     * Sensor capability declarations for this device, keyed by {@link SensorType#name()}.
+     *
+     * <p>When populated, the alert engine uses per-device thresholds from each
+     * {@link SensorCapability} instead of the global application.yml values.
+     * Null/empty means the device has not declared capabilities; global thresholds apply.</p>
+     *
+     * Example:
+     * {"TEMPERATURE":{"unit":"°C","warnThreshold":75.0,"critThreshold":90.0,...}, ...}
+     */
+    @Convert(converter = DeviceCapabilitiesConverter.class)
+    @Column(name = "capabilities", columnDefinition = "jsonb")
+    private Map<String, SensorCapability> capabilities;
 }

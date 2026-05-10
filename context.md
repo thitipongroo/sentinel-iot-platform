@@ -1,33 +1,74 @@
-แก้ปัญหาข้อมูล README ไม่ตรงกับ frontend directory โดย :
+1. Frontend ยังดูเป็น dashboard layer มากกว่า product-grade UX
 
-README ระบุว่า frontend ใช้:
+จาก structure:
 
-Next.js 14
-App Router
+dashboard
+chart
+device list
+alert list
 
-แต่ใน frontend directory พบทั้ง:
+ยังไม่เห็น:
 
-src/main.jsx
-vite.config.js
-index.html
+advanced filtering
+virtualized tables
+offline handling
+optimistic update
+accessibility strategy
+design system
+error boundary strategy
+state normalization
 
-ซึ่งเป็นโครงสร้างของ Vite/SPA
+ช่วยแก้ไขในสิ่งที่ยังไม่เห็นด้วย
 
-ในขณะเดียวกันก็มี:
+2. ยังไม่เห็น API versioning strategy
 
-src/app/page.jsx
-src/app/layout.jsx
+ยังไม่พบ:
 
-ซึ่งเป็น Next.js App Router
+/v1
+backward compatibility policy
+schema evolution plan
 
-แปลว่า frontend architecture ยัง “ปนกันอยู่”
+ถ้าระบบโตจะเริ่ม migrate ยาก
 
-แก้ไข โดย :
+ช่วยแก้ไขด้วย
 
-ใช้ Next.js เต็มระบบ
+3. ยังไม่พบ message schema governance
 
-ลบ:
+TelemetryMessage มีอยู่
 
-vite.config.js
-src/main.jsx
-index.html
+แต่ยังไม่เห็น:
+
+Avro
+Protobuf
+schema registry
+compatibility validation
+
+ระยะยาว event evolution จะลำบาก
+
+ช่วยแก้ไขด้วย
+
+4. ยังไม่พบ OpenAPI contract automation
+
+แม้มี OpenApiConfig
+
+แต่ยังไม่เห็น:
+
+generated SDK
+contract testing
+schema validation pipeline
+
+ช่วยแก้ไขด้วย
+
+
+5. ยังไม่เห็น SLO/SLA strategy
+
+มี observability แล้ว
+
+แต่ยังไม่เห็น:
+
+uptime target
+latency budget
+error budget
+SLO alerting
+
+ช่วยแก้ไขด้วย

@@ -1,9 +1,11 @@
 package com.sentinel.iot.controller;
 
+import com.sentinel.iot.dto.DeviceCapabilityRequest;
 import com.sentinel.iot.dto.DeviceLifecycleRequest;
 import com.sentinel.iot.dto.DeviceRequest;
 import com.sentinel.iot.dto.FirmwareUpdateRequest;
 import com.sentinel.iot.model.Device;
+import com.sentinel.iot.model.SensorCapability;
 import com.sentinel.iot.service.AuditService;
 import com.sentinel.iot.service.DeviceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,12 +19,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/devices")
 @RequiredArgsConstructor
-@Tag(name = "Devices", description = "Device registration, lifecycle, and firmware management")
+@Tag(name = "Devices", description = "Device registration, lifecycle, firmware, and capability management")
 public class DeviceController {
 
     private final DeviceService deviceService;
@@ -77,6 +80,35 @@ public class DeviceController {
         auditService.log(authentication.getName(), "DEVICE_FIRMWARE_UPDATE",
                 "/api/devices/" + id + "/firmware",
                 "version=" + req.getFirmwareVersion(), resolveIp(httpRequest));
+        return ResponseEntity.ok(updated);
+    }
+
+    // ── Sensor capability management ──────────────────────────────────────────
+
+    @GetMapping("/{id}/capabilities")
+    @Operation(summary = "Get the sensor capability map for a device",
+               description = "Returns the declared sensors, their units, and per-device alert " +
+                             "thresholds. Null response means no capabilities declared; " +
+                             "global application thresholds apply.")
+    public ResponseEntity<Map<String, SensorCapability>> getCapabilities(@PathVariable UUID id) {
+        Map<String, SensorCapability> caps = deviceService.getCapabilities(id);
+        return ResponseEntity.ok(caps);
+    }
+
+    @PutMapping("/{id}/capabilities")
+    @Operation(summary = "Replace the sensor capability map for a device (ADMIN only)",
+               description = "Sends the full desired capability state. The alert engine will " +
+                             "immediately start using per-device thresholds for any subsequent " +
+                             "telemetry from this device. Send an empty map to revert to global thresholds.")
+    public ResponseEntity<Device> updateCapabilities(
+            @PathVariable UUID id,
+            @Valid @RequestBody DeviceCapabilityRequest req,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+        Device updated = deviceService.updateCapabilities(id, req);
+        auditService.log(authentication.getName(), "DEVICE_CAPABILITY_UPDATE",
+                "/api/devices/" + id + "/capabilities",
+                "sensors=" + req.capabilities().keySet(), resolveIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
