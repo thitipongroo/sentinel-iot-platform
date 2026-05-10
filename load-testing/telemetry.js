@@ -8,7 +8,8 @@ const failedRequests = new Counter('failed_requests')
 
 export const options = {
   scenarios: {
-    // Ramp up to 1,000 telemetry events/sec
+    // Ramp HTTP requests against GET /api/telemetry/{id}/cache (Redis-backed hot read path).
+    // This measures end-to-end API latency under sustained load, not MQTT ingestion throughput.
     sustained_load: {
       executor: 'ramping-arrival-rate',
       startRate: 10,
@@ -19,13 +20,13 @@ export const options = {
         { target: 100, duration: '30s' },
         { target: 500, duration: '60s' },
         { target: 1000, duration: '60s' },
-        { target: 1000, duration: '120s' }, // sustain
+        { target: 1000, duration: '120s' }, // sustain at peak
         { target: 0, duration: '30s' }
       ]
     }
   },
   thresholds: {
-    http_req_duration: ['p(95)<500', 'p(99)<1000'],
+    http_req_duration: ['p(95)<200', 'p(99)<500'],
     success_rate: ['rate>0.95'],
     http_req_failed: ['rate<0.05']
   }

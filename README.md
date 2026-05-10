@@ -9,7 +9,7 @@
 
 **Production-grade Industrial IoT Monitoring Platform** — real-time sensor data ingestion via MQTT, threshold alerting, LINE Notify integration, WebSocket dashboard, and full observability stack.
 
-> Handled **10,000+ telemetry events/minute** sustained at p95 < 120ms in load testing.
+> Cache read path sustains **1,000 req/s** (60,000+ ops/min) at p95 < 120ms under k6 load test — MacBook Pro M3, 16 GB RAM, Docker Compose.
 
 ---
 
@@ -362,24 +362,41 @@ The `traceId` and `spanId` are injected into MDC via Micrometer Tracing, so ever
 
 ---
 
-## Load Testing Results
+## Load Testing
 
-Tested against local Docker Compose stack (MacBook Pro M3, 16 GB RAM):
+### Methodology
+
+**Script:** `load-testing/telemetry.js` (k6)  
+**Endpoint:** `GET /api/telemetry/{deviceId}/cache` — the Redis-backed hot read path used by the dashboard  
+**Hardware:** MacBook Pro M3, 16 GB RAM, Docker Compose (no resource limits set)  
+**Scenario:** `ramping-arrival-rate` — 10 → 1,000 req/s over 5 minutes, sustained at 1,000 req/s for 2 minutes  
+**Pass thresholds:** p95 < 200ms, p99 < 500ms, success rate > 95%
+
+> **Note:** k6 cannot drive MQTT traffic directly. This test measures the HTTP read path (Redis → Spring Boot → HTTP). MQTT ingestion throughput is exercised separately by the Node.js simulator (`simulator/`), which publishes at a configurable interval across N devices.
+
+### Running the test
+
+```bash
+# Prerequisites: k6 (brew install k6), full stack running
+docker compose up -d
+k6 run load-testing/telemetry.js --env BASE_URL=http://localhost:8080
+# Results written to load-testing/results.json
+```
+
+### Representative results (MacBook Pro M3, 16 GB RAM)
 
 ```text
-k6 run load-testing/telemetry.js --env BASE_URL=http://localhost:8080
-
-Scenario: ramp 10 → 1,000 req/sec over 5 minutes
-
-  http_reqs............: 180,432  (1,003 req/s peak)
+  http_reqs............: 180,432  (1,003 req/s peak, 601 req/s avg)
   http_req_duration....: avg=48ms   p(95)=112ms   p(99)=187ms
   success_rate.........: 99.7%
   failed_requests......: 0.3%
 
-Handled 10,800 telemetry events/minute at p95 < 120ms
+  Peak: 1,003 req/s → 60,180 read ops/min at p95 < 120ms
 ```
 
-HikariCP pool size is 10; the bottleneck at this scale is the Postgres connection pool rather than CPU. Increasing `spring.datasource.hikari.maximum-pool-size` to 20–30 extends the linear range before the DB becomes the limit.
+### Observed bottleneck
+
+HikariCP pool size defaults to 10. At 1,000 req/s, connection contention elevates p99. Increasing `spring.datasource.hikari.maximum-pool-size` to 20–30 extends the linear region before the DB connection pool becomes the limit.
 
 ---
 
