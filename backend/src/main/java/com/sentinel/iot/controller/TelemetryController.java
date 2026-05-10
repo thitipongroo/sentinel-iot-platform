@@ -1,7 +1,9 @@
 package com.sentinel.iot.controller;
 
 import com.sentinel.iot.model.Telemetry;
+import com.sentinel.iot.model.TelemetryHourlyAggregate;
 import com.sentinel.iot.service.RedisService;
+import com.sentinel.iot.service.TelemetryRetentionService;
 import com.sentinel.iot.service.TelemetryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +24,7 @@ import java.util.UUID;
 public class TelemetryController {
 
     private final TelemetryService telemetryService;
+    private final TelemetryRetentionService retentionService;
     private final RedisService redisService;
 
     @GetMapping("/{deviceId}/latest")
@@ -39,12 +42,21 @@ public class TelemetryController {
     }
 
     @GetMapping("/{deviceId}/range")
-    @Operation(summary = "Get telemetry within a time range")
+    @Operation(summary = "Get raw telemetry within a time range")
     public ResponseEntity<List<Telemetry>> getRange(
             @PathVariable UUID deviceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return ResponseEntity.ok(telemetryService.getRange(deviceId, from, to));
+    }
+
+    @GetMapping("/{deviceId}/hourly")
+    @Operation(summary = "Get hourly aggregated telemetry for historical analytics (persists beyond retention window)")
+    public ResponseEntity<List<TelemetryHourlyAggregate>> getHourly(
+            @PathVariable UUID deviceId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return ResponseEntity.ok(retentionService.getHourlyAggregates(deviceId, from, to));
     }
 
     @GetMapping("/stats")

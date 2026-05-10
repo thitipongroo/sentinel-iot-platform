@@ -14,4 +14,8 @@ public interface TelemetryRepository extends JpaRepository<Telemetry, UUID> {
     List<Telemetry> findByDeviceIdOrderByTimestampDesc(UUID deviceId, Pageable pageable);
     List<Telemetry> findByDeviceIdAndTimestampBetween(UUID deviceId, Instant from, Instant to);
     long countByTimestampAfter(Instant since);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM Telemetry t WHERE t.timestamp < :cutoff")
+    int deleteByTimestampBefore(@org.springframework.data.repository.query.Param("cutoff") Instant cutoff);
 }
