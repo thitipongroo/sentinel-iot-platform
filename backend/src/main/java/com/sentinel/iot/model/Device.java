@@ -1,11 +1,12 @@
 package com.sentinel.iot.model;
 
-import com.sentinel.iot.converter.DeviceCapabilitiesConverter;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.Map;
@@ -68,7 +69,7 @@ public class Device {
      * Example:
      * {"TEMPERATURE":{"unit":"°C","warnThreshold":75.0,"critThreshold":90.0,...}, ...}
      */
-    @Convert(converter = DeviceCapabilitiesConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "capabilities", columnDefinition = "jsonb")
     private Map<String, SensorCapability> capabilities;
 }

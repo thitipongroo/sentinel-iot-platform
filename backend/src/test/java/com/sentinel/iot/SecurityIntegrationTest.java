@@ -3,6 +3,9 @@ package com.sentinel.iot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinel.iot.dto.AuthRequest;
 import com.sentinel.iot.dto.DeviceRequest;
+import com.sentinel.iot.security.TenantContext;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -10,13 +13,27 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.UUID;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class SecurityIntegrationTest extends BaseIntegrationTest {
 
+    private static final UUID TEST_ORG = UUID.fromString("a0000000-0000-0000-0000-000000000001");
+
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setTenantContext() {
+        TenantContext.set(TEST_ORG);
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
 
     // ── Authentication ────────────────────────────────────────────────────────
 
@@ -26,7 +43,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
         req.setUsername("admin");
         req.setPassword("admin123");
 
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
@@ -38,7 +55,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     void protectedEndpoint_withValidToken_isAccessible() throws Exception {
         String token = loginAndGetToken("admin", "admin123");
 
-        mockMvc.perform(get("/api/devices")
+        mockMvc.perform(get("/api/v1/devices")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
     }
@@ -47,7 +64,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     void protectedEndpoint_withExpiredOrTamperedToken_returns403() throws Exception {
         String tampered = loginAndGetToken("admin", "admin123") + "tampered";
 
-        mockMvc.perform(get("/api/devices")
+        mockMvc.perform(get("/api/v1/devices")
                         .header("Authorization", "Bearer " + tampered))
                 .andExpect(status().isForbidden());
     }
@@ -60,7 +77,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
         DeviceRequest req = new DeviceRequest();
         req.setName("sec-test-device-" + System.nanoTime());
 
-        mockMvc.perform(post("/api/devices")
+        mockMvc.perform(post("/api/v1/devices")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
@@ -72,7 +89,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
         DeviceRequest req = new DeviceRequest();
         req.setName("blocked-device");
 
-        mockMvc.perform(post("/api/devices")
+        mockMvc.perform(post("/api/v1/devices")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isForbidden());
@@ -81,14 +98,14 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     @Test
     @WithMockUser(roles = "OPERATOR")
     void operatorCanReadDevices() throws Exception {
-        mockMvc.perform(get("/api/devices"))
+        mockMvc.perform(get("/api/v1/devices"))
                 .andExpect(status().isOk());
     }
 
     @Test
     @WithMockUser(roles = "OPERATOR")
     void operatorCanReadAlerts() throws Exception {
-        mockMvc.perform(get("/api/alerts"))
+        mockMvc.perform(get("/api/v1/alerts"))
                 .andExpect(status().isOk());
     }
 
@@ -97,7 +114,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
     @Test
     void swaggerUi_isPubliclyAccessible() throws Exception {
         mockMvc.perform(get("/swagger-ui.html"))
-                .andExpect(status().is3xxRedirection()); // redirects to swagger-ui/index.html
+                .andExpect(status().is3xxRedirection());
     }
 
     @Test
@@ -128,7 +145,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
         req.setUsername(username);
         req.setPassword(password);
 
-        MvcResult result = mockMvc.perform(post("/api/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())

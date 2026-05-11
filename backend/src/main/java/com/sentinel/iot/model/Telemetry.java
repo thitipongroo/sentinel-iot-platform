@@ -1,10 +1,11 @@
 package com.sentinel.iot.model;
 
-import com.sentinel.iot.converter.SensorReadingsConverter;
 import com.sentinel.iot.dto.TelemetryMessage;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -77,7 +78,7 @@ public class Telemetry {
      * <p>For v1 messages this map is synthesized from the fixed fields on ingest so that
      * all downstream consumers (alert engine, analytics) can use a single code path.</p>
      */
-    @Convert(converter = SensorReadingsConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "readings", columnDefinition = "jsonb")
     private Map<String, SensorReading> readings;
 

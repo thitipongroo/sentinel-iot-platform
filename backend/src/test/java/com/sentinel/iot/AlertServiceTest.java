@@ -38,7 +38,7 @@ class AlertServiceTest {
         ReflectionTestUtils.setField(alertService, "temperatureThreshold", 80.0);
         ReflectionTestUtils.setField(alertService, "humidityThreshold", 90.0);
         ReflectionTestUtils.setField(alertService, "smokeThreshold", 200.0);
-        when(alertRepository.save(any(Alert.class))).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(alertRepository.save(any(Alert.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test

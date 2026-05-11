@@ -56,8 +56,10 @@ CREATE TABLE telemetry_2026_12 PARTITION OF telemetry FOR VALUES FROM ('2026-12-
 CREATE TABLE telemetry_default PARTITION OF telemetry DEFAULT;
 
 -- ── Phase 4: indexes (propagate automatically to all current + future partitions)
--- UNIQUE on id replaces the dropped PK; Hibernate findById() uses this.
-CREATE UNIQUE INDEX idx_telemetry_id            ON telemetry(id);
+-- Non-unique index on id; Hibernate findById() uses this.
+-- PostgreSQL 11+ forbids UNIQUE indexes on partitioned tables unless the partition key
+-- is included. UUIDs (gen_random_uuid) are unique by construction, so a plain index suffices.
+CREATE INDEX idx_telemetry_id                   ON telemetry(id);
 CREATE INDEX         idx_telemetry_device_id    ON telemetry(device_id);
 CREATE INDEX         idx_telemetry_timestamp    ON telemetry(timestamp DESC);
 -- Composite index for the common "latest N readings for device" query pattern

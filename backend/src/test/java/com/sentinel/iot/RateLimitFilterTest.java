@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -16,6 +17,8 @@ class RateLimitFilterTest {
     @BeforeEach
     void setUp() {
         filter = new RateLimitFilter();
+        // Allow the test's proxy IP so X-Forwarded-For is trusted in forwarded tests
+        ReflectionTestUtils.setField(filter, "trustedProxiesConfig", "10.0.0.1");
     }
 
     @Test

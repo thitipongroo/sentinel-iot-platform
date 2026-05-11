@@ -8,6 +8,8 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -17,10 +19,6 @@ import static org.mockito.Mockito.*;
 /**
  * Verifies that {@link TelemetryWebSocketHandler} handles concurrent session
  * registration, deregistration, and broadcast without race conditions or NPEs.
- *
- * <p>The handler uses {@code CopyOnWriteArrayList} internally, which is
- * thread-safe for iteration during broadcast but requires testing the
- * concurrent-modification pattern (register + broadcast + unregister simultaneously).
  */
 class WebSocketConcurrencyTest extends BaseIntegrationTest {
 
@@ -29,6 +27,7 @@ class WebSocketConcurrencyTest extends BaseIntegrationTest {
 
     @Test
     void concurrentSessionsAndBroadcast_noExceptions() throws InterruptedException {
+        String orgId = UUID.randomUUID().toString();
         int sessionCount  = 50;
         int broadcastCount = 20;
         ExecutorService executor = Executors.newFixedThreadPool(10);
@@ -37,10 +36,11 @@ class WebSocketConcurrencyTest extends BaseIntegrationTest {
 
         List<WebSocketSession> sessions = new ArrayList<>();
 
-        // Register sessions concurrently
         for (int i = 0; i < sessionCount; i++) {
             WebSocketSession session = mock(WebSocketSession.class);
             when(session.isOpen()).thenReturn(true);
+            when(session.getAttributes()).thenReturn(
+                    Map.of("orgId", UUID.fromString(orgId)));
             sessions.add(session);
 
             executor.submit(() -> {
@@ -54,12 +54,11 @@ class WebSocketConcurrencyTest extends BaseIntegrationTest {
             });
         }
 
-        // Broadcast concurrently while sessions are being added
         for (int i = 0; i < broadcastCount; i++) {
-            final String payload = "{\"deviceId\":\"sensor-test\",\"temperature\":" + (60 + i) + "}";
+            final String msg = orgId + "|{\"deviceId\":\"sensor-test\",\"temperature\":" + (60 + i) + "}";
             executor.submit(() -> {
                 try {
-                    handler.broadcastLocal(payload);
+                    handler.broadcastLocal(msg);
                 } catch (Exception e) {
                     errors.incrementAndGet();
                 } finally {
@@ -78,17 +77,21 @@ class WebSocketConcurrencyTest extends BaseIntegrationTest {
 
     @Test
     void closedSessions_removedDuringBroadcast() throws Exception {
+        String orgId = UUID.randomUUID().toString();
         WebSocketSession open   = mock(WebSocketSession.class);
         WebSocketSession closed = mock(WebSocketSession.class);
 
         when(open.isOpen()).thenReturn(true);
         when(closed.isOpen()).thenReturn(false);
+        when(open.getAttributes()).thenReturn(
+                Map.of("orgId", UUID.fromString(orgId)));
+        when(closed.getAttributes()).thenReturn(
+                Map.of("orgId", UUID.fromString(orgId)));
 
         handler.afterConnectionEstablished(open);
         handler.afterConnectionEstablished(closed);
 
-        // Broadcast should only send to open session and silently skip the closed one
-        handler.broadcastLocal("{\"deviceId\":\"sensor-1\",\"temperature\":72.0}");
+        handler.broadcastLocal(orgId + "|{\"deviceId\":\"sensor-1\",\"temperature\":72.0}");
 
         verify(open, times(1)).sendMessage(any(TextMessage.class));
         verify(closed, never()).sendMessage(any());
@@ -96,18 +99,19 @@ class WebSocketConcurrencyTest extends BaseIntegrationTest {
 
     @Test
     void disconnectedSession_notBroadcastedAfterClose() throws Exception {
+        String orgId = UUID.randomUUID().toString();
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.isOpen()).thenReturn(true);
+        when(session.getAttributes()).thenReturn(
+                Map.of("orgId", UUID.fromString(orgId)));
 
         handler.afterConnectionEstablished(session);
-        handler.broadcastLocal("{\"t\":1}");
+        handler.broadcastLocal(orgId + "|{\"t\":1}");
         verify(session, times(1)).sendMessage(any(TextMessage.class));
 
-        // Simulate disconnect
         handler.afterConnectionClosed(session, null);
-        handler.broadcastLocal("{\"t\":2}");
+        handler.broadcastLocal(orgId + "|{\"t\":2}");
 
-        // Still only 1 broadcast — session was removed on close
         verify(session, times(1)).sendMessage(any(TextMessage.class));
     }
 }

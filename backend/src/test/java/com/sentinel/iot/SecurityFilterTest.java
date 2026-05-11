@@ -39,7 +39,7 @@ class SecurityFilterTest extends BaseIntegrationTest {
 
     @Test
     void loginEndpoint_shouldBePublic() throws Exception {
-        mockMvc.perform(get("/api/auth/login"))
+        mockMvc.perform(get("/api/v1/auth/login"))
                 .andExpect(status().isMethodNotAllowed());
     }
 }

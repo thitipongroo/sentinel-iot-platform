@@ -9,6 +9,7 @@ import com.sentinel.iot.service.ReplayQueueService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -25,16 +26,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ReplayConsistencyTest extends BaseIntegrationTest {
 
-    @Autowired private ReplayQueueService replayQueueService;
-    @Autowired private RedisService       redisService;
+    @Autowired private ReplayQueueService  replayQueueService;
+    @Autowired private RedisService        redisService;
     @Autowired private TelemetryRepository telemetryRepository;
     @Autowired private ObjectMapper        objectMapper;
+    @Autowired private StringRedisTemplate stringRedisTemplate;
 
     private UUID deviceId;
 
     @BeforeEach
     void setUp() {
         deviceId = UUID.randomUUID();
+        stringRedisTemplate.delete("sentinel:replay:queue");
     }
 
     @Test
