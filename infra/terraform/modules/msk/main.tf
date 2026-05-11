@@ -1,11 +1,12 @@
 resource "aws_security_group" "msk" {
   name        = "${var.name_prefix}-msk-sg"
-  description = "Allow Kafka from EKS nodes"
+  description = "Allow Kafka TLS from EKS nodes"
   vpc_id      = var.vpc_id
 
   ingress {
-    from_port       = 9092
-    to_port         = 9092
+    description     = "Kafka TLS"
+    from_port       = 9094
+    to_port         = 9094
     protocol        = "tcp"
     security_groups = [var.eks_sg_id]
   }
@@ -55,7 +56,7 @@ resource "aws_msk_cluster" "main" {
 
   encryption_info {
     encryption_in_transit {
-      client_broker = "PLAINTEXT"
+      client_broker = "TLS"
       in_cluster    = true
     }
   }

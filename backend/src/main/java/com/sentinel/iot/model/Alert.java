@@ -10,7 +10,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "alerts", indexes = {
-    @Index(name = "idx_alert_device_id", columnList = "device_id")
+    @Index(name = "idx_alert_device_id", columnList = "device_id"),
+    @Index(name = "idx_alert_org_id",    columnList = "organization_id")
 })
 @Data
 @NoArgsConstructor
@@ -22,6 +23,9 @@ public class Alert {
 
     @Column(name = "device_id", nullable = false)
     private UUID deviceId;
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 
     @Column(nullable = false)
     private String level; // CRITICAL, WARNING, INFO
@@ -36,9 +40,10 @@ public class Alert {
     @Column(name = "acknowledged")
     private boolean acknowledged = false;
 
-    public Alert(UUID deviceId, String level, String message) {
+    public Alert(UUID deviceId, String level, String message, UUID organizationId) {
         this.deviceId = deviceId;
         this.level = level;
         this.message = message;
+        this.organizationId = organizationId;
     }
 }

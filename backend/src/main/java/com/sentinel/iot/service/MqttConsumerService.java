@@ -118,15 +118,19 @@ public class MqttConsumerService {
         if (msg.getDeviceId() == null || msg.getDeviceId().isBlank()) {
             return "deviceId is required";
         }
+        return msg.getSchemaVersion() >= 2 ? validateV2(msg) : validateV1(msg);
+    }
+
+    private String validateV1(TelemetryMessage msg) {
         if (msg.getTemperature() == null) {
-            return "temperature is required";
+            return "temperature is required for v1 payload";
         }
         if (msg.getTemperature() < TEMP_MIN || msg.getTemperature() > TEMP_MAX) {
             return String.format("temperature %.1f out of range [%.0f, %.0f]",
                     msg.getTemperature(), TEMP_MIN, TEMP_MAX);
         }
         if (msg.getHumidity() == null) {
-            return "humidity is required";
+            return "humidity is required for v1 payload";
         }
         if (msg.getHumidity() < HUM_MIN || msg.getHumidity() > HUM_MAX) {
             return String.format("humidity %.1f out of range [%.0f, %.0f]",
@@ -134,6 +138,37 @@ public class MqttConsumerService {
         }
         if (msg.getSmokePpm() != null && msg.getSmokePpm() < SMOKE_MIN) {
             return String.format("smokePpm %.1f cannot be negative", msg.getSmokePpm());
+        }
+        return null;
+    }
+
+    private String validateV2(TelemetryMessage msg) {
+        if (msg.getReadings() == null || msg.getReadings().isEmpty()) {
+            return "v2 payload must contain at least one reading in 'readings' map";
+        }
+        for (var entry : msg.getReadings().entrySet()) {
+            String key = entry.getKey();
+            var reading = entry.getValue();
+            if (reading == null) {
+                return "reading for sensor '" + key + "' is null";
+            }
+            if (reading.value() == null) {
+                return "reading.value is required for sensor '" + key + "'";
+            }
+            if (reading.quality() == null) {
+                return "reading.quality is required for sensor '" + key + "'";
+            }
+        }
+        // Validate fixed fields when present (partial v2 payloads may include them)
+        if (msg.getTemperature() != null &&
+                (msg.getTemperature() < TEMP_MIN || msg.getTemperature() > TEMP_MAX)) {
+            return String.format("temperature %.1f out of range [%.0f, %.0f]",
+                    msg.getTemperature(), TEMP_MIN, TEMP_MAX);
+        }
+        if (msg.getHumidity() != null &&
+                (msg.getHumidity() < HUM_MIN || msg.getHumidity() > HUM_MAX)) {
+            return String.format("humidity %.1f out of range [%.0f, %.0f]",
+                    msg.getHumidity(), HUM_MIN, HUM_MAX);
         }
         return null;
     }

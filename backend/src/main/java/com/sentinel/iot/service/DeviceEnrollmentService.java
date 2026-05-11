@@ -82,6 +82,7 @@ public class DeviceEnrollmentService {
         tokenRepository.save(token);
 
         auditService.log(issuedByUsername, "ENROLLMENT_TOKEN_ISSUED",
+                "/api/v1/devices/" + deviceId + "/enrollment-token",
                 "deviceId=" + deviceId + " expiresAt=" + token.getExpiresAt(), null);
 
         log.info("Enrollment token issued: deviceId={} issuedBy={} expiresAt={}",
@@ -124,7 +125,8 @@ public class DeviceEnrollmentService {
         deviceRepository.save(device);
 
         auditService.log("device:" + device.getName(), "DEVICE_ENROLLED",
-                "deviceId=" + device.getId() + " ip=" + remoteIp, remoteIp);
+                "/api/v1/devices/enroll",
+                "deviceId=" + device.getId(), remoteIp);
 
         // Generate per-device MQTT password (returned to device over secure channel).
         // In production, integrate with the MQTT broker's dynamic auth plugin or

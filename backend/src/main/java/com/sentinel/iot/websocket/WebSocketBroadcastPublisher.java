@@ -6,13 +6,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 /**
  * Publishes a telemetry payload to the Redis pub/sub broadcast channel.
  *
  * All backend instances subscribe to this channel via WebSocketBroadcastSubscriber.
- * Each subscriber fans the message out to its own local WebSocket sessions.
- * This decouples "who processed the Kafka batch" from "which instance holds the
- * WebSocket session" — any instance can trigger a cluster-wide broadcast.
+ * Each subscriber fans the message out to its own local WebSocket sessions for the
+ * matching tenant — preventing cross-tenant data leakage via the live dashboard.
+ *
+ * Message format: {@code <orgId>|<rawPayload>}
+ * The handler strips the prefix before forwarding to the client.
  */
 @Service
 @RequiredArgsConstructor
@@ -24,9 +28,10 @@ public class WebSocketBroadcastPublisher {
     @Value("${ws.broadcast.channel:ws:telemetry}")
     private String channel;
 
-    public void publish(String message) {
+    public void publish(UUID organizationId, String rawPayload) {
         try {
-            redisTemplate.convertAndSend(channel, message);
+            String envelope = organizationId + "|" + rawPayload;
+            redisTemplate.convertAndSend(channel, envelope);
         } catch (Exception e) {
             // Non-fatal: Redis pub/sub failure means live dashboard misses this event,
             // but telemetry is already persisted to PostgreSQL via Kafka consumer.

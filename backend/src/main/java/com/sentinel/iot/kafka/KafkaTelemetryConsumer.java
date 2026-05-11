@@ -94,9 +94,12 @@ public class KafkaTelemetryConsumer {
         Map<String, Device> deviceMap = deviceRepository.findAllByNameIn(names).stream()
                 .collect(Collectors.toMap(Device::getName, Function.identity()));
 
-        // ── 3. Build insert list + per-record side-effects ─────────────────────
+        // ── 3. Build insert list ───────────────────────────────────────────────
         List<Telemetry> toInsert          = new ArrayList<>(parsed.size());
         Map<UUID, Device> devicesToUpdate = new LinkedHashMap<>();
+        // Keep accepted pairs so we can do side-effects AFTER the DB commit
+        record Accepted(Device device, Telemetry telemetry, String rawPayload) {}
+        List<Accepted> accepted = new ArrayList<>(parsed.size());
 
         for (Parsed p : parsed) {
             TelemetryMessage msg    = p.msg();
@@ -117,29 +120,37 @@ public class KafkaTelemetryConsumer {
             // Build Telemetry using the schema-version-aware factory
             Telemetry t = Telemetry.from(msg, device.getId());
             toInsert.add(t);
+            accepted.add(new Accepted(device, t, p.rawPayload()));
 
             device.setStatus("ONLINE");
             device.setLastSeen(Instant.now());
             devicesToUpdate.put(device.getId(), device);
-
-            // Redis cache: store the unified readings map for fast dashboard reads
-            redisService.setLatestTelemetry(device.getId().toString(),
-                    t.getTemperature(), t.getHumidity(), t.getMotion(), t.getSmokePpm());
-
-            // Capability-aware alert evaluation: uses per-device thresholds when available
-            alertService.evaluate(device.getId(), device.getName(),
-                    t.getReadings(), device.getCapabilities());
-
-            wsBroadcastPublisher.publish(p.rawPayload());
         }
 
-        // ── 4. Batch DB writes ─────────────────────────────────────────────────
+        // ── 4. Batch DB writes — persist first, side-effects after ─────────────
         if (!toInsert.isEmpty()) {
             telemetryRepository.saveAll(toInsert);
             processedCounter.increment(toInsert.size());
         }
         if (!devicesToUpdate.isEmpty()) {
             deviceRepository.saveAll(devicesToUpdate.values());
+        }
+
+        // ── 5. Post-commit side-effects: Redis cache, alerts, WebSocket ────────
+        // Running these AFTER saveAll ensures we never broadcast or fire an alert
+        // for a record that failed to persist. Kafka retries are idempotent because
+        // alerts are evaluated per-batch and Redis is best-effort.
+        for (Accepted a : accepted) {
+            // Redis cache: store the unified readings map for fast dashboard reads
+            redisService.setLatestTelemetry(a.device().getId().toString(),
+                    a.telemetry().getTemperature(), a.telemetry().getHumidity(),
+                    a.telemetry().getMotion(), a.telemetry().getSmokePpm());
+
+            // Capability-aware alert evaluation: uses per-device thresholds when available
+            alertService.evaluate(a.device().getId(), a.device().getOrganizationId(),
+                    a.device().getName(), a.telemetry().getReadings(), a.device().getCapabilities());
+
+            wsBroadcastPublisher.publish(a.device().getOrganizationId(), a.rawPayload());
         }
 
         log.debug("Kafka batch: received={} inserted={} dropped={}",

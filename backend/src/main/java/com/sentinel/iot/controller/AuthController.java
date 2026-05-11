@@ -2,7 +2,6 @@ package com.sentinel.iot.controller;
 
 import com.sentinel.iot.dto.AuthRequest;
 import com.sentinel.iot.dto.AuthResponse;
-import com.sentinel.iot.dto.RefreshRequest;
 import com.sentinel.iot.model.AppUser;
 import com.sentinel.iot.model.RefreshToken;
 import com.sentinel.iot.repository.AppUserRepository;
@@ -12,8 +11,11 @@ import com.sentinel.iot.service.UserDetailsServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -22,11 +24,17 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
+
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 @Tag(name = "Authentication", description = "Login, token refresh, and logout")
 public class AuthController {
+
+    private static final String REFRESH_COOKIE_NAME = "sentinel_refresh_token";
+    // 7 days — matches jwt.refresh-expiration-ms in application.yml
+    private static final Duration REFRESH_COOKIE_MAX_AGE = Duration.ofDays(7);
 
     private final AuthenticationManager authManager;
     private final JwtService jwtService;
@@ -35,9 +43,10 @@ public class AuthController {
     private final AppUserRepository appUserRepository;
 
     @PostMapping("/login")
-    @Operation(summary = "Authenticate and receive access + refresh tokens")
+    @Operation(summary = "Authenticate and receive access token; refresh token set as HttpOnly cookie")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest req,
-                                              HttpServletRequest httpRequest) {
+                                              HttpServletRequest httpRequest,
+                                              HttpServletResponse httpResponse) {
         Authentication auth = authManager.authenticate(
                 new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword()));
 
@@ -52,15 +61,24 @@ public class AuthController {
         String accessToken = jwtService.generateAccessToken(req.getUsername(), role, appUser.getOrganizationId());
         RefreshToken refreshToken = jwtService.generateRefreshToken(req.getUsername());
 
+        setRefreshCookie(httpResponse, refreshToken.getRawToken());
         auditService.log(req.getUsername(), "LOGIN", "/api/v1/auth/login", null, getClientIp(httpRequest));
 
-        return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken.getToken(), role, req.getUsername()));
+        // refreshToken field in body is empty — the token is in the HttpOnly cookie
+        return ResponseEntity.ok(new AuthResponse(accessToken, null, role, req.getUsername()));
     }
 
     @PostMapping("/refresh")
-    @Operation(summary = "Rotate refresh token and receive a new access token")
-    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest req) {
-        RefreshToken newRefreshToken = jwtService.rotateRefreshToken(req.getRefreshToken());
+    @Operation(summary = "Rotate refresh token using the HttpOnly cookie; returns new access token")
+    public ResponseEntity<AuthResponse> refresh(
+            @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String cookieToken,
+            HttpServletResponse httpResponse) {
+
+        if (cookieToken == null || cookieToken.isBlank()) {
+            return ResponseEntity.status(401).build();
+        }
+
+        RefreshToken newRefreshToken = jwtService.rotateRefreshToken(cookieToken);
         String username = newRefreshToken.getUsername();
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(username);
@@ -73,19 +91,19 @@ public class AuthController {
         AppUser appUser = appUserRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalStateException("User not found"));
         String accessToken = jwtService.generateAccessToken(username, role, appUser.getOrganizationId());
-        return ResponseEntity.ok(new AuthResponse(accessToken, newRefreshToken.getToken(), role, username));
+
+        setRefreshCookie(httpResponse, newRefreshToken.getRawToken());
+        return ResponseEntity.ok(new AuthResponse(accessToken, null, role, username));
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Revoke the current access token and all refresh tokens")
+    @Operation(summary = "Revoke the current access token and all refresh tokens; clears the cookie")
     public ResponseEntity<Void> logout(Authentication authentication,
-                                       HttpServletRequest httpRequest) {
+                                       HttpServletRequest httpRequest,
+                                       HttpServletResponse httpResponse) {
         if (authentication != null) {
-            // Revoke all refresh tokens (prevents silent re-authentication)
             jwtService.revokeAllRefreshTokens(authentication.getName());
 
-            // Revoke the current access token via the Redis JTI blocklist.
-            // This closes the 15-minute window where a token remains valid after logout.
             String authHeader = httpRequest.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 jwtService.revokeAccessToken(authHeader.substring(7));
@@ -94,7 +112,30 @@ public class AuthController {
             auditService.log(authentication.getName(), "LOGOUT", "/api/v1/auth/logout", null,
                     getClientIp(httpRequest));
         }
+        clearRefreshCookie(httpResponse);
         return ResponseEntity.noContent().build();
+    }
+
+    private void setRefreshCookie(HttpServletResponse response, String rawToken) {
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, rawToken)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/api/v1/auth")
+                .maxAge(REFRESH_COOKIE_MAX_AGE)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void clearRefreshCookie(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/api/v1/auth")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     private String getClientIp(HttpServletRequest request) {

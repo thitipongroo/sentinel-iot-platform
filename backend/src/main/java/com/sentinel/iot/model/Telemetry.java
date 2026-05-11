@@ -53,11 +53,13 @@ public class Telemetry {
     private int schemaVersion = 1;
 
     // ── v1 fixed fields (backward-compatible, populated from all messages) ─────
+    // nullable: v2 payloads may have no temperature/humidity if the device only
+    // reports custom sensors via the readings map.
 
-    @Column(nullable = false)
+    @Column
     private Double temperature;
 
-    @Column(nullable = false)
+    @Column
     private Double humidity;
 
     @Column

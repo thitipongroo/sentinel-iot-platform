@@ -14,7 +14,9 @@ import java.util.UUID;
 import static com.sentinel.iot.model.DeviceLifecycleStatus.PROVISIONED;
 
 @Entity
-@Table(name = "devices")
+@Table(name = "devices", uniqueConstraints = {
+    @UniqueConstraint(name = "uq_device_org_name", columnNames = {"organization_id", "name"})
+})
 @Data
 @NoArgsConstructor
 public class Device {
@@ -24,7 +26,7 @@ public class Device {
     private UUID id;
 
     @NotBlank
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name;
 
     @Column(nullable = false)

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, createContext, useContext } from 'react'
-import { useRouter } from 'next/navigation'
 import { authApi } from '@/api/client'
+import { setAccessToken, clearAccessToken } from '@/lib/tokenStore'
 
 const AuthContext = createContext(null)
 
@@ -11,31 +11,35 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('sentinel_token')
-    const stored = localStorage.getItem('sentinel_user')
-    if (token && stored) {
-      setUser(JSON.parse(stored))
+    // Attempt silent re-authentication on page load using the HttpOnly refresh
+    // token cookie (set by the backend on login). No localStorage involved.
+    const tryRefresh = async () => {
+      try {
+        const { data } = await authApi.refresh()
+        setAccessToken(data.accessToken)
+        setUser({ username: data.username, role: data.role })
+      } catch {
+        // Not logged in or refresh token expired — stay logged out
+      } finally {
+        setLoading(false)
+      }
     }
-    setLoading(false)
+    tryRefresh()
   }, [])
 
   const login = async (username, password) => {
     const { data } = await authApi.login(username, password)
-    localStorage.setItem('sentinel_token', data.accessToken)
-    localStorage.setItem('sentinel_refresh_token', data.refreshToken)
-    localStorage.setItem('sentinel_user', JSON.stringify({ username: data.username, role: data.role }))
+    // Access token lives only in memory; refresh token arrives as HttpOnly cookie
+    setAccessToken(data.accessToken)
     setUser({ username: data.username, role: data.role })
     return data
   }
 
   const logout = async () => {
     try {
-      const token = localStorage.getItem('sentinel_token')
-      if (token) await authApi.logout()
+      await authApi.logout()
     } catch { /* best-effort */ } finally {
-      localStorage.removeItem('sentinel_token')
-      localStorage.removeItem('sentinel_refresh_token')
-      localStorage.removeItem('sentinel_user')
+      clearAccessToken()
       setUser(null)
     }
   }

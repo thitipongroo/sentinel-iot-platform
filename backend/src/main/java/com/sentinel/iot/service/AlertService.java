@@ -49,6 +49,7 @@ public class AlertService {
      */
     @NewSpan("alert.evaluate")
     public void evaluate(@SpanTag("device.id") UUID deviceId,
+                         UUID organizationId,
                          @SpanTag("device.name") String deviceName,
                          Map<String, SensorReading> readings,
                          Map<String, SensorCapability> capabilities) {
@@ -62,7 +63,7 @@ public class AlertService {
             Double smoke = readingValue(readings, "SMOKE_PPM");
             Boolean mot  = readings.containsKey("MOTION") && readings.get("MOTION").isUsable()
                     ? readings.get("MOTION").value() >= 0.5 : null;
-            evaluateLegacy(deviceId, deviceName, temp, hum, mot, smoke);
+            evaluateLegacy(deviceId, organizationId, deviceName, temp, hum, mot, smoke);
             return;
         }
 
@@ -82,11 +83,11 @@ public class AlertService {
 
             if (cap.isCritical(value)) {
                 String msg = buildMessage(deviceName, key, value, reading.unit(), "CRITICAL", cap.critThreshold(), cap.thresholdDirection());
-                createAlert(deviceId, "CRITICAL", msg);
+                createAlert(deviceId, "CRITICAL", msg, organizationId);
                 notificationService.send(msg);
             } else if (cap.isWarning(value)) {
                 String msg = buildMessage(deviceName, key, value, reading.unit(), "WARNING", cap.warnThreshold(), cap.thresholdDirection());
-                createAlert(deviceId, "WARNING", msg);
+                createAlert(deviceId, "WARNING", msg, organizationId);
                 notificationService.send(msg);
             }
         }
@@ -100,41 +101,42 @@ public class AlertService {
      */
     @NewSpan("alert.evaluate.legacy")
     public void evaluateLegacy(@SpanTag("device.id") UUID deviceId,
+                                UUID organizationId,
                                 @SpanTag("device.name") String deviceName,
                                 Double temperature, Double humidity,
                                 Boolean motion, Double smokePpm) {
         if (temperature != null && temperature > temperatureThreshold) {
             String msg = String.format("[%s] CRITICAL: temperature %.1f°C exceeds %.1f°C threshold",
                     deviceName, temperature, temperatureThreshold);
-            createAlert(deviceId, "CRITICAL", msg);
+            createAlert(deviceId, "CRITICAL", msg, organizationId);
             notificationService.send(msg);
         }
 
         if (smokePpm != null && smokePpm > smokeThreshold) {
             String msg = String.format("[%s] CRITICAL: smoke detected at %.1f ppm (threshold %.1f ppm)",
                     deviceName, smokePpm, smokeThreshold);
-            createAlert(deviceId, "CRITICAL", msg);
+            createAlert(deviceId, "CRITICAL", msg, organizationId);
             notificationService.send(msg);
         }
 
         if (humidity != null && humidity > humidityThreshold) {
             String msg = String.format("[%s] WARNING: humidity %.1f%% exceeds %.1f%% threshold",
                     deviceName, humidity, humidityThreshold);
-            createAlert(deviceId, "WARNING", msg);
+            createAlert(deviceId, "WARNING", msg, organizationId);
             notificationService.send(msg);
         }
 
         if (Boolean.TRUE.equals(motion) && temperature != null && temperature > 70) {
             String msg = String.format("[%s] WARNING: motion detected at elevated temperature %.1f°C",
                     deviceName, temperature);
-            createAlert(deviceId, "WARNING", msg);
+            createAlert(deviceId, "WARNING", msg, organizationId);
         }
     }
 
     // ── Shared helpers ────────────────────────────────────────────────────────
 
-    public Alert createAlert(UUID deviceId, String level, String message) {
-        Alert alert = new Alert(deviceId, level, message);
+    public Alert createAlert(UUID deviceId, String level, String message, UUID organizationId) {
+        Alert alert = new Alert(deviceId, level, message, organizationId);
         Alert saved = alertRepository.save(alert);
         businessMetricsService.recordAlertFired();
         log.warn("Alert created: [{}] {} — {}", level, deviceId, message);

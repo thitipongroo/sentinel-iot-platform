@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getAccessToken, clearAccessToken } from '@/lib/tokenStore'
 
 // The backend sets `API-Version: 1` on every response (ApiVersionFilter).
 // If the version bumps to a breaking change, this client will surface a warning
@@ -8,6 +9,9 @@ const EXPECTED_API_VERSION = '1'
 const api = axios.create({
   baseURL: '/api/v1',
   timeout: 10000,
+  // withCredentials is required for the HttpOnly refresh-token cookie to be
+  // sent automatically on cross-origin requests (dev: :3000 → :8080).
+  withCredentials: true,
   headers: {
     // Signal the expected contract version to the backend so it can reject
     // mismatched clients with HTTP 406 in a future breaking-change scenario.
@@ -16,10 +20,8 @@ const api = axios.create({
 })
 
 api.interceptors.request.use(config => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('sentinel_token')
-    if (token) config.headers.Authorization = `Bearer ${token}`
-  }
+  const token = getAccessToken()
+  if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
@@ -45,7 +47,7 @@ api.interceptors.response.use(
   },
   err => {
     if (err.response?.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('sentinel_token')
+      clearAccessToken()
       window.location.href = '/login'
     }
     // Surface HTTP 406 (Not Acceptable) when the backend rejects the client version
@@ -59,7 +61,8 @@ api.interceptors.response.use(
 
 export const authApi = {
   login:   (username, password) => api.post('/auth/login', { username, password }),
-  refresh: (refreshToken)       => api.post('/auth/refresh', { refreshToken }),
+  // No body needed — the HttpOnly refresh-token cookie is sent automatically
+  refresh: ()                   => api.post('/auth/refresh'),
   logout:  ()                   => api.post('/auth/logout')
 }
 

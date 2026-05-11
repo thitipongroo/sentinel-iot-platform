@@ -21,8 +21,19 @@ public class RefreshToken {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, unique = true, length = 512)
+    /**
+     * SHA-256 hash of the raw token value — never the raw token itself.
+     * A DB breach cannot be used to replay tokens because the hash is one-way.
+     * The raw value is generated in {@link com.sentinel.iot.service.JwtService}
+     * and returned to the caller via the transient {@link #rawToken} field;
+     * it is never persisted.
+     */
+    @Column(nullable = false, unique = true, length = 64)
     private String token;
+
+    /** Populated only immediately after token generation — never loaded from DB. */
+    @Transient
+    private String rawToken;
 
     @Column(nullable = false)
     private String username;
@@ -37,8 +48,8 @@ public class RefreshToken {
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
-    public RefreshToken(String token, String username, Instant expiresAt) {
-        this.token = token;
+    public RefreshToken(String tokenHash, String username, Instant expiresAt) {
+        this.token = tokenHash;
         this.username = username;
         this.expiresAt = expiresAt;
     }

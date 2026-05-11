@@ -16,9 +16,11 @@ import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -109,14 +111,19 @@ public class JwtService {
     }
 
     public RefreshToken generateRefreshToken(String username) {
-        String tokenValue = UUID.randomUUID().toString() + "." + UUID.randomUUID().toString();
+        String rawToken = UUID.randomUUID().toString() + "." + UUID.randomUUID().toString();
+        String tokenHash = sha256(rawToken);
         Instant expiresAt = Instant.now().plusMillis(refreshExpirationMs);
-        RefreshToken refreshToken = new RefreshToken(tokenValue, username, expiresAt);
-        return refreshTokenRepository.save(refreshToken);
+        RefreshToken refreshToken = new RefreshToken(tokenHash, username, expiresAt);
+        RefreshToken saved = refreshTokenRepository.save(refreshToken);
+        // rawToken is @Transient — set after save so callers can return it to the client
+        saved.setRawToken(rawToken);
+        return saved;
     }
 
-    public RefreshToken rotateRefreshToken(String oldTokenValue) {
-        RefreshToken existing = refreshTokenRepository.findByToken(oldTokenValue)
+    public RefreshToken rotateRefreshToken(String rawTokenValue) {
+        String tokenHash = sha256(rawTokenValue);
+        RefreshToken existing = refreshTokenRepository.findByToken(tokenHash)
                 .orElseThrow(() -> new IllegalArgumentException("Refresh token not found"));
 
         if (existing.isRevoked() || existing.isExpired()) {
@@ -131,13 +138,23 @@ public class JwtService {
         return generateRefreshToken(existing.getUsername());
     }
 
-    public String getUsernameFromRefreshToken(String tokenValue) {
-        RefreshToken token = refreshTokenRepository.findByToken(tokenValue)
+    public String getUsernameFromRefreshToken(String rawTokenValue) {
+        String tokenHash = sha256(rawTokenValue);
+        RefreshToken token = refreshTokenRepository.findByToken(tokenHash)
                 .orElseThrow(() -> new IllegalArgumentException("Refresh token not found"));
         if (token.isRevoked() || token.isExpired()) {
             throw new IllegalArgumentException("Refresh token is invalid or expired");
         }
         return token.getUsername();
+    }
+
+    private String sha256(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(md.digest(input.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 
     public void revokeAllRefreshTokens(String username) {

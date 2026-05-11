@@ -10,7 +10,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "audit_logs", indexes = {
     @Index(name = "idx_audit_log_username",  columnList = "username"),
-    @Index(name = "idx_audit_log_timestamp", columnList = "timestamp")
+    @Index(name = "idx_audit_log_timestamp", columnList = "timestamp"),
+    @Index(name = "idx_audit_log_org_id",    columnList = "organization_id")
 })
 @Data
 @NoArgsConstructor
@@ -34,6 +35,9 @@ public class AuditLog {
 
     @Column(name = "ip_address", length = 50)
     private String ipAddress;
+
+    @Column(name = "organization_id")
+    private UUID organizationId;
 
     @Column(nullable = false)
     private Instant timestamp;

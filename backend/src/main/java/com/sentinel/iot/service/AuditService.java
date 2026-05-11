@@ -2,6 +2,7 @@ package com.sentinel.iot.service;
 
 import com.sentinel.iot.model.AuditLog;
 import com.sentinel.iot.repository.AuditLogRepository;
+import com.sentinel.iot.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,10 +23,13 @@ public class AuditService {
     @Value("${audit.retention-days:90}")
     private int retentionDays;
 
-    @Async
+    @Async("auditExecutor")
     public void log(String username, String action, String resource, String detail, String ipAddress) {
         try {
-            auditLogRepository.save(new AuditLog(username, action, resource, detail, ipAddress));
+            // TenantContext is propagated into this thread by auditExecutor's TaskDecorator
+            AuditLog entry = new AuditLog(username, action, resource, detail, ipAddress);
+            entry.setOrganizationId(TenantContext.get());
+            auditLogRepository.save(entry);
             log.debug("AUDIT {} {} {} {}", username, action, resource, ipAddress);
         } catch (Exception e) {
             log.error("Failed to write audit log: {}", e.getMessage());
