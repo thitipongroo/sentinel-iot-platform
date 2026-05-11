@@ -322,7 +322,7 @@ sequenceDiagram
 
     ADMIN->>API: PATCH /api/v1/devices/{id}/lifecycle { lifecycleStatus: "DECOMMISSIONED" }
     API->>SVC: updateLifecycle(id, DECOMMISSIONED)
-    SVC->>SVC: ACTIVE → DECOMMISSIONED: allowed; force status=OFFLINE
+    SVC->>SVC: ACTIVE → DECOMMISSIONED: allowed, force status=OFFLINE
     SVC->>DB: UPDATE devices SET lifecycle_status='DECOMMISSIONED', status='OFFLINE'
     API-->>ADMIN: 200 { lifecycleStatus: "DECOMMISSIONED", status: "OFFLINE" }
 
