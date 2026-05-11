@@ -135,7 +135,7 @@ groups:
             At this pace the monthly error budget will be exhausted in
             {{ div 720 $value | humanizeDuration }}.
             Current 5-min availability: {{ sentinel:http_availability_sli:rate5m | humanizePercentage }}.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/slo-fast-burn"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/slo-fast-burn.md"
 
       # ── Medium burn (page) ───────────────────────────────────────────────────
       - alert: SentinelSLOMediumBurn
@@ -153,7 +153,7 @@ groups:
           description: >
             The 6-hour burn rate is {{ $value | humanize }}x.
             Estimated budget exhaustion in {{ div 4320 $value | humanizeDuration }}.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/slo-medium-burn"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/slo-medium-burn.md"
 
       # ── Slow burn (ticket) ───────────────────────────────────────────────────
       - alert: SentinelSLOSlowBurn
@@ -168,7 +168,7 @@ groups:
           description: >
             The 24-hour burn rate is {{ $value | humanize }}x. No immediate risk,
             but investigate before the weekly error budget review.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/slo-slow-burn"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/slo-slow-burn.md"
 
       # ── Error budget trend (informational) ────────────────────────────────────
       - alert: SentinelErrorBudgetLow
@@ -183,7 +183,7 @@ groups:
           description: >
             Only {{ $value | humanizePercentage }} of the monthly error budget remains.
             All non-critical deploys should be frozen until budget recovers.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/slo-budget-low"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/slo-budget-low.md"
 
       # ── Latency SLO: p95 ─────────────────────────────────────────────────────
       - alert: SentinelLatencyP95Breach
@@ -198,7 +198,7 @@ groups:
           description: >
             Only {{ $value | humanizePercentage }} of requests completed under 200 ms
             in the last 5 minutes. SLO target is 95%.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/latency-p95"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/latency-p95.md"
 
       # ── Latency SLO: p99 ─────────────────────────────────────────────────────
       - alert: SentinelLatencyP99Breach
@@ -213,7 +213,7 @@ groups:
           description: >
             Only {{ $value | humanizePercentage }} of requests completed under 500 ms
             in the last 5 minutes. SLO target is 99%.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/latency-p99"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/latency-p99.md"
 
       # ── Telemetry ingest lag spike ────────────────────────────────────────────
       - alert: SentinelTelemetryLagHigh
@@ -228,7 +228,7 @@ groups:
           description: >
             Consumer group sentinel-telemetry-ingest has {{ $value }} messages of lag
             on topic telemetry.raw. Telemetry E2E latency SLO may be at risk.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/kafka-lag"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/kafka-lag.md"
 
       - alert: SentinelTelemetryLagCritical
         expr: sentinel:telemetry_ingest_lag_current > 50000
@@ -243,7 +243,7 @@ groups:
             Consumer lag is {{ $value }} messages — devices are accumulating data
             faster than the pipeline can process. Scale the backend KEDA target or
             investigate consumer deadlock.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/kafka-lag-critical"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/kafka-lag-critical.md"
 
       # ── JVM health proxy ──────────────────────────────────────────────────────
       - alert: SentinelJVMHeapHigh
@@ -260,4 +260,4 @@ groups:
           description: >
             Heap usage is at {{ $value | humanizePercentage }}. GC pressure may
             start impacting p99 latency. Consider increasing heap or investigating leaks.
-          runbook_url: "https://wiki.sentinel-iot.io/runbooks/jvm-heap"
+          runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/jvm-heap.md"

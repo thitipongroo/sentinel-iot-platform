@@ -39,6 +39,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String username = jwtService.extractUsername(token);
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                // isTokenValid covers signature, expiry, AND the Redis revocation blocklist.
+                // Tokens added to the blocklist on logout are rejected here immediately.
                 if (jwtService.isTokenValid(token, userDetails)) {
                     UUID orgId = jwtService.extractOrgId(token);
                     if (orgId != null) {

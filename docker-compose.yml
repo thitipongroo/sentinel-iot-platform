@@ -63,6 +63,16 @@ services:
       MQTT_PASS: ${MQTT_PASS:-changeme}
       MQTT_DEVICE_USER: ${MQTT_DEVICE_USER:-sentinel-device}
       MQTT_DEVICE_PASS: ${MQTT_DEVICE_PASS:-changeme}
+      # Per-device credentials: each device gets its own MQTT account (no shared identity).
+      # Format: "device-id-1:password1,device-id-2:password2"
+      # Production: derive passwords from device secrets via HMAC-SHA256(deviceId, MQTT_DEVICE_SECRET).
+      MQTT_DEVICE_CREDENTIALS: ${MQTT_DEVICE_CREDENTIALS:-sensor-1:dev-pass-1,sensor-2:dev-pass-2,sensor-3:dev-pass-3}
+      # TLS enforcement: set to "true" after running scripts/gen-mqtt-certs.sh.
+      # When true, the broker refuses to start without certs and removes the plaintext listener.
+      MQTT_TLS_REQUIRED: ${MQTT_TLS_REQUIRED:-false}
+      # mTLS: set to "true" to require clients to present a valid certificate.
+      # Requires gen-mqtt-certs.sh --with-client-certs and mounting client certs into services.
+      MQTT_MTLS_ENABLED: ${MQTT_MTLS_ENABLED:-false}
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/acl:/mosquitto/config/acl:ro
@@ -122,7 +132,8 @@ services:
       DB_USER: sentinel
       DB_PASSWORD: sentinel
       REDIS_HOST: redis
-      MQTT_BROKER: tcp://mosquitto:1883
+      # Use ssl://mosquitto:8883 after enabling TLS (MQTT_TLS_REQUIRED=true).
+      MQTT_BROKER: ${MQTT_BROKER:-tcp://mosquitto:1883}
       MQTT_USER: ${MQTT_USER:-sentinel-backend}
       MQTT_PASS: ${MQTT_PASS:-changeme}
       JWT_SECRET: ${JWT_SECRET}
@@ -177,7 +188,7 @@ services:
       dockerfile: Dockerfile
     container_name: sentinel-simulator
     environment:
-      MQTT_BROKER: mqtt://mosquitto:1883
+      MQTT_BROKER: ${SIMULATOR_MQTT_BROKER:-mqtt://mosquitto:1883}
       MQTT_TOPIC: factory/telemetry
       MQTT_USER: ${MQTT_DEVICE_USER:-sentinel-device}
       MQTT_PASS: ${MQTT_DEVICE_PASS:-changeme}

@@ -63,8 +63,13 @@ mqtt:
 
 jwt:
   secret: ${JWT_SECRET}
+  # Zero-downtime key rotation: set JWT_PREVIOUS_SECRET=<old-secret> while deploying new JWT_SECRET.
+  # Tokens signed with the previous key remain valid until they expire (15 min), then clear this.
+  previous-secret: ${JWT_PREVIOUS_SECRET:}
   expiration-ms: 900000         # 15 minutes
   refresh-expiration-ms: 604800000  # 7 days
+  # Redis key prefix for the access-token revocation blocklist (JTI-based, TTL = token remaining lifetime).
+  revocation-key-prefix: "jwt:revoked:"
 
 notification:
   line:

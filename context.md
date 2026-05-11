@@ -1,74 +1,52 @@
-1. Frontend ยังดูเป็น dashboard layer มากกว่า product-grade UX
+1. ตรวจสอบ architecture consistency ของ projfect
 
-จาก structure:
+มี stack เดียว frontend หรือไม่
 
-dashboard
-chart
-device list
-alert list
+2. ตรวจสอบ proof ของ performance
 
-ยังไม่เห็น:
+มีรายการดังด่อไปนี้หรือไม่ :
 
-advanced filtering
-virtualized tables
-offline handling
-optimistic update
-accessibility strategy
-design system
-error boundary strategy
-state normalization
+benchmark docs
+screenshots
+metrics
+methodology
 
-ช่วยแก้ไขในสิ่งที่ยังไม่เห็นด้วย
+3. ตรวจสอบ production security
 
-2. ยังไม่เห็น API versioning strategy
+มีรายการดังต่อไปนี้หรือไม่ :
 
-ยังไม่พบ:
+TLS MQTT
+per-device auth
+secret rotation
+mTLS
 
-/v1
-backward compatibility policy
-schema evolution plan
+4. ตรวจสอบ project มีการแยก event streaming layer หรือไม่
 
-ถ้าระบบโตจะเริ่ม migrate ยาก
+อ้างอิงจากรายการดังต่อไปนี้ :
 
-ช่วยแก้ไขด้วย
+Kafka
+async processing
+consumer group
 
-3. ยังไม่พบ message schema governance
+5. ตรวจสอบว่ามี Kubernetes deployment หรือไม่
 
-TelemetryMessage มีอยู่
+โดยอ้างอิงจากรายการดังต่อไปนี้ :
 
-แต่ยังไม่เห็น:
+Helm
+HPA
+ingress
+rolling deployment
 
-Avro
-Protobuf
-schema registry
-compatibility validation
+6. ตรวจสอบว่ามี distributed websocket strategyหรือไม่
 
-ระยะยาว event evolution จะลำบาก
+7. ตรวจสอบว่ามี real production documentation หรือไม่
 
-ช่วยแก้ไขด้วย
+โดยอ้างอิงจากรายดังต่อไปนี้ :
 
-4. ยังไม่พบ OpenAPI contract automation
+incident flow
+scaling limit
+failure testing
+chaos testing
+capacity planning
 
-แม้มี OpenApiConfig
-
-แต่ยังไม่เห็น:
-
-generated SDK
-contract testing
-schema validation pipeline
-
-ช่วยแก้ไขด้วย
-
-
-5. ยังไม่เห็น SLO/SLA strategy
-
-มี observability แล้ว
-
-แต่ยังไม่เห็น:
-
-uptime target
-latency budget
-error budget
-SLO alerting
-
-ช่วยแก้ไขด้วย
+โดยทุกรายการที่ตรวจสอบนั้น ให้เทียบ code กับ ไฟล์ config ต้องตรงกัน

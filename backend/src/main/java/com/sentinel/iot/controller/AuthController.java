@@ -77,11 +77,20 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Revoke all refresh tokens for the authenticated user")
+    @Operation(summary = "Revoke the current access token and all refresh tokens")
     public ResponseEntity<Void> logout(Authentication authentication,
                                        HttpServletRequest httpRequest) {
         if (authentication != null) {
+            // Revoke all refresh tokens (prevents silent re-authentication)
             jwtService.revokeAllRefreshTokens(authentication.getName());
+
+            // Revoke the current access token via the Redis JTI blocklist.
+            // This closes the 15-minute window where a token remains valid after logout.
+            String authHeader = httpRequest.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                jwtService.revokeAccessToken(authHeader.substring(7));
+            }
+
             auditService.log(authentication.getName(), "LOGOUT", "/api/v1/auth/logout", null,
                     getClientIp(httpRequest));
         }

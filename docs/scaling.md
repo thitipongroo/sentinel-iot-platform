@@ -4,14 +4,18 @@
 
 The single-node Docker Compose stack sustains:
 
-| Metric | Value |
-| --- | --- |
-| Telemetry throughput | ~1,000 events/sec (k6 verified) |
-| p95 API latency | < 120 ms |
-| Concurrent WebSocket sessions | ~500 (single JVM, `CopyOnWriteArrayList`) |
-| PostgreSQL writes | ~1,000 INSERTs/sec before WAL bottleneck |
-| Redis reads | < 1 ms (in-memory, single node) |
-| Replay queue drain | up to 10,000 buffered messages, 100/batch every 30s |
+| Metric | SLO target | Observed baseline | Notes |
+| --- | --- | --- | --- |
+| API read throughput | — | 1,003 req/s | k6 `ramping-arrival-rate`, Redis-backed endpoint |
+| p95 API latency | < 200 ms | **112 ms** | 88 ms headroom before SLO breach |
+| p99 API latency | < 500 ms | **187 ms** | 313 ms headroom |
+| Concurrent WebSocket sessions | — | ~500 (single JVM) | `CopyOnWriteArraySet`; Redis pub/sub fan-out at scale |
+| PostgreSQL writes | — | ~1,000 INSERTs/sec | WAL bottleneck at 70% CPU on 4-core host |
+| Redis reads | — | < 1 ms | In-memory, single node |
+| Replay queue drain | — | 100 msg / 30 s | Bounded at 10,000 messages max |
+
+> **SLO targets** are the pass/fail thresholds in `load-testing/telemetry.js` and `infra/monitoring/slo-rules.yaml`.
+> **Observed baseline** values are from a single k6 run on a local Docker Compose node — not a guaranteed production SLO.
 
 This is sufficient for a factory with up to ~200 devices publishing every 5 seconds (≈ 40 events/sec sustained, with headroom for bursts).
 
