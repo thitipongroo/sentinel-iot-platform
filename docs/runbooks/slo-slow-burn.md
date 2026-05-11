@@ -19,6 +19,7 @@ before the weekly error budget review.
 This alert fires during business hours and should be triaged in the next sprint cycle.
 
 ### 1. Correlate with recent changes
+
 ```bash
 # Deploys in last 24h
 kubectl rollout history deployment/sentinel-backend -n sentinel | head -5
@@ -26,6 +27,7 @@ git log --oneline --since="24 hours ago"
 ```
 
 ### 2. Identify low-volume but persistent errors
+
 ```bash
 # Aggregate error counts by endpoint over 24h
 curl -sG http://prometheus:9090/api/v1/query \
@@ -34,8 +36,11 @@ curl -sG http://prometheus:9090/api/v1/query \
 ```
 
 ### 3. Check for misconfigured thresholds
+
 Alert false positives can occur if:
-- `TEMP_THRESHOLD`, `HUMIDITY_THRESHOLD`, or `SMOKE_THRESHOLD` are too tight (triggering mass alert notifications that cascade)
+
+- `TEMP_THRESHOLD`, `HUMIDITY_THRESHOLD`, or `SMOKE_THRESHOLD` are too tight
+  (triggering mass alert notifications that cascade)
 - The KEDA `lagThreshold` is too low (causing constant scale events that briefly interrupt processing)
 
 ---

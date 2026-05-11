@@ -77,6 +77,7 @@ To scale beyond 3, increase Kafka partitions to 9 (see `KafkaConfig.java`).
 | Query latency (p95) | < 10 ms | `mean_exec_time > 50 ms` in `pg_stat_statements` |
 
 **Upgrade path:**
+
 1. Add read replica for `SELECT` queries (zero code change — use `@Transactional(readOnly=true)`)
 2. Extend partition table to 2027+ (Flyway migration)
 3. Migrate to TimescaleDB for automatic chunking

@@ -9,6 +9,7 @@ significant infrastructure changes.
 ## How to Use
 
 For each scenario:
+
 1. Ensure the staging environment is healthy (all pods running, lag = 0)
 2. Trigger the failure using the provided command
 3. Verify the expected behaviour within the stated timeout
@@ -20,6 +21,7 @@ For each scenario:
 ## Failure Scenario 1 — Database Unavailable
 
 **Expected behaviour (from architecture.md):**
+
 - `@CircuitBreaker(name="telemetryDB")` opens after 50% failure rate (sliding window: 10 calls)
 - Backend returns fallback response to Kafka consumer (message goes to replay queue)
 - `sentinel:replay:queue` fills up to max 10,000 messages
@@ -27,11 +29,13 @@ For each scenario:
 - No permanent data loss
 
 **Trigger:**
+
 ```bash
 kubectl scale statefulset sentinel-postgres -n sentinel-staging --replicas=0
 ```
 
 **Verification steps:**
+
 ```bash
 # Wait 30 seconds, then check circuit breaker state
 curl http://sentinel-staging.internal/actuator/health | jq '.components.circuitBreakers'
@@ -60,6 +64,7 @@ curl http://sentinel-staging.internal/actuator/metrics/sentinel.replay.queue.siz
 ## Failure Scenario 2 — Redis Unavailable
 
 **Expected behaviour:**
+
 - Backend logs `WARN` for Redis timeout (2000 ms)
 - Telemetry is persisted to PostgreSQL regardless
 - WebSocket broadcasts fail silently (no ERROR, no user-visible data loss)
@@ -67,11 +72,13 @@ curl http://sentinel-staging.internal/actuator/metrics/sentinel.replay.queue.siz
 - Replay queue operations degrade: `pushToReplayQueue` / `drainReplayQueue` throw, caught in `ReplayQueueService`
 
 **Trigger:**
+
 ```bash
 kubectl scale statefulset sentinel-redis -n sentinel-staging --replicas=0
 ```
 
 **Verification steps:**
+
 ```bash
 # Send telemetry events
 curl -X POST http://sentinel-staging.internal/api/v1/devices/test/telemetry \
@@ -102,17 +109,20 @@ kubectl scale statefulset sentinel-redis -n sentinel-staging --replicas=1
 ## Failure Scenario 3 — MQTT Disconnection
 
 **Expected behaviour (from MqttConsumerService):**
+
 - Spring Integration detects TCP disconnect
 - Auto-reconnect with exponential backoff (built into `DefaultMqttPahoClientFactory`)
 - Reconnects within 30 seconds
 - QoS 1 in-flight messages are re-delivered after reconnection (no loss)
 
 **Trigger:**
+
 ```bash
 kubectl delete pod -n sentinel-staging -l app=sentinel-mosquitto
 ```
 
 **Verification steps:**
+
 ```bash
 # Watch backend logs for reconnect sequence
 kubectl logs -n sentinel-staging -l app=sentinel-backend -f | grep -i "mqtt"
@@ -140,6 +150,7 @@ kubectl exec -n sentinel-staging deploy/sentinel-kafka-0 -- \
 ## Failure Scenario 4 — Invalid Payload (Poison Pill)
 
 **Expected behaviour:**
+
 - `SchemaCompatibilityService.validate()` rejects malformed payload
 - `KafkaTelemetryConsumer` catches exception after 3 retries
 - `DeadLetterPublishingRecoverer` routes the message to `telemetry.dlq`
@@ -147,6 +158,7 @@ kubectl exec -n sentinel-staging deploy/sentinel-kafka-0 -- \
 - Kafka consumer offset advances (no blocking of subsequent messages)
 
 **Trigger:**
+
 ```bash
 # Publish a syntactically invalid JSON payload directly to Kafka
 kubectl exec -n sentinel-staging deploy/sentinel-kafka-0 -- \
@@ -157,6 +169,7 @@ EOF
 ```
 
 **Verification steps:**
+
 ```bash
 # Confirm message appears in DLQ after 3 retries (~3 seconds)
 kubectl exec -n sentinel-staging deploy/sentinel-kafka-0 -- \
@@ -183,11 +196,13 @@ kubectl exec -n sentinel-staging deploy/sentinel-kafka-0 -- \
 ## Failure Scenario 5 — Access Token Used After Logout
 
 **Expected behaviour:**
+
 - After `POST /api/v1/auth/logout`, the access token JTI is added to the Redis blocklist
 - Any subsequent request using that token returns `401 Unauthorized` immediately
 - The blocklist entry auto-expires after the token's remaining lifetime (max 15 minutes)
 
 **Trigger:**
+
 ```bash
 TOKEN=$(curl -s -X POST http://sentinel-staging.internal/api/v1/auth/login \
   -H "Content-Type: application/json" \
@@ -213,11 +228,13 @@ curl -s http://sentinel-staging.internal/api/v1/devices \
 ## Failure Scenario 6 — JWT Key Rotation (Zero-Downtime)
 
 **Expected behaviour:**
+
 - During rotation, tokens signed with the old key remain valid
 - After rotation window, old-key tokens are rejected
 - No user sessions are interrupted during rotation
 
 **Trigger:**
+
 ```bash
 # Get a token with the current key
 OLD_SECRET=$(kubectl get secret sentinel-jwt -n sentinel-staging -o jsonpath='{.data.JWT_SECRET}' | base64 -d)

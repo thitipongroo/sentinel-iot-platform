@@ -16,6 +16,7 @@ Users are experiencing elevated HTTP 5xx errors. Availability SLO (99.9%) is at 
 ## Diagnosis
 
 ### 1. Confirm the alert is real (not a metrics spike)
+
 ```bash
 # Check current error ratio
 kubectl exec -n sentinel deploy/sentinel-backend -- \
@@ -27,6 +28,7 @@ curl -sG http://prometheus:9090/api/v1/query \
 ```
 
 ### 2. Identify which endpoint is failing
+
 ```bash
 # Top error-generating endpoints in last 5 minutes
 curl -sG http://prometheus:9090/api/v1/query \
@@ -34,12 +36,14 @@ curl -sG http://prometheus:9090/api/v1/query \
 ```
 
 ### 3. Check backend pod health
+
 ```bash
 kubectl get pods -n sentinel -l app=sentinel-backend
 kubectl logs -n sentinel -l app=sentinel-backend --tail=100 | grep -E "ERROR|WARN"
 ```
 
 ### 4. Check downstream dependencies
+
 ```bash
 # PostgreSQL connectivity
 kubectl exec -n sentinel deploy/sentinel-backend -- \
@@ -56,6 +60,7 @@ kubectl exec -n sentinel deploy/sentinel-kafka-0 -- \
 ```
 
 ### 5. Check recent deployments
+
 ```bash
 kubectl rollout history deployment/sentinel-backend -n sentinel
 kubectl rollout history argo-rollouts/sentinel-backend -n sentinel
@@ -66,6 +71,7 @@ kubectl rollout history argo-rollouts/sentinel-backend -n sentinel
 ## Remediation
 
 ### Option A — Rollback (if recent deploy is the cause)
+
 ```bash
 # Argo Rollouts blue/green: abort promotion and revert to stable
 kubectl argo rollouts abort sentinel-backend -n sentinel
@@ -73,6 +79,7 @@ kubectl argo rollouts undo sentinel-backend -n sentinel
 ```
 
 ### Option B — Scale out (if under load)
+
 ```bash
 # Increase replicas temporarily
 kubectl scale deployment sentinel-backend -n sentinel --replicas=6
@@ -83,7 +90,9 @@ kubectl patch hpa sentinel-backend-hpa -n sentinel \
 ```
 
 ### Option C — Circuit breaker / dependency failure
+
 If a downstream service (PostgreSQL, Redis) is failing:
+
 1. Check if the circuit breaker has opened: `GET /actuator/health` → `circuitBreakers`
 2. Restore the failing dependency
 3. The circuit breaker will half-open and recover automatically (30s window)
@@ -93,6 +102,7 @@ If a downstream service (PostgreSQL, Redis) is failing:
 ## Escalation
 
 If not resolved within **15 minutes**:
+
 - Page the on-call database engineer if PostgreSQL errors
 - Page the infrastructure team if Kubernetes node issues
 - Consider [enabling maintenance mode](../architecture.md#maintenance-mode) to stop user-facing errors

@@ -21,27 +21,34 @@ indicates a more severe problem than a p95 breach — spiky tail latency from lo
 lock contention, or dependency timeouts.
 
 ### 1. Check GC pause duration
+
 ```bash
 curl -sG http://prometheus:9090/api/v1/query \
   --data-urlencode 'query=histogram_quantile(0.99, rate(jvm_gc_pause_seconds_bucket{job="sentinel-backend"}[5m]))'
 ```
+
 A GC pause > 300 ms will push p99 above 500 ms even if median latency is fine.
 
 ### 2. Check for DB lock contention
+
 ```bash
 kubectl exec -n sentinel deploy/sentinel-postgres-0 -- \
   psql -U sentinel -c "SELECT pid, wait_event_type, wait_event, state, query FROM pg_stat_activity WHERE wait_event IS NOT NULL;"
 ```
 
 ### 3. Check Hikari connection queue
+
 ```bash
 curl -sG http://prometheus:9090/api/v1/query \
   --data-urlencode 'query=hikaricp_connections_pending{job="sentinel-backend"}'
 ```
+
 Pending connections > 0 means threads are waiting for a DB connection — a direct p99 driver.
 
 ### 4. Inspect distributed traces
+
 In Jaeger, filter for spans > 400 ms. Look for:
+
 - Long `SELECT` queries (missing index, table scan)
 - Redis timeouts (`timeout: 2000ms` configured — a timeout event adds exactly 2s)
 - Kafka producer `linger.ms` accumulation under bursty load
@@ -59,7 +66,9 @@ In Jaeger, filter for spans > 400 ms. Look for:
 | Kafka producer backpressure | Reduce `linger-ms` (currently 5 ms); increase `batch-size` |
 
 ### Emergency: disable non-critical operations
+
 If the service is under extreme load, temporarily disable telemetry aggregation:
+
 ```bash
 # Increase retention cron interval to reduce DB write pressure
 kubectl set env deployment/sentinel-backend -n sentinel \

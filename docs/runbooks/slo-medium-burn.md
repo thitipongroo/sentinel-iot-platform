@@ -17,6 +17,7 @@ experiencing intermittent errors that haven't reached sustained-failure levels.
 ## Diagnosis
 
 ### 1. Identify the error pattern
+
 ```bash
 # Error rate over 6h window
 curl -sG http://prometheus:9090/api/v1/query \
@@ -29,6 +30,7 @@ curl -sG http://prometheus:9090/api/v1/query_range \
 ```
 
 ### 2. Check for memory pressure or GC pauses
+
 ```bash
 # JVM heap usage
 curl -sG http://prometheus:9090/api/v1/query \
@@ -40,6 +42,7 @@ curl -sG http://prometheus:9090/api/v1/query \
 ```
 
 ### 3. Check Kafka consumer lag trend
+
 ```bash
 kubectl exec -n sentinel deploy/sentinel-kafka-0 -- \
   /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
@@ -47,6 +50,7 @@ kubectl exec -n sentinel deploy/sentinel-kafka-0 -- \
 ```
 
 ### 4. Review trace data in Jaeger
+
 Open `http://jaeger:16686` and filter by `service=sentinel-backend`, `tags: error=true`
 over the last 6 hours. Look for slow spans in `TelemetryService` or database calls.
 
@@ -55,6 +59,7 @@ over the last 6 hours. Look for slow spans in `TelemetryService` or database cal
 ## Remediation
 
 ### Gradual scale-out
+
 ```bash
 # Add one replica and monitor error rate
 kubectl scale deployment sentinel-backend -n sentinel --replicas=$(
@@ -62,15 +67,19 @@ kubectl scale deployment sentinel-backend -n sentinel --replicas=$(
 ```
 
 ### Database connection pool
+
 If errors cluster around DB timeouts, increase the Hikari pool size:
+
 ```bash
 kubectl set env deployment/sentinel-backend -n sentinel \
   SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=30
 ```
 
 ### Non-urgent rollback
+
 If errors started after a deploy but are not yet critical, schedule a rollback in the next
 30-minute window:
+
 ```bash
 kubectl argo rollouts undo sentinel-backend -n sentinel
 ```

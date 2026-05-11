@@ -31,6 +31,7 @@ telemetry is buffered in the Redis replay queue, and no data is permanently lost
 After DB recovery, the replay queue drains automatically.
 
 **Procedure:**
+
 ```bash
 # 1. Establish baseline: confirm lag=0 and replay queue is empty
 kubectl exec -n sentinel-staging deploy/sentinel-backend -- \
@@ -63,6 +64,7 @@ kubectl exec -n sentinel-staging deploy/sentinel-postgres-0 -- \
 ```
 
 **Pass criteria:**
+
 - No HTTP 500 errors during DB outage (circuit breaker returns graceful fallback)
 - All 100 events appear in DB after recovery
 - Replay queue size returns to 0 within 3 minutes of DB recovery
@@ -76,6 +78,7 @@ processing MQTT messages. WebSocket broadcasts fail silently (data is still pers
 After Redis recovery, WebSocket broadcasting resumes automatically.
 
 **Procedure:**
+
 ```bash
 # 1. Kill Redis
 kubectl scale statefulset sentinel-redis -n sentinel-staging --replicas=0
@@ -98,6 +101,7 @@ kubectl scale statefulset sentinel-redis -n sentinel-staging --replicas=1
 ```
 
 **Pass criteria:**
+
 - All 10 events persisted to DB (Redis failure must not cause data loss)
 - Backend logs show WARN (Redis timeout) but no ERROR for message processing
 - WebSocket resumes delivering updates within 30 seconds of Redis recovery
@@ -110,6 +114,7 @@ kubectl scale statefulset sentinel-redis -n sentinel-staging --replicas=1
 the Kubernetes restart window (~5 seconds). The HPA maintains replica count.
 
 **Procedure:**
+
 ```bash
 # Install Chaos Mesh (if not present)
 helm install chaos-mesh chaos-mesh/chaos-mesh -n chaos-testing --create-namespace
@@ -144,6 +149,7 @@ kubectl delete podchaos sentinel-backend-pod-kill -n sentinel-staging
 ```
 
 **Pass criteria:**
+
 - No sustained 5xx errors (brief spike < 2 seconds during pod restart is acceptable)
 - HPA restores replica count within 60 seconds
 - No Kafka consumer group rebalance errors in logs
@@ -156,6 +162,7 @@ kubectl delete podchaos sentinel-backend-pod-kill -n sentinel-staging
 ingest path degrades gracefully. Messages already consumed are not reprocessed after reconnection.
 
 **Procedure:**
+
 ```bash
 # Apply network chaos — drop all traffic from backend pods to Kafka
 cat <<EOF | kubectl apply -f -
@@ -195,8 +202,10 @@ kubectl delete networkchaos backend-kafka-partition -n sentinel-staging
 ```
 
 **Pass criteria:**
+
 - Consumer lag builds during partition, then drains after recovery
-- No duplicate telemetry records in PostgreSQL (verify with `SELECT device_id, COUNT(*) FROM telemetry GROUP BY device_id, timestamp HAVING COUNT(*) > 1`)
+- No duplicate telemetry records in PostgreSQL (verify with
+  `SELECT device_id, COUNT(*) FROM telemetry GROUP BY device_id, timestamp HAVING COUNT(*) > 1`)
 - No messages lost (compare Kafka offset advancement with DB insert count)
 
 ---
@@ -207,6 +216,7 @@ kubectl delete networkchaos backend-kafka-partition -n sentinel-staging
 In-flight MQTT messages (QoS 1) are re-delivered after reconnection.
 
 **Procedure:**
+
 ```bash
 # Note current Kafka offset before restart
 kubectl exec -n sentinel-staging deploy/sentinel-kafka-0 -- \
@@ -228,6 +238,7 @@ kubectl exec -n sentinel-staging deploy/sentinel-kafka-0 -- \
 ```
 
 **Pass criteria:**
+
 - Backend reconnects to MQTT within 30 seconds (Spring Integration auto-reconnect)
 - All 20 QoS 1 messages delivered (none lost during reconnect window)
 

@@ -32,7 +32,7 @@ Content-Type: application/json
 }
 ```
 
-**Response 200**
+#### Response 200
 
 ```json
 {
@@ -67,7 +67,7 @@ Content-Type: application/json
 }
 ```
 
-**Response 200**
+#### Response 200
 
 ```json
 {
@@ -117,7 +117,7 @@ Content-Type: application/json
 
 > `location` and `firmwareVersion` are optional. There is no `description` field.
 
-**Response 201**
+#### Response 201
 
 ```json
 {
@@ -199,7 +199,7 @@ Retrieve the sensor capability map for a device. **Requires ADMIN or OPERATOR ro
 
 When `capabilities` is null, the alert engine falls back to global environment-variable thresholds.
 
-**Response 200**
+#### Response 200
 
 ```json
 {
@@ -316,7 +316,7 @@ Authorization: Bearer <token>
 
 Returns the latest telemetry values from Redis (sub-millisecond). All values are strings (Redis hash field type).
 
-**Response 200**
+#### Response 200
 
 ```json
 {
@@ -352,7 +352,7 @@ GET /api/v1/telemetry/{deviceId}/hourly?from=2025-06-01T00:00:00Z&to=2025-06-07T
 Authorization: Bearer <token>
 ```
 
-**Response 200**
+#### Response 200
 
 ```json
 [
@@ -375,7 +375,7 @@ Authorization: Bearer <token>
 
 Returns event throughput and replay queue depth.
 
-**Response 200**
+#### Response 200
 
 ```json
 {
@@ -394,7 +394,7 @@ Returns event throughput and replay queue depth.
 
 Returns the 50 most recent alerts (acknowledged and unacknowledged), newest first.
 
-**Response 200**
+#### Response 200
 
 ```json
 [
@@ -439,7 +439,7 @@ Mark an alert as acknowledged. **Requires ADMIN role.**
 
 Real-time telemetry stream.
 
-**Connect**
+#### Connect
 
 ```js
 const ws = new WebSocket('ws://localhost:8080/ws/telemetry')

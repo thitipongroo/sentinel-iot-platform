@@ -19,20 +19,25 @@ in the Sentinel IoT Platform.
 ## Incident Lifecycle
 
 ### 1. Declare (0–5 minutes)
+
 - On-call receives page from Alertmanager
 - Create incident channel: `#incident-YYYY-MM-DD-<short-description>`
 - Post initial message:
-  ```
+
+  ```text
   🔴 INCIDENT DECLARED — [P0/P1/P2]
   Alert: <alert name>
   Time: <UTC timestamp>
   Incident commander: @<name>
   Status: Investigating
   ```
+
 - Assign roles: **Incident Commander** (IC), **Technical Lead**, **Communications Lead**
 
 ### 2. Investigate (5–30 minutes)
+
 Follow the relevant runbook for the alert that fired:
+
 - [SentinelSLOFastBurn](./slo-fast-burn.md)
 - [SentinelSLOMediumBurn](./slo-medium-burn.md)
 - [SentinelTelemetryLagCritical](./kafka-lag-critical.md)
@@ -42,20 +47,25 @@ Follow the relevant runbook for the alert that fired:
 Post updates to the incident channel **every 10 minutes** while investigating.
 
 ### 3. Mitigate (variable)
+
 Implement the smallest change that stops the bleeding:
+
 - Rollback > fix-forward for production incidents
 - Scale out > optimise for latency incidents
 - Restart > debug for memory leak incidents
 
 Announce mitigation start in channel:
-```
+
+```text
 🟡 MITIGATING — [action being taken]
 ETA: <estimated resolution time>
 ```
 
 ### 4. Resolve
+
 Once user impact stops:
-```
+
+```text
 🟢 RESOLVED
 Duration: <start> → <end> (<total minutes>)
 Root cause (preliminary): <one sentence>
@@ -119,14 +129,16 @@ Complete this template:
 ## Communication Templates
 
 ### Status page update (external)
-```
+
+```text
 [INVESTIGATING] We are investigating elevated error rates on the Sentinel IoT Platform.
 The platform remains available but some requests may fail. Updates every 15 minutes.
 Started: <UTC time>
 ```
 
 ### Resolution notice (external)
-```
+
+```text
 [RESOLVED] The incident affecting the Sentinel IoT Platform has been resolved.
 Duration: <N> minutes. A post-mortem will be published within 48 hours.
 ```
