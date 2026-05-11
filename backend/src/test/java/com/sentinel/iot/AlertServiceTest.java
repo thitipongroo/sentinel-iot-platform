@@ -1,8 +1,11 @@
 package com.sentinel.iot;
 
 import com.sentinel.iot.model.Alert;
+import com.sentinel.iot.model.SensorCapability;
+import com.sentinel.iot.model.SensorReading;
 import com.sentinel.iot.repository.AlertRepository;
 import com.sentinel.iot.service.AlertService;
+import com.sentinel.iot.service.BusinessMetricsService;
 import com.sentinel.iot.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -24,6 +28,7 @@ class AlertServiceTest {
 
     @Mock AlertRepository alertRepository;
     @Mock NotificationService notificationService;
+    @Mock BusinessMetricsService businessMetricsService;
     @InjectMocks AlertService alertService;
 
     private final UUID deviceId = UUID.randomUUID();
@@ -38,7 +43,11 @@ class AlertServiceTest {
 
     @Test
     void evaluate_shouldCreateCriticalAlertWhenTemperatureExceedsThreshold() {
-        alertService.evaluate(deviceId, "sensor-1", 85.0, 60.0, false, 10.0);
+        Map<String, SensorReading> readings = Map.of(
+                "TEMPERATURE", SensorReading.good(85.0, "°C")
+        );
+        Map<String, SensorCapability> capabilities = Map.of();
+        alertService.evaluate(deviceId, UUID.randomUUID(), "sensor-1", readings, capabilities);
 
         ArgumentCaptor<Alert> captor = ArgumentCaptor.forClass(Alert.class);
         verify(alertRepository, atLeastOnce()).save(captor.capture());
@@ -49,7 +58,11 @@ class AlertServiceTest {
 
     @Test
     void evaluate_shouldCreateCriticalAlertWhenSmokeExceedsThreshold() {
-        alertService.evaluate(deviceId, "sensor-1", 70.0, 60.0, false, 250.0);
+        Map<String, SensorReading> readings = Map.of(
+                "SMOKE_PPM", SensorReading.good(250.0, "ppm")
+        );
+        Map<String, SensorCapability> capabilities = Map.of();
+        alertService.evaluate(deviceId, UUID.randomUUID(), "sensor-1", readings, capabilities);
 
         ArgumentCaptor<Alert> captor = ArgumentCaptor.forClass(Alert.class);
         verify(alertRepository, atLeastOnce()).save(captor.capture());
@@ -59,7 +72,11 @@ class AlertServiceTest {
 
     @Test
     void evaluate_shouldCreateWarningWhenHumidityExceedsThreshold() {
-        alertService.evaluate(deviceId, "sensor-1", 60.0, 95.0, false, 10.0);
+        Map<String, SensorReading> readings = Map.of(
+                "HUMIDITY", SensorReading.good(95.0, "%")
+        );
+        Map<String, SensorCapability> capabilities = Map.of();
+        alertService.evaluate(deviceId, UUID.randomUUID(), "sensor-1", readings, capabilities);
 
         ArgumentCaptor<Alert> captor = ArgumentCaptor.forClass(Alert.class);
         verify(alertRepository, atLeastOnce()).save(captor.capture());
@@ -69,14 +86,25 @@ class AlertServiceTest {
 
     @Test
     void evaluate_shouldCreateNoAlertWhenBelowAllThresholds() {
-        alertService.evaluate(deviceId, "sensor-1", 70.0, 60.0, false, 10.0);
+        Map<String, SensorReading> readings = Map.of(
+                "TEMPERATURE", SensorReading.good(70.0, "°C"),
+                "HUMIDITY",    SensorReading.good(60.0, "%"),
+                "SMOKE_PPM",   SensorReading.good(10.0, "ppm")
+        );
+        Map<String, SensorCapability> capabilities = Map.of();
+        alertService.evaluate(deviceId, UUID.randomUUID(), "sensor-1", readings, capabilities);
         verify(alertRepository, never()).save(any());
         verify(notificationService, never()).send(any());
     }
 
     @Test
     void evaluate_shouldCreateWarningWhenMotionDetectedAtElevatedTemperature() {
-        alertService.evaluate(deviceId, "sensor-1", 75.0, 60.0, true, 10.0);
+        Map<String, SensorReading> readings = Map.of(
+                "TEMPERATURE", SensorReading.good(75.0, "°C"),
+                "MOTION",      SensorReading.good(1.0, "")
+        );
+        Map<String, SensorCapability> capabilities = Map.of();
+        alertService.evaluate(deviceId, UUID.randomUUID(), "sensor-1", readings, capabilities);
 
         ArgumentCaptor<Alert> captor = ArgumentCaptor.forClass(Alert.class);
         verify(alertRepository, atLeastOnce()).save(captor.capture());

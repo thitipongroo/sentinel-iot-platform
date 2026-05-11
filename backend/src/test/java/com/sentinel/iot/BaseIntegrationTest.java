@@ -18,20 +18,26 @@ import org.testcontainers.utility.MountableFile;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class BaseIntegrationTest {
 
+    @SuppressWarnings("resource")
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("sentinel_test")
             .withUsername("test")
-            .withPassword("test");
+            .withPassword("test")
+            .withReuse(true);
 
+    @SuppressWarnings("resource")
     @Container
     static final GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
             .withExposedPorts(6379)
+            .withReuse(true)
             .waitingFor(Wait.forListeningPort());
 
+    @SuppressWarnings("resource")
     @Container
     static final GenericContainer<?> mosquitto = new GenericContainer<>("eclipse-mosquitto:2")
             .withExposedPorts(1883)
+            .withReuse(true)
             .withCopyToContainer(
                 MountableFile.forClasspathResource("mosquitto-test.conf"),
                 "/mosquitto/config/mosquitto.conf"

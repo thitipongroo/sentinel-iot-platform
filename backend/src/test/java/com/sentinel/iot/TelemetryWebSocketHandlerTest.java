@@ -7,10 +7,17 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class TelemetryWebSocketHandlerTest {
+
+    private static final UUID TEST_ORG = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final String BROADCAST_MSG = TEST_ORG + "|{\"temp\":42}";
 
     TelemetryWebSocketHandler handler;
 
@@ -24,7 +31,7 @@ class TelemetryWebSocketHandlerTest {
         WebSocketSession session = openSession("s1");
         handler.afterConnectionEstablished(session);
 
-        handler.broadcast("{\"temp\":42}");
+        handler.broadcastLocal(BROADCAST_MSG);
 
         verify(session).sendMessage(any(TextMessage.class));
     }
@@ -35,7 +42,7 @@ class TelemetryWebSocketHandlerTest {
         handler.afterConnectionEstablished(session);
         handler.afterConnectionClosed(session, CloseStatus.NORMAL);
 
-        handler.broadcast("{\"temp\":42}");
+        handler.broadcastLocal(BROADCAST_MSG);
 
         verify(session, never()).sendMessage(any());
     }
@@ -49,7 +56,7 @@ class TelemetryWebSocketHandlerTest {
         handler.afterConnectionEstablished(s2);
         handler.afterConnectionEstablished(s3);
 
-        handler.broadcast("{\"temp\":75}");
+        handler.broadcastLocal(BROADCAST_MSG);
 
         verify(s1).sendMessage(any(TextMessage.class));
         verify(s2).sendMessage(any(TextMessage.class));
@@ -63,7 +70,7 @@ class TelemetryWebSocketHandlerTest {
         handler.afterConnectionEstablished(open);
         handler.afterConnectionEstablished(closed);
 
-        handler.broadcast("msg");
+        handler.broadcastLocal(BROADCAST_MSG);
 
         verify(open).sendMessage(any(TextMessage.class));
         verify(closed, never()).sendMessage(any());
@@ -78,7 +85,7 @@ class TelemetryWebSocketHandlerTest {
         handler.afterConnectionEstablished(bad);
 
         // Should not throw; error is swallowed and good session still receives
-        handler.broadcast("msg");
+        handler.broadcastLocal(BROADCAST_MSG);
 
         verify(good).sendMessage(any(TextMessage.class));
     }
@@ -89,6 +96,9 @@ class TelemetryWebSocketHandlerTest {
         WebSocketSession s = mock(WebSocketSession.class);
         when(s.getId()).thenReturn(id);
         when(s.isOpen()).thenReturn(true);
+        Map<String, Object> attrs = new HashMap<>();
+        attrs.put("orgId", TEST_ORG);
+        when(s.getAttributes()).thenReturn(attrs);
         return s;
     }
 
