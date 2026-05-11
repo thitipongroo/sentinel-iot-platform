@@ -6,7 +6,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,7 +24,6 @@ import java.util.UUID;
 import java.util.function.Function;
 
 @Service
-@RequiredArgsConstructor
 public class JwtService {
 
     @Value("${jwt.secret}")
@@ -45,7 +44,15 @@ public class JwtService {
     private String revocationKeyPrefix;
 
     private final RefreshTokenRepository refreshTokenRepository;
+    // Uses DB-1 (auth namespace) — isolated from telemetry cache (DB-0) to prevent
+    // replay-queue pressure or cache eviction from blocking token revocation checks.
     private final StringRedisTemplate redis;
+
+    public JwtService(RefreshTokenRepository refreshTokenRepository,
+                      @Qualifier("authRedisTemplate") StringRedisTemplate redis) {
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.redis = redis;
+    }
 
     // ── Access token generation ───────────────────────────────────────────────
 

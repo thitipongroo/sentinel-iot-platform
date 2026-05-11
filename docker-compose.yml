@@ -53,7 +53,7 @@ services:
     command: >
       redis-server
       --appendonly yes
-      --appendfsync everysec
+      --appendfsync always
       --maxmemory-policy noeviction
       --save 60 1000
     volumes:

@@ -48,6 +48,15 @@ spring:
           max-active: 8
           max-idle: 4
 
+# Redis namespace isolation (see RedisConfig.java).
+# DB-0: telemetry cache + replay queue (default StringRedisTemplate)
+# DB-1: JWT token blocklist (authRedisTemplate — security-critical, isolated)
+# Production: point redis.auth.* at a separate Redis instance for full isolation.
+redis:
+  auth:
+    host: ${REDIS_AUTH_HOST:${REDIS_HOST:localhost}}
+    port: ${REDIS_AUTH_PORT:${REDIS_PORT:6379}}
+
 kafka:
   topics:
     telemetry-raw: telemetry.raw
@@ -107,6 +116,8 @@ metrics:
 
 telemetry:
   retention-days: ${TELEMETRY_RETENTION_DAYS:30}
+  late-arrival:
+    lookback-days: ${TELEMETRY_LATE_ARRIVAL_LOOKBACK_DAYS:2}
   retention:
     cron: "0 30 2 * * *"
   replay:

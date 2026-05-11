@@ -1,5 +1,6 @@
 import './globals.css'
 import Providers from './providers'
+import VersionBanner from '@/components/VersionBanner'
 
 export const metadata = {
   title: 'Sentinel IoT Platform',
@@ -11,6 +12,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <Providers>
+          <VersionBanner />
           {children}
         </Providers>
       </body>

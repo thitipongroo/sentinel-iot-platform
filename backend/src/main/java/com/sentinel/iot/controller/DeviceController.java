@@ -1,12 +1,16 @@
 package com.sentinel.iot.controller;
 
 import com.sentinel.iot.dto.DeviceCapabilityRequest;
+import com.sentinel.iot.dto.DeviceEnrollRequest;
 import com.sentinel.iot.dto.DeviceLifecycleRequest;
 import com.sentinel.iot.dto.DeviceRequest;
+import com.sentinel.iot.dto.EnrollmentTokenResponse;
 import com.sentinel.iot.dto.FirmwareUpdateRequest;
 import com.sentinel.iot.model.Device;
 import com.sentinel.iot.model.SensorCapability;
+import com.sentinel.iot.security.TenantContext;
 import com.sentinel.iot.service.AuditService;
+import com.sentinel.iot.service.DeviceEnrollmentService;
 import com.sentinel.iot.service.DeviceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +19,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +35,7 @@ public class DeviceController {
 
     private final DeviceService deviceService;
     private final AuditService auditService;
+    private final DeviceEnrollmentService enrollmentService;
 
     @PostMapping
     @Operation(summary = "Register a new device (ADMIN only)")
@@ -81,6 +87,37 @@ public class DeviceController {
                 "/api/devices/" + id + "/firmware",
                 "version=" + req.getFirmwareVersion(), resolveIp(httpRequest));
         return ResponseEntity.ok(updated);
+    }
+
+    // ── Device enrollment ─────────────────────────────────────────────────────
+
+    @PostMapping("/{id}/enrollment-token")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Generate a one-time enrollment token for a device (ADMIN only)",
+               description = "Token is valid for a configurable TTL (default 24 h) and can only be " +
+                             "used once. The raw token is returned once — store it securely and deliver " +
+                             "it to the device over a secure out-of-band channel.")
+    public ResponseEntity<EnrollmentTokenResponse> generateEnrollmentToken(
+            @PathVariable UUID id,
+            Authentication authentication) {
+        UUID orgId = TenantContext.get();
+        EnrollmentTokenResponse response = enrollmentService.generateToken(id, orgId, authentication.getName());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/enroll")
+    @Operation(summary = "Enroll a device using a one-time token (called by the device itself)",
+               description = "Unauthenticated endpoint — the enrollment token is the credential. " +
+                             "On success the device transitions to ACTIVE and receives its MQTT credentials.")
+    public ResponseEntity<Map<String, String>> enroll(
+            @RequestBody DeviceEnrollRequest request,
+            HttpServletRequest httpRequest) {
+        String remoteIp = resolveIp(httpRequest);
+        String mqttPassword = enrollmentService.enroll(request, remoteIp);
+        return ResponseEntity.ok(Map.of(
+                "mqttUsername", "device-" + request.deviceId(),
+                "mqttPassword", mqttPassword
+        ));
     }
 
     // ── Sensor capability management ──────────────────────────────────────────

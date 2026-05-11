@@ -245,6 +245,65 @@ groups:
             investigate consumer deadlock.
           runbook_url: "https://github.com/sentinel-iot/sentinel-iot-platform/blob/main/docs/runbooks/kafka-lag-critical.md"
 
+      # ── Redis replay queue stuck (durability signal) ─────────────────────────
+      # The Redis replay queue is @Deprecated in favour of the Kafka DLQ path.
+      # A non-zero queue depth means pre-Kafka messages are still pending drain,
+      # OR a code path is still writing to it unexpectedly.
+      - alert: SentinelReplayQueueNonEmpty
+        expr: sentinel_replay_queue_size > 0
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis replay queue non-empty for >10 minutes"
+          description: >
+            The legacy Redis replay queue has {{ $value }} entries that have not been drained.
+            The queue uses Redis persistence (appendonly) and is @Deprecated in favour of the
+            Kafka DLQ. Investigate whether drain is stuck or whether a code path is still
+            writing to the queue instead of going through Kafka.
+
+      - alert: SentinelReplayQueueOverflow
+        expr: sentinel_replay_queue_size > 5000
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis replay queue approaching overflow limit (>5000/10000)"
+          description: >
+            Replay queue depth {{ $value }} is above 50% of the 10,000 cap. If the DB
+            outage continues, telemetry will start being dropped silently. Extend
+            TELEMETRY_REPLAY_MAX_QUEUE or restore DB connectivity immediately.
+
+      # ── MQTT load shed (backpressure signal) ──────────────────────────────────
+      - alert: SentinelMQTTLoadShed
+        expr: rate(sentinel_mqtt_load_shed_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "MQTT ingestion load shedding active"
+          description: >
+            The MQTT concurrency limiter is shedding messages ({{ $value | humanize }} shed/s).
+            The ingestion pipeline is saturated. Scale the backend replicas or increase
+            INGESTION_MAX_CONCURRENT to raise the limit.
+
+      # ── Business metrics: active devices ──────────────────────────────────────
+      - alert: SentinelActiveDevicesDropped
+        expr: |
+          (sentinel_business_active_devices / clamp_min(sentinel_business_total_devices, 1)) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Less than 50% of devices are ONLINE"
+          description: >
+            Only {{ $value | humanizePercentage }} of registered devices are reporting ONLINE.
+            This may indicate a broker outage, network partition, or widespread device failure.
+
       # ── JVM health proxy ──────────────────────────────────────────────────────
       - alert: SentinelJVMHeapHigh
         expr: |

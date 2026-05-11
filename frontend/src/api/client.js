@@ -1,8 +1,18 @@
 import axios from 'axios'
 
+// The backend sets `API-Version: 1` on every response (ApiVersionFilter).
+// If the version bumps to a breaking change, this client will surface a warning
+// instead of silently rendering stale or broken UI.
+const EXPECTED_API_VERSION = '1'
+
 const api = axios.create({
   baseURL: '/api/v1',
-  timeout: 10000
+  timeout: 10000,
+  headers: {
+    // Signal the expected contract version to the backend so it can reject
+    // mismatched clients with HTTP 406 in a future breaking-change scenario.
+    'Accept-API-Version': EXPECTED_API_VERSION,
+  }
 })
 
 api.interceptors.request.use(config => {
@@ -14,11 +24,34 @@ api.interceptors.request.use(config => {
 })
 
 api.interceptors.response.use(
-  res => res,
+  res => {
+    // Detect API contract mismatch before it causes silent data corruption.
+    const serverVersion = res.headers?.['api-version']
+    if (serverVersion && serverVersion !== EXPECTED_API_VERSION) {
+      console.warn(
+        `[sentinel] API version mismatch: expected ${EXPECTED_API_VERSION}, ` +
+        `got ${serverVersion}. Reload the page to get the latest client.`
+      )
+      // Emit a custom browser event so the UI can show a "Please refresh" banner.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('sentinel:api-version-mismatch', {
+            detail: { expected: EXPECTED_API_VERSION, actual: serverVersion }
+          })
+        )
+      }
+    }
+    return res
+  },
   err => {
     if (err.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('sentinel_token')
       window.location.href = '/login'
+    }
+    // Surface HTTP 406 (Not Acceptable) when the backend rejects the client version
+    if (err.response?.status === 406 && typeof window !== 'undefined') {
+      console.error('[sentinel] API contract rejected by server — client is outdated. Please refresh.')
+      window.dispatchEvent(new CustomEvent('sentinel:api-version-rejected'))
     }
     return Promise.reject(err)
   }

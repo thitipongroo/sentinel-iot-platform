@@ -32,26 +32,46 @@ public class TelemetryRetentionService {
     @Value("${telemetry.retention-days:30}")
     private int retentionDays;
 
+    /**
+     * Look-back window for late-arrival aggregation recomputation.
+     *
+     * <p>IoT telemetry is often late or out-of-order: a device may reconnect after an
+     * offline period and deliver several hours of buffered readings at once. The daily
+     * aggregation job only covers "yesterday" by default, so those late records would
+     * miss being aggregated until the Kafka DLQ consumer replays them — which could
+     * land them in hours that have already been aggregated.
+     *
+     * <p>Setting {@code TELEMETRY_LATE_ARRIVAL_LOOKBACK_DAYS} to N causes the retention
+     * job to also re-run aggregation for the previous N days (idempotent upsert — safe
+     * to re-run). This closes the gap for replay data and short-duration DB outages.
+     * Default is 2 days (covers overnight outages and same-day replay drains).
+     */
+    @Value("${telemetry.late-arrival.lookback-days:2}")
+    private int lateArrivalLookbackDays;
+
     private static final DateTimeFormatter PARTITION_FMT = DateTimeFormatter.ofPattern("yyyy_MM");
 
     /**
      * Runs daily at 02:30 UTC.
-     * Phase 1 — aggregate yesterday's raw data into hourly buckets (idempotent upsert).
+     * Phase 1 — aggregate yesterday + late-arrival look-back window (idempotent upsert).
      * Phase 2 — purge raw rows older than retention-days.
      * Phase 3 — DETACH and DROP empty monthly partition tables whose data has been fully pruned.
      */
     @Scheduled(cron = "${telemetry.retention.cron:0 30 2 * * *}")
     @Transactional
     public void runRetention() {
-        Instant dayStart = LocalDate.now(ZoneOffset.UTC)
-                .minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
-        Instant dayEnd = LocalDate.now(ZoneOffset.UTC)
-                .atStartOfDay(ZoneOffset.UTC).toInstant();
+        // Phase 1: aggregate yesterday + look-back window for late-arriving replay data
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
 
-        // Phase 1: aggregate
-        int aggregated = hourlyAggregateRepository.aggregateHourly(dayStart, dayEnd);
-        log.info("Retention: aggregated {} hourly buckets for {}",
-                aggregated, dayStart.toString().substring(0, 10));
+        // Always cover at least yesterday. Look-back covers additional days to catch
+        // telemetry that arrived late via Kafka DLQ replay or device reconnect bursts.
+        LocalDate lookbackStart = today.minusDays(Math.max(1, lateArrivalLookbackDays));
+        Instant aggregateFrom = lookbackStart.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant aggregateTo   = today.atStartOfDay(ZoneOffset.UTC).toInstant();
+
+        int aggregated = hourlyAggregateRepository.aggregateHourly(aggregateFrom, aggregateTo);
+        log.info("Retention: aggregated {} hourly buckets for window [{}, {}] (lookback={}d)",
+                aggregated, lookbackStart, today.minusDays(1), lateArrivalLookbackDays);
 
         // Phase 2: prune raw rows
         Instant cutoff = Instant.now().minus(retentionDays, ChronoUnit.DAYS);

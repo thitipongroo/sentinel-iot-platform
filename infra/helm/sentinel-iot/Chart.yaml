@@ -15,3 +15,16 @@ maintainers:
 home: https://github.com/yourorg/sentinel-iot-platform
 sources:
   - https://github.com/yourorg/sentinel-iot-platform
+
+# ── External chart dependency versions (locked) ──────────────────────────────
+# Pin exact chart versions here. Bump intentionally and test in staging first.
+# Run `helm dependency update` after changing this section.
+dependencies:
+  - name: argo-rollouts
+    repository: https://argoproj.github.io/argo-helm
+    version: "2.37.3"
+    condition: rollouts.enabled
+  - name: keda
+    repository: https://kedacore.github.io/charts
+    version: "2.14.2"
+    condition: keda.enabled

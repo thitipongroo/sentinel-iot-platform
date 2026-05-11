@@ -52,6 +52,7 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(HttpMethod.POST,  "/api/v1/devices/enroll").permitAll()
                         .requestMatchers(HttpMethod.POST,  "/api/v1/devices").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/devices/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT,   "/api/v1/devices/**").hasRole("ADMIN")
