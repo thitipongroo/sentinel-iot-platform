@@ -183,16 +183,17 @@ Content-Type: application/json
 
 { "username": "admin", "password": "<value of INIT_ADMIN_PASSWORD>" }
 
-→ 200 { "accessToken": "eyJ...", "refreshToken": "uuid.uuid", "role": "ADMIN", "username": "admin" }
+→ 200 { "accessToken": "eyJ...", "refreshToken": null, "role": "ADMIN", "username": "admin" }
+     Set-Cookie: refreshToken=<token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
 
-POST /api/v1/auth/refresh
-{ "refreshToken": "uuid.uuid" }
+POST /api/v1/auth/refresh         # Refresh token is read from HttpOnly cookie — no request body required
+Cookie: refreshToken=<token>
 
-POST /api/v1/auth/logout          # Revokes access token (Redis JTI blocklist) + all refresh tokens
+POST /api/v1/auth/logout          # Revokes access token (Redis JTI blocklist) + all refresh tokens; clears cookie
 Authorization: Bearer <accessToken>
 ```
 
-> Tokens: access token expires in **15 minutes**; refresh token expires in **7 days** with automatic rotation on every use.
+> Tokens: access token expires in **15 minutes** (stored in JS memory, never in localStorage); refresh token expires in **7 days** with automatic rotation on every use — delivered as an `HttpOnly; Secure; SameSite=Strict` cookie, not in the response body.
 
 ### Devices
 
@@ -223,7 +224,7 @@ GET /api/v1/telemetry/{deviceId}/hourly?from=…&to=…# Hourly aggregates
 GET /api/v1/telemetry/stats                        # { lastMinute, replayQueueSize }
 ```
 
-Telemetry rows support two payload generations: `schemaVersion=1` (fixed scalar fields) and `schemaVersion=2` (dynamic `readings` map + `edge` metadata). Both versions are handled transparently by the ingest pipeline.
+Telemetry rows support two payload generations: `schemaVersion=1` (fixed scalar fields — `temperature` and `humidity` required) and `schemaVersion=2` (dynamic `readings` map + `edge` metadata — `temperature` and `humidity` columns are nullable in the DB). Both versions are handled transparently by the ingest pipeline.
 
 ### Alerts
 
@@ -236,7 +237,7 @@ PUT /api/v1/alerts/{id}/acknowledge    # ADMIN only
 ### WebSocket
 
 ```text
-WS ws://localhost:8080/ws/telemetry
+WS ws://localhost:8080/ws/telemetry?token=<accessToken>
 
 Payload (JSON, per message):
 {
@@ -248,6 +249,8 @@ Payload (JSON, per message):
   "timestamp": 1717200000000
 }
 ```
+
+The `?token=<accessToken>` query parameter is required — the handshake is rejected (HTTP 401) without a valid JWT. Each connected session only receives telemetry for devices belonging to the authenticated user's organization (tenant-filtered broadcast).
 
 ---
 
@@ -311,12 +314,12 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 
 | Feature | Implementation |
 | --- | --- |
-| Authentication | JWT (15 min access token, `kid` header for zero-downtime key rotation) + opaque refresh token (7 days, DB-persisted, rotated on every use) |
+| Authentication | JWT (15 min access token, stored in JS module-level variable — never localStorage) + opaque refresh token (7 days, DB-persisted as **SHA-256 hash**, rotated on every use, delivered as `HttpOnly; Secure; SameSite=Strict` cookie — never in response body) |
 | Access Token Revocation | `POST /auth/logout` adds the token's JTI to a Redis blocklist on DB 1 (TTL = remaining token lifetime). Every request checks the blocklist — stolen or logged-out tokens are rejected immediately. |
 | Zero-Downtime Key Rotation | Set `JWT_PREVIOUS_SECRET=<old>` + `JWT_SECRET=<new>` and redeploy. Tokens signed with the old key remain valid until they expire (max 15 min); old `JWT_PREVIOUS_SECRET` can be cleared after that. |
 | Refresh Token Reuse Detection | `rotateRefreshToken()` calls `revokeAllByUsername()` when a revoked token is presented — token family invalidation per RFC 6819. |
 | Device Enrollment | One-time 256-bit SecureRandom tokens; only SHA-256 hash stored in DB; single-use; TTL-bound (default 24 h); bound to a specific device ID. Devices bootstrap via `POST /devices/enroll` (unauthenticated — token is the credential) and receive per-device MQTT credentials. |
-| Rate Limiting | Bucket4j — 100 req/min per IP on `/api/*` (in-process; see Known Limitations) |
+| Rate Limiting | Bucket4j — tiered limits per IP: **10 req/min** for auth endpoints (`/api/v1/auth/*`), **100 req/min** for all other API endpoints. X-Forwarded-For trusted only from configured proxy IPs (`rate-limit.trusted-proxies`). In-process buckets — see Known Limitations. |
 | RBAC | `ADMIN` + `OPERATOR` roles; method-level `@PreAuthorize` |
 | CORS | Restricted to `CORS_ALLOWED_ORIGINS` env var (default: `http://localhost:3000`). Headers limited to `Authorization`, `Content-Type`, `X-Request-ID`. |
 | CSRF | Disabled — correct for a stateless JWT API. |
@@ -325,7 +328,7 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 | Audit Retention | `audit_logs` purged daily at 03:30 (`AUDIT_RETENTION_DAYS`, default 90 days). |
 | MQTT Auth | `allow_anonymous false` enforced. Per-device accounts via `MQTT_DEVICE_CREDENTIALS=sensor-1:pass1,sensor-2:pass2`. |
 | MQTT TLS / mTLS | TLS on `:8883` when certs present. `MQTT_TLS_REQUIRED=true` removes plaintext `:1883`. `MQTT_MTLS_ENABLED=true` requires client certificates. |
-| Multi-tenant Isolation | `organizationId` scoping + PostgreSQL Row Level Security (`V7__row_level_security.sql`) + tenant-namespaced Redis keys (`device:{orgId}:{deviceId}`) |
+| Multi-tenant Isolation | `organizationId` scoping + PostgreSQL Row Level Security (`V7__row_level_security.sql`) enforced by `TenantRlsAspect` (Spring AOP `@Before` on every `@Transactional` method — issues `SET LOCAL app.org_id` inside the transaction) + tenant-namespaced Redis keys (`device:{orgId}:{deviceId}`) |
 | Secret Scanning | Gitleaks runs on every CI push — secrets committed to git fail the build |
 | Dependency/Container Scan | Trivy scans filesystem (SCA) and backend container image on every CI push — CRITICAL/HIGH CVEs fail the build. Results in GitHub Security tab (SARIF) |
 | Actuator Exposure | `/actuator/health` public; internal details shown only to authenticated users. |
@@ -335,11 +338,10 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 
 | Gap | Current State | Production Fix |
 | --- | --- | --- |
-| Rate limiting is in-process | Each replica has independent bucket — effective limit is `100 × N` replicas | Swap `ConcurrentHashMap` for `bucket4j-redis` (`ProxyManager` backed by Redis atomic counters) |
+| Rate limiting is in-process | Each replica has independent bucket — effective limit is `10/100 × N` replicas | Swap `ConcurrentHashMap` for `bucket4j-redis` (`ProxyManager` backed by Redis atomic counters) |
 | No refresh-token device binding | Refresh tokens bound to user only, not to issuing device or IP | Add fingerprint (IP + User-Agent hash) on issuance; reject reuse from different fingerprint |
 | TLS MQTT is opt-in | Plaintext `:1883` active by default in dev | Set `MQTT_TLS_REQUIRED=true` after running `gen-mqtt-certs.sh`; enforce in production via Helm `values-prod.yaml` |
 | mTLS is opt-in | `require_certificate false` unless `MQTT_MTLS_ENABLED=true` | Run `gen-mqtt-certs.sh --with-client-certs`, mount client certs into each service, set `MQTT_MTLS_ENABLED=true` |
-| RLS session variable | V7 enables RLS; JPA interceptor to call `SET LOCAL app.org_id` not yet implemented | Add Hibernate `EmptyInterceptor` or Spring AOP to set the session variable before each query |
 
 ---
 

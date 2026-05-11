@@ -91,15 +91,20 @@ Device/Simulator
   │── MQTT publish ──▶ Mosquitto
                           │── Spring Integration channel ──▶ MqttConsumerService
                                                                 │── ① JSON parse
-                                                                │── ② field validation (range checks)
-                                                                │── ③ device resolution (DB lookup)
-                                                                │── ④ lifecycle gate (INACTIVE/DECOMMISSIONED → DLQ)
-                                                                │── ⑤ TelemetryService.save()  [@Retry + @CircuitBreaker]
-                                                                │        │── PostgreSQL INSERT (partitioned telemetry)
-                                                                │        └── Redis HSET (latest cache)
-                                                                │── AlertService.evaluate()
-                                                                │        └── LINE Notify (threshold exceeded)
-                                                                └── WebSocket broadcast ──▶ React UI
+                                                                │── ② field validation (v1/v2 schema-aware)
+                                                                │── backpressure gate (Semaphore) → DLQ if LOAD_SHED
+                                                                │── Kafka publish (device name as partition key)
+                                                                │
+                                                          KafkaTelemetryConsumer (batch up to 500)
+                                                                │── bulk device resolution (one DB query/batch)
+                                                                │── lifecycle gate (INACTIVE/DECOMMISSIONED → drop)
+                                                                │── telemetryRepository.saveAll()  ← DB first
+                                                                │── (post-commit side-effects)
+                                                                │── Redis HSET (latest cache)
+                                                                │── AlertService.evaluate() (capability-aware)
+                                                                │        └── LINE Notify / Slack / webhook
+                                                                └── WebSocketBroadcastPublisher (orgId|payload)
+                                                                        └── tenant-filtered WS broadcast ──▶ React UI
 ```
 
 ### Failure Paths
@@ -158,13 +163,14 @@ The backend is a single deployable JAR with the following internal layers:
 | Layer | Package | Responsibility |
 | --- | --- | --- |
 | Security | `security/` | JWT filter, BCrypt password encoding, TenantContext |
+| Tenant RLS | `config/TenantRlsAspect` | Spring AOP `@Before` on every `@Transactional` method — issues `SET LOCAL app.org_id = '<orgId>'` inside the open transaction so PostgreSQL RLS policies are enforced per-request |
 | Request Correlation | `config/RequestIdFilter` | MDC: requestId, method, path, username, durationMs |
 | Config | `config/` | MQTT + DLQ channels, WebSocket, Redis (DB0/DB1), Security beans |
 | Controller | `controller/` | REST endpoints — auth, devices (incl. enrollment), telemetry, alerts |
 | Service | `service/` | TelemetryService, AlertService, RedisService, ReplayQueueService, TelemetryRetentionService, DeviceService, DeviceEnrollmentService, NotificationService, BusinessMetricsService |
 | Notification | `service/notification/` | NotificationProvider interface + LineNotifyProvider (deprecated), SlackNotificationProvider, WebhookNotificationProvider (HMAC-SHA256 signed) |
 | Repository | `repository/` | Spring Data JPA — devices, telemetry, hourly aggregates, alerts, users, enrollment tokens |
-| WebSocket | `websocket/` | `CopyOnWriteArrayList` of active sessions, Redis Pub/Sub fan-out, broadcast |
+| WebSocket | `websocket/` | `JwtWebSocketHandshakeInterceptor` validates JWT on upgrade; `CopyOnWriteArrayList` of active sessions with orgId attribute; Redis Pub/Sub fan-out (`orgId\|rawPayload` envelope); tenant-filtered broadcast delivers only to sessions matching the publisher's orgId |
 | DTOs | `dto/` | Request/response DTOs, ReplayQueueMessage, DeviceEnrollRequest, EnrollmentTokenResponse |
 
 **Resiliency:** `TelemetryService.save()` is decorated with `@Retry(name="telemetryDB")` (3 attempts, 500ms wait) and `@CircuitBreaker(name="telemetryDB")` (opens at 50% failure rate in a 10-call window; waits 30s before HALF_OPEN). The fallback buffers to Redis.
@@ -201,23 +207,26 @@ Six domain tables (schema at V6 migration):
 app_users         devices                         telemetry (partitioned by month)
 ──────────        ─────────────────────────────   ──────────────────────────────────
 id UUID           id UUID                         id UUID (UNIQUE INDEX, not PK)
-username          name UNIQUE                     device_id UUID FK
-password          status                          schema_version INT DEFAULT 1
-role              location                        temperature DOUBLE
-                  created_at                      humidity DOUBLE
-                  last_seen                       motion BOOLEAN
-                  lifecycle_status                smoke_ppm DOUBLE
-                  firmware_version                timestamp TIMESTAMPTZ  ← partition key
-                  firmware_updated_at             readings JSONB          ← v2 dynamic sensors
-                  capabilities JSONB              edge_firmware_version VARCHAR
-                                                  edge_ip VARCHAR
-alerts                                            edge_uptime_seconds BIGINT
-──────────────    ──────────────────              edge_rssi INT
-id UUID PK        refresh_tokens                  edge_snr INT
-device_id FK                                      edge_battery_voltage DOUBLE
-level VARCHAR                                     edge_battery_pct INT
-message TEXT                                      edge_free_heap_bytes INT
-acknowledged BOOL                                 edge_protocol VARCHAR
+username          name (not globally unique)      device_id UUID FK
+password          organization_id UUID            schema_version INT DEFAULT 1
+role              UNIQUE(organization_id, name)   temperature DOUBLE  ← nullable (v2)
+                  status                          humidity DOUBLE     ← nullable (v2)
+                  location                        motion BOOLEAN
+                  created_at                      smoke_ppm DOUBLE
+                  last_seen                       timestamp TIMESTAMPTZ  ← partition key
+                  lifecycle_status                readings JSONB          ← v2 dynamic sensors
+                  firmware_version                edge_firmware_version VARCHAR
+                  firmware_updated_at             edge_ip VARCHAR
+                  capabilities JSONB              edge_uptime_seconds BIGINT
+                                                  edge_rssi INT
+alerts                                            edge_snr INT
+──────────────    ──────────────────              edge_battery_voltage DOUBLE
+id UUID PK        refresh_tokens                  edge_battery_pct INT
+device_id FK      token  ← SHA-256 hash only      edge_free_heap_bytes INT
+organization_id UUID     (raw token never stored) edge_protocol VARCHAR
+level VARCHAR
+message TEXT
+acknowledged BOOL
 created_at
                   telemetry_hourly_aggregates
                   ─────────────────────────────
@@ -247,7 +256,7 @@ created_at TIMESTAMPTZ
 created_by VARCHAR
 ```
 
-Row Level Security (`V7__row_level_security.sql`) is enabled and forced on `devices`, `alerts`, and `audit_logs`. Policy: `organization_id = current_setting('app.org_id', true)::uuid`. The application sets this session variable via a Hibernate interceptor / Spring AOP call before each query.
+Row Level Security (`V7__row_level_security.sql`) is enabled and forced on `devices`, `alerts`, and `audit_logs`. Policy: `organization_id = current_setting('app.org_id', true)::uuid`. `TenantRlsAspect` (Spring AOP `@Order(1)`, runs inside the transaction opened by `@EnableTransactionManagement(order=0)`) issues `SET LOCAL app.org_id = '<orgId>'` via `session.doWork()` at the start of every `@Transactional` method when a tenant context is present. Device names are unique **per organization** (constraint `uq_device_org_name` on `(organization_id, name)`) rather than globally unique.
 
 **Key indexes:** `idx_telemetry_readings` (GIN on `readings` JSONB), `idx_telemetry_battery_pct`, `idx_telemetry_rssi` (scalar indexes for trending queries), `idx_devices_capabilities` (GIN on capabilities JSONB).
 
@@ -261,7 +270,7 @@ Row Level Security (`V7__row_level_security.sql`) is enabled and forced on `devi
 
 - **App Router** with `'use client'` boundaries only where browser APIs are needed
 - API calls proxied through `next.config.mjs` rewrites (`/api/v1/*` → backend) — no CORS configuration required
-- WebSocket connects directly to backend port 8080 via `NEXT_PUBLIC_WS_URL`
+- WebSocket connects directly to backend port 8080 via `NEXT_PUBLIC_WS_URL` — requires `?token=<accessToken>` query parameter; handshake rejected (HTTP 401) if token is absent or invalid
 - Auto-reconnects with **exponential backoff + jitter** (`min(1000 × 2^attempt, 30000)` ms ±30%) on disconnect; resets to 0 on successful connect
 - **Server state:** React Query (`@tanstack/react-query`) — `useQuery` for devices/alerts/stats/telemetry; `useMutation` with `onMutate` rollback for optimistic alert acknowledgement; 30-second background refetch
 - **Client state:** Zustand store — `selectedDeviceId` (normalized UUID, not the full object), `filters` (search/status/lifecycle/sort), `isOffline` flag

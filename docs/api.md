@@ -37,34 +37,36 @@ Content-Type: application/json
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
-  "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
+  "refreshToken": null,
   "role": "ADMIN",
   "username": "admin"
 }
 ```
 
+The refresh token is **not** returned in the JSON body. It is delivered as an `HttpOnly; Secure; SameSite=Strict` cookie:
+
+```http
+Set-Cookie: refreshToken=<token>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=604800
+```
+
+Store the `accessToken` in memory (e.g. a module-level JS variable). Never write it to `localStorage` or `sessionStorage`.
+
 **Response 401** — Wrong credentials
 
 **Token lifetimes:**
 
-- `accessToken`: 15 minutes (configurable via `JWT_EXPIRATION_MS`)
-- `refreshToken`: 7 days (configurable via `JWT_REFRESH_EXPIRATION_MS`); **rotated** on every use
+- `accessToken`: 15 minutes (configurable via `JWT_EXPIRATION_MS`); stored in JS memory, not localStorage
+- `refreshToken`: 7 days (configurable via `JWT_REFRESH_EXPIRATION_MS`); **rotated** on every use; SHA-256 hash stored in DB; delivered as HttpOnly cookie
 
 ---
 
 ### POST /api/v1/auth/refresh
 
-Exchange a refresh token for a new access token + rotated refresh token.
+Exchange a refresh token for a new access token. The refresh token is read from the `HttpOnly` cookie — **no request body required**.
 
 ```http
 POST /api/v1/auth/refresh
-Content-Type: application/json
-```
-
-```json
-{
-  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
-}
+Cookie: refreshToken=<token>
 ```
 
 #### Response 200
@@ -72,26 +74,28 @@ Content-Type: application/json
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
-  "refreshToken": "a3bb189e-8bf9-3888-9912-ace4e6543002",
+  "refreshToken": null,
   "role": "ADMIN",
   "username": "admin"
 }
 ```
 
-**Response 401** — Expired, unknown, or already-rotated refresh token
+The rotated refresh token is set as a new `HttpOnly` cookie (same attributes as login). The `refreshToken` field in the JSON body is always `null`.
+
+**Response 401** — Expired, unknown, or already-rotated refresh token (cookie absent or invalid)
 
 ---
 
 ### POST /api/v1/auth/logout
 
-Revoke all refresh tokens for the authenticated user.
+Revoke all refresh tokens for the authenticated user and clear the refresh token cookie.
 
 ```http
 POST /api/v1/auth/logout
 Authorization: Bearer <access_token>
 ```
 
-**Response 204** — No content.
+**Response 204** — No content. The `Set-Cookie` response header expires the `refreshToken` cookie immediately (`Max-Age=0`).
 
 ---
 
@@ -465,6 +469,7 @@ Returns the 50 most recent alerts (acknowledged and unacknowledged), newest firs
   {
     "id": "uuid",
     "deviceId": "uuid",
+    "organizationId": "uuid",
     "level": "CRITICAL",
     "message": "[sensor-1] CRITICAL: temperature 83.2°C exceeds 80.0°C threshold",
     "acknowledged": false,
@@ -501,12 +506,12 @@ Mark an alert as acknowledged. **Requires ADMIN role.**
 
 ### WS /ws/telemetry
 
-Real-time telemetry stream.
+Real-time telemetry stream. A valid JWT access token must be supplied as a query parameter — the handshake is rejected with HTTP 401 if the token is absent, expired, or revoked.
 
 #### Connect
 
 ```js
-const ws = new WebSocket('ws://localhost:8080/ws/telemetry')
+const ws = new WebSocket(`ws://localhost:8080/ws/telemetry?token=${accessToken}`)
 ```
 
 **Incoming message** — sent on every successfully ingested MQTT event:
@@ -522,7 +527,7 @@ const ws = new WebSocket('ws://localhost:8080/ws/telemetry')
 }
 ```
 
-The backend broadcasts to **all** connected sessions. Filter by `deviceId` on the client side. In a multi-replica deployment the Redis Pub/Sub channel `ws:telemetry` ensures every replica broadcasts to its own local sessions.
+The backend delivers messages only to sessions belonging to the **same organization** as the authenticated user (tenant-filtered broadcast). In a multi-replica deployment the Redis Pub/Sub channel `ws:telemetry` ensures every replica broadcasts to its own local sessions with the same tenant filtering.
 
 ---
 
@@ -575,7 +580,7 @@ The value is injected into every backend log line as `requestId` in the MDC.
 | 403 | Insufficient role |
 | 404 | Resource not found |
 | 409 | Conflict (e.g. DECOMMISSIONED lifecycle transition) |
-| 429 | Rate limit exceeded (Bucket4j — 100 req/min per IP) |
+| 429 | Rate limit exceeded (Bucket4j — 10 req/min per IP on auth endpoints, 100 req/min on all other endpoints) |
 | 500 | Internal server error |
 
 ---
