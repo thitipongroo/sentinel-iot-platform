@@ -1,0 +1,20 @@
+[
+  {
+    "id": "uuid-1",
+    "name": "sensor-1",
+    "status": "ONLINE",
+    "lifecycleStatus": "ACTIVE",
+    "location": "Factory A",
+    "firmwareVersion": "1.2.0",
+    "lastSeen": "2026-05-12T10:00:00Z"
+  },
+  {
+    "id": "uuid-2",
+    "name": "sensor-2",
+    "status": "OFFLINE",
+    "lifecycleStatus": "ACTIVE",
+    "location": "Factory B",
+    "firmwareVersion": "1.1.0",
+    "lastSeen": null
+  }
+]

@@ -266,6 +266,7 @@ Priority 4 — ซับซ้อนสุด
 ## Jest Configuration
 
 ต้องสร้างเพิ่ม:
+
 - `jest.config.js` — กำหนด transform สำหรับ JSX, path alias `@/`
 - `jest.setup.js` — import `@testing-library/jest-dom` และ global mock สำหรับ `next/navigation`
 - reset Zustand store state ระหว่างแต่ละ test ด้วย `beforeEach`

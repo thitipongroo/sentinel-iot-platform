@@ -1,0 +1,18 @@
+[
+  {
+    "id": "a1",
+    "deviceId": "uuid-1",
+    "level": "CRITICAL",
+    "message": "Temperature exceeded 80°C",
+    "acknowledged": false,
+    "createdAt": "2026-05-12T09:00:00Z"
+  },
+  {
+    "id": "a2",
+    "deviceId": "uuid-2",
+    "level": "WARNING",
+    "message": "Smoke level above threshold",
+    "acknowledged": true,
+    "createdAt": "2026-05-12T08:00:00Z"
+  }
+]

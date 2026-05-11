@@ -1,0 +1,18 @@
+[
+  {
+    "deviceId": "uuid-1",
+    "temperature": 72.4,
+    "humidity": 55.0,
+    "smokePpm": 15.0,
+    "motion": false,
+    "timestamp": "2026-05-12T10:00:00Z"
+  },
+  {
+    "deviceId": "uuid-1",
+    "temperature": 75.1,
+    "humidity": 53.2,
+    "smokePpm": 18.0,
+    "motion": true,
+    "timestamp": "2026-05-12T09:55:00Z"
+  }
+]
