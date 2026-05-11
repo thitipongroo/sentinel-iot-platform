@@ -13,67 +13,67 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 -->
 
 ```text
-                    ┌──────────────────────────────────────────────────────────┐
-                    │                  Sentinel IoT Platform                   │
-                    │                                                          │
- ┌─────────────┐   │  ┌───────────────────────────────────────────────────┐   │
- │ IoT Devices │──▶│  │              Eclipse Mosquitto 2.0                │   │
- │ (sensors)   │   │  │              MQTT Broker                          │   │
- └─────────────┘   │  │  tcp/1883 (devices)  ←── DLQ ──── factory/       │   │
-                   │  │                              telemetry/dlq        │   │
- ┌─────────────┐   │  └──────────────────┬──────────────────────────────┘   │
- │  Node.js    │──▶│                     │ subscribe factory/telemetry       │
- │  Simulator  │   │  ┌──────────────────▼──────────────────────────────┐   │
- └─────────────┘   │  │               Spring Boot 3.2 Backend            │   │
-                   │  │                                                   │   │
-                   │  │  ┌──────────────────────────────────────────┐    │   │
-                   │  │  │  MqttConsumerService (Spring Integration) │    │   │
-                   │  │  │  ① Parse → ② Validate → ③ Resolve Device  │    │   │
-                   │  │  │  ④ Lifecycle Gate → ⑤ Process            │    │   │
-                   │  │  │  Failures → mqttDlqChannel → DLQ topic   │    │   │
-                   │  │  └──────┬──────────────────┬────────────────┘    │   │
-                   │  │         │                  │                      │   │
-                   │  │  ┌──────▼──────┐  ┌────────▼──────┐             │   │
-                   │  │  │ Telemetry   │  │ AlertService  │             │   │
-                   │  │  │ Service     │  │ + LINE Notify │             │   │
-                   │  │  │ @Retry+@CB  │  └───────────────┘             │   │
-                   │  │  └──────┬──────┘                                │   │
-                   │  │         │ DB unavailable → saveFallback()       │   │
-                   │  │         │                                        │   │
-                   │  │  ┌──────▼──────┐  ┌─────────────────────────┐  │   │
-                   │  │  │ Redis 7     │  │ PostgreSQL 16            │  │   │
-                   │  │  │ • telemetry │  │ • telemetry (partitioned │  │   │
-                   │  │  │   cache     │  │   by month, V3)          │  │   │
-                   │  │  │ • replay    │  │ • telemetry_hourly_aggs  │  │   │
-                   │  │  │   queue     │  │ • devices (lifecycle)    │  │   │
-                   │  │  └─────────────┘  └─────────────────────────┘  │   │
-                   │  │         ↑ drained by ReplayQueueService (30s)   │   │
-                   │  │                                                   │   │
-                   │  │  ┌──────────────────────────────────────────┐    │   │
-                   │  │  │  WebSocket Gateway (TelemetryWSHandler)  │    │   │
-                   │  │  └──────────────────────────────────────────┘    │   │
-                   │  │                                                   │   │
-                   │  │  ┌──────────────────────────────────────────┐    │   │
-                   │  │  │  RequestIdFilter (MDC: requestId, method, │    │   │
-                   │  │  │  path, username, durationMs)             │    │   │
-                   │  │  └──────────────────────────────────────────┘    │   │
-                   │  └──────────────────┬────────────────────────────┘   │
+                   ┌───────────────────────────────────────────────────────┐
+                   │                  Sentinel IoT Platform                │
+                   │                                                       │
+ ┌─────────────┐   │  ┌─────────────────────────────────────────────────┐  │
+ │ IoT Devices │──▶│  │              Eclipse Mosquitto 2.0              │  │
+ │ (sensors)   │   │  │              MQTT Broker                        │  │
+ └─────────────┘   │  │  tcp/1883 (devices)  ←── DLQ ──── factory/      │  │
+                   │  │                              telemetry/dlq      │  │
+ ┌─────────────┐   │  └──────────────────┬──────────────────────────────┘  │
+ │  Node.js    │──▶│                     │ subscribe factory/telemetry     │
+ │  Simulator  │   │  ┌──────────────────▼──────────────────────────────┐  │
+ └─────────────┘   │  │               Spring Boot 3.2 Backend           │  │
+                   │  │                                                 │  │
+                   │  │  ┌──────────────────────────────────────────-┐  │  │
+                   │  │  │  MqttConsumerService (Spring Integration) │  │  │
+                   │  │  │  ① Parse → ② Validate → ③ Resolve Device│  │  │
+                   │  │  │  ④ Lifecycle Gate → ⑤ Process            │  │  │
+                   │  │  │  Failures → mqttDlqChannel → DLQ topic    │  │  │
+                   │  │  └──────┬──────────────────┬────────────────-┘  │  │
+                   │  │         │                  │                    │  │
+                   │  │  ┌──────▼──────┐  ┌────────▼──────┐             │  │
+                   │  │  │ Telemetry   │  │ AlertService  │             │  │
+                   │  │  │ Service     │  │ + LINE Notify │             │  │
+                   │  │  │ @Retry+@CB  │  └───────────────┘             │  │
+                   │  │  └──────┬──────┘                                │  │
+                   │  │         │ DB unavailable → saveFallback()       │  │
+                   │  │         │                                       │  │
+                   │  │  ┌──────▼──────┐  ┌─────────────────────────-┐  │  │
+                   │  │  │ Redis 7     │  │ PostgreSQL 16            │  │  │
+                   │  │  │ • telemetry │  │ • telemetry (partitioned │  │  │
+                   │  │  │   cache     │  │   by month, V3)          │  │  │
+                   │  │  │ • replay    │  │ • telemetry_hourly_aggs  │  │  │
+                   │  │  │   queue     │  │ • devices (lifecycle)    │  │  │
+                   │  │  └─────────────┘  └─────────────────────────-┘  │  │
+                   │  │         ↑ drained by ReplayQueueService (30s)   │  │
+                   │  │                                                 │  │
+                   │  │  ┌──────────────────────────────────────────┐   │  │
+                   │  │  │  WebSocket Gateway (TelemetryWSHandler)  │   │  │
+                   │  │  └──────────────────────────────────────────┘   │  │
+                   │  │                                                 │  │
+                   │  │  ┌──────────────────────────────────────────┐   │  │
+                   │  │  │  RequestIdFilter (MDC: requestId, method,│   │  │
+                   │  │  │  path, username, durationMs)             │   │  │
+                   │  │  └──────────────────────────────────────────┘   │  │
+                   │  └──────────────────┬────────────────────────────--┘  │
                    │                     │ REST + WS                       │
-                   │  ┌──────────────────▼────────────────────────────┐   │
+                   │  ┌──────────────────▼───────────────────────────-─┐   │
                    │  │         Next.js 14 Dashboard                   │   │
-                   │  │  DeviceList (search + lifecycle badge)          │   │
+                   │  │  DeviceList (search + lifecycle badge)         │   │
                    │  │  TelemetryChart (Live/1h/6h/24h/7d)            │   │
-                   │  │  AlertList (All/Unacknowledged tabs)            │   │
-                   │  │  DeviceManagement (ADMIN: lifecycle + firmware) │   │
+                   │  │  AlertList (All/Unacknowledged tabs)           │   │
+                   │  │  DeviceManagement (ADMIN: lifecycle + firmware)│   │
                    │  └────────────────────────────────────────────────┘   │
-                   │                                                          │
-                   │  ┌────────────┐  scrape  ┌──────────┐  traces          │
-                   │  │ Prometheus │─────────▶│  Grafana │                  │
-                   │  └────────────┘          └──────────┘                  │
+                   │                                                       │
+                   │  ┌────────────┐  scrape  ┌──────────┐  traces         │
+                   │  │ Prometheus │─────────▶│  Grafana │                 │
+                   │  └────────────┘          └──────────┘                 │
                    │  ┌──────────────────┐  ← OTLP (port 4318)             │
-                   │  │ Jaeger (OTel)    │  Distributed tracing             │
-                   │  └──────────────────┘                                  │
-                   └──────────────────────────────────────────────────────────┘
+                   │  │ Jaeger (OTel)    │  Distributed tracing            │
+                   │  └──────────────────┘                                 │
+                   └───────────────────────────────────────────────────────┘
 ```
 
 ---
