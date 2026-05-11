@@ -9,7 +9,7 @@
 
 **Production-grade Industrial IoT Monitoring Platform** — real-time sensor data ingestion via MQTT, threshold alerting, LINE Notify integration, WebSocket dashboard, and full observability stack.
 
-> Cache read path sustains **1,000 req/s** (60,000+ ops/min) at p95 < 120ms under k6 load test — MacBook Pro M3, 16 GB RAM, Docker Compose.
+> Cache read path sustains **1,000 req/s** (60,000+ ops/min) — observed p95 **112 ms**, p99 **187 ms** under k6 load test (SLO targets: p95 < 200 ms, p99 < 500 ms) — MacBook Pro M3, 16 GB RAM, Docker Compose.
 
 ---
 
@@ -176,7 +176,7 @@ Content-Type: application/json
 POST /api/v1/auth/refresh
 { "refreshToken": "uuid.uuid" }
 
-POST /api/v1/auth/logout          # Revokes all refresh tokens for authenticated user
+POST /api/v1/auth/logout          # Revokes access token (Redis JTI blocklist) + all refresh tokens
 Authorization: Bearer <accessToken>
 ```
 
@@ -295,7 +295,9 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 
 | Feature | Implementation |
 | --- | --- |
-| Authentication | JWT (15 min access token) + opaque refresh token (7 days, DB-persisted, rotated on every use) |
+| Authentication | JWT (15 min access token, `kid` header for zero-downtime key rotation) + opaque refresh token (7 days, DB-persisted, rotated on every use) |
+| Access Token Revocation | `POST /auth/logout` adds the token's JTI to a Redis blocklist (TTL = remaining token lifetime). Every request checks the blocklist — stolen or logged-out tokens are rejected immediately, closing the 15-min blast-radius window. |
+| Zero-Downtime Key Rotation | Set `JWT_PREVIOUS_SECRET=<old>` + `JWT_SECRET=<new>` and redeploy. Tokens signed with the old key remain valid until they expire (max 15 min); old `JWT_PREVIOUS_SECRET` can be cleared after that. |
 | Refresh Token Reuse Detection | `rotateRefreshToken()` calls `revokeAllByUsername()` when a revoked token is presented — token family invalidation per RFC 6819. A stolen token reused after legitimate rotation immediately logs out the real user and kills all sessions. |
 | Rate Limiting | Bucket4j — 100 req/min per IP on `/api/*` (in-process; see Known Limitations) |
 | RBAC | `ADMIN` + `OPERATOR` roles; method-level `@PreAuthorize` |
@@ -304,20 +306,19 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 | Secret Management | `JWT_SECRET` required at runtime — no default, no fallback. **Production upgrade path:** inject via HashiCorp Vault (`spring-cloud-vault`) or AWS Secrets Manager rather than a `.env` file. |
 | Audit Logging | Every auth event (LOGIN, LOGOUT, REFRESH), alert acknowledgement, and **all device mutations** (CREATE, LIFECYCLE_UPDATE, FIRMWARE_UPDATE) persisted to `audit_logs` with username + IP. |
 | Audit Retention | `audit_logs` purged daily at 03:30 (cron configurable via `AUDIT_RETENTION_DAYS`, default 90 days). |
-| MQTT Topic ACL | Mosquitto ACL file (`mosquitto/acl`) restricts pub/sub to `factory/telemetry` and `factory/telemetry/dlq`. Any other topic is denied. **Production upgrade:** set `allow_anonymous false` + provision `mosquitto_passwd` file; add per-user ACL blocks for device vs backend identities. |
+| MQTT Auth | `allow_anonymous false` enforced. Two accounts provisioned at startup: `sentinel-backend` (subscribe + DLQ) and `sentinel-device` (publish only). **Per-device accounts:** set `MQTT_DEVICE_CREDENTIALS=sensor-1:pass1,sensor-2:pass2` — the entrypoint auto-provisions a separate MQTT account and ACL entry for each device, eliminating shared credentials. |
+| MQTT TLS / mTLS | TLS listener on `:8883` enabled when `mosquitto/certs/` contains CA + server certs (run `scripts/gen-mqtt-certs.sh`). Set `MQTT_TLS_REQUIRED=true` to remove the plaintext `:1883` listener entirely. Set `MQTT_MTLS_ENABLED=true` + `--with-client-certs` to require client certificate verification (`require_certificate true`). |
 | Actuator Exposure | `/actuator/health` returns `{"status":"UP/DOWN"}` to unauthenticated callers. Internal details (DB pool, Redis state) shown only to authenticated users (`show-details: when-authorized`). |
 | Request Correlation | `X-Request-ID` echoed; `requestId`, `method`, `path`, `username`, `durationMs` in MDC per log line |
 
-### Known Security Limitations (enterprise hardening upgrade path)
+### Known Security Limitations (remaining upgrade path)
 
 | Gap | Current State | Production Fix |
 | --- | --- | --- |
 | Rate limiting is in-process | Each replica has independent bucket — effective limit is `100 × N` replicas | Swap `ConcurrentHashMap` for `bucket4j-redis` (`ProxyManager` backed by Redis atomic counters) |
-| Access token not revocable | 15-min window survives logout | Add Redis blocklist for access tokens on logout |
-| MQTT anonymous access | `allow_anonymous true` + topic ACL | `allow_anonymous false` + `password_file` + per-client ACL blocks |
-| No mTLS | Plain TCP on port 1883 | Configure Mosquitto TLS listener on 8883; provision device certificates; enforce `require_certificate true` |
-| JWT secret rotation | Restart required to rotate `JWT_SECRET` | Integrate HashiCorp Vault with dynamic secret leases; use `kid` header in JWTs to support dual-key rotation window |
-| No device identity auth | Devices identified by MQTT topic name only | Issue per-device X.509 certificates; enforce mTLS on Mosquitto; reject unauthenticated MQTT connections |
+| No refresh-token device binding | Refresh tokens bound to user only, not to issuing device or IP | Add fingerprint (IP + User-Agent hash) on issuance; reject reuse from different fingerprint |
+| TLS MQTT is opt-in | Plaintext `:1883` active by default in dev | Set `MQTT_TLS_REQUIRED=true` after running `gen-mqtt-certs.sh`; enforce in production via Helm `values-prod.yaml` |
+| mTLS is opt-in | `require_certificate false` unless `MQTT_MTLS_ENABLED=true` | Run `gen-mqtt-certs.sh --with-client-certs`, mount client certs into each service, set `MQTT_MTLS_ENABLED=true` |
 
 ---
 
@@ -387,7 +388,7 @@ k6 run load-testing/telemetry.js --env BASE_URL=http://localhost:8080
   success_rate.........: 99.7%
   failed_requests......: 0.3%
 
-  Peak: 1,003 req/s → 60,180 read ops/min at p95 < 120ms
+  Peak: 1,003 req/s → 60,180 read ops/min  (observed p95=112ms; SLO target: p95 < 200ms)
 ```
 
 ### Observed bottleneck
@@ -563,7 +564,7 @@ Both are CNCF-graduated projects. Jaeger's native OTel support (OTLP ingest on p
 
 2. **Rate limiting is in-process.** Bucket4j uses a local ConcurrentHashMap. With multiple backend replicas, each instance has its own bucket — the effective limit becomes `100 × replica_count` per IP. To fix: swap the `BandwidthLimiter` for `bucket4j-redis` which uses Redis atomic counters for shared state.
 
-3. **WebSocket does not scale horizontally.** `TelemetryWebSocketHandler` holds sessions in a local `CopyOnWriteArrayList`. A second backend replica will not receive MQTT messages from the first. To fix: add a Redis pub/sub channel that all replicas subscribe to for broadcast fan-out.
+3. **WebSocket scales horizontally via Redis pub/sub (implemented).** `WebSocketBroadcastPublisher` publishes to the `ws:telemetry` Redis channel; `WebSocketBroadcastSubscriber` (on every replica) delivers to local sessions. Sticky-session routing (`upstream-hash-by: $remote_addr`) ensures WebSocket upgrades land on the same replica each time. Remaining gap: rate limiter is still in-process (see item 2).
 
 4. **Replay queue overflow is silent.** When the queue reaches `TELEMETRY_REPLAY_MAX_QUEUE` (default: 10,000), new entries are dropped. The `sentinel.telemetry.dropped` counter increments, but no alert fires. For extended DB outages, increase `TELEMETRY_REPLAY_MAX_QUEUE` or set up a Prometheus alert rule on that counter.
 
@@ -627,8 +628,12 @@ Detailed documentation lives in [`docs/`](docs/):
 | [Architecture](docs/architecture.md) | Component descriptions, data model, deployment topology |
 | [API Reference](docs/api.md) | All endpoints, request/response examples, role matrix |
 | [Sequence Diagrams](docs/sequence-diagrams.md) | 9 Mermaid diagrams — ingestion, DLQ paths, DB outage/replay, auth, JWT filter, alert, WebSocket, lifecycle, device registration |
-| [Scaling Discussion](docs/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap |
+| [Scaling Discussion](docs/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap, SLO targets vs observed results |
+| [Capacity Planning](docs/capacity-planning.md) | Device-to-infrastructure matrix, per-layer limits and upgrade triggers, AWS cost estimates, monitoring thresholds |
 | [Design Tradeoffs](docs/tradeoffs.md) | Decisions — Next.js, MQTT, Redis, PostgreSQL, Spring Integration, WebSocket, JWT |
+| [Incident Runbooks](docs/runbooks/) | Runbooks for all 9 SLO alerts + incident response flow (severity levels, post-mortem template) |
+| [Chaos Testing](docs/runbooks/chaos-testing.md) | 5 chaos experiments — DB down, Redis down, pod kill, network partition, MQTT restart |
+| [Failure Testing Checklist](docs/runbooks/failure-testing.md) | 6 failure scenarios with trigger commands, verification steps, and per-release sign-off table |
 
 ---
 
