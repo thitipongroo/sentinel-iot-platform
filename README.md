@@ -20,34 +20,34 @@
 -->
 
 ```text
-┌───────────────────────────────────────────────────────────────────────────────--┐
-│                            Sentinel IoT Platform                                │
-│                                                                                 │
-│  ┌──────────────┐    MQTT         ┌──────────────────┐                          │
-│  │ IoT Devices  │───────────────▶ │ Eclipse Mosquitto│                          │
-│  │  (sensors)   │  factory/       │   MQTT Broker    │◀── DLQ ── factory/       │
-│  └──────────────┘  telemetry      └───────┬──────────┘        telemetry/dlq     │
-│                                           │ subscribe                           │
-│  ┌──────────────┐               ┌─────────▼───────────┐     ┌─────────────────┐ │
-│  │  Simulator   │── MQTT ─────▶ │   Spring Boot       │──▶  │ Redis 7         │ │
-│  │  (Node.js)   │               │   Backend           │     │ • Latest cache  │ │
-│  └──────────────┘               │                     │     │ • Replay queue  │ │
-│                                 │  • JWT Auth         │     └─────────────────┘ │
-│  ┌──────────────┐  REST/WS      │  • MQTT Consumer    │                         │
-│  │  Next.js     │◀────────────▶ │    + DLQ routing    │     ┌─────────────────┐ │
-│  │  Dashboard   │               │  • Alert Engine     │──▶  │ PostgreSQL 16   │ │
-│  └──────────────┘               │  • WebSocket GW     │     │ • Partitioned   │ │
-│                                 │  • Retry + CB       │     │   by month      │ │
-│  ┌──────────────┐               │  • Replay Queue     │     │ • Hourly aggs   │ │
-│  │   Grafana    │◀── scrape ─── │  • Prometheus       │     └─────────────────┘ │
-│  │  +Jaeger UI  │               └──────────┬──────────┘                         │
-│  └──────────────┘                          │ OTLP traces                        │
-│                                   ┌────────▼────────┐                           │
-│  ┌──────────────┐                 │ Jaeger (OTel)   │                           │
-│  │ LINE Notify  │◀── webhook ───  │ Distributed     │                           │
-│  └──────────────┘                 │ Tracing         │                           │
-│                                   └─────────────────┘                           │
-└───────────────────────────────────────────────────────────────────────────────--┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                            Sentinel IoT Platform                              │
+│                                                                               │
+│  ┌──────────────┐    MQTT        ┌──────────────────┐                         │
+│  │ IoT Devices  │───────────────▶│ Eclipse Mosquitto│                         │
+│  │  (sensors)   │  factory/      │   MQTT Broker    │◀── DLQ ── factory/      │
+│  └──────────────┘  telemetry     └───────┬──────────┘        telemetry/dlq    │
+│                                          │ subscribe                          │
+│  ┌──────────────┐              ┌─────────▼───────────┐    ┌─────────────────┐ │
+│  │  Simulator   │── MQTT ─────▶│   Spring Boot       │──▶ │ Redis 7         │ │
+│  │  (Node.js)   │              │   Backend           │    │ • Latest cache  │ │
+│  └──────────────┘              │                     │    │ • Replay queue  │ │
+│                                │  • JWT Auth         │    └─────────────────┘ │
+│  ┌──────────────┐  REST/WS     │  • MQTT Consumer    │                        │
+│  │  Next.js     │◀────────────▶│    + DLQ routing    │    ┌─────────────────┐ │
+│  │  Dashboard   │              │  • Alert Engine     │──▶ │ PostgreSQL 16   │ │
+│  └──────────────┘              │  • WebSocket GW     │    │ • Partitioned   │ │
+│                                │  • Retry + CB       │    │   by month      │ │
+│  ┌──────────────┐              │  • Replay Queue     │    │ • Hourly aggs   │ │
+│  │   Grafana    │◀── scrape ───│  • Prometheus       │    └─────────────────┘ │
+│  │  +Jaeger UI  │              └──────────┬──────────┘                        │
+│  └──────────────┘                         │ OTLP traces                       │
+│                                  ┌────────▼────────┐                          │
+│  ┌──────────────┐                │ Jaeger (OTel)   │                          │
+│  │ LINE Notify  │◀── webhook ─── │ Distributed     │                          │
+│  └──────────────┘                │ Tracing         │                          │
+│                                  └─────────────────┘                          │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Data Flow — Normal Path
