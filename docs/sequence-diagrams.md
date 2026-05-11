@@ -214,9 +214,9 @@ sequenceDiagram
 
 ---
 
-## 6. Alert Trigger and LINE Notification
+## 6. Alert Trigger and Multi-Provider Notification
 
-Detail of how a threshold breach propagates from ingestion to a persisted alert and external notification.
+Detail of how a threshold breach propagates from ingestion to a persisted alert and one or more external notification providers.
 
 ```mermaid
 sequenceDiagram
@@ -224,21 +224,36 @@ sequenceDiagram
     participant ALERT as AlertService
     participant DB as PostgreSQL (alerts)
     participant NOTIFY as NotificationService
-    participant LINE as LINE Notify API
+    participant SLACK as Slack Webhook
+    participant WEBHOOK as Generic Webhook
+    participant LINE as LINE Notify (deprecated)
 
-    MQTT->>ALERT: evaluate(deviceId, "sensor-1",<br/>readings={TEMPERATURE:{value:83.2,unit:"°C"}, HUMIDITY:{value:60,unit:"%RH"}, ...},<br/>capabilities={TEMPERATURE:{critThreshold:80.0, warnThreshold:75.0, ...}})
+    MQTT->>ALERT: evaluate(deviceId, "sensor-1",<br/>readings={TEMPERATURE:{value:83.2,unit:"°C"}, ...},<br/>capabilities={TEMPERATURE:{critThreshold:80.0, ...}})
 
     ALERT->>ALERT: TEMPERATURE 83.2 > critThreshold 80.0 → CRITICAL
     ALERT->>DB: INSERT INTO alerts (device_id, level='CRITICAL',<br/>message='[sensor-1] CRITICAL: temperature 83.2°C exceeds 80.0°C')
     DB-->>ALERT: saved Alert entity
 
     ALERT->>NOTIFY: send("[sensor-1] CRITICAL: temperature 83.2°C ...")
+    Note over NOTIFY: Iterates all enabled NotificationProvider beans
 
-    alt LINE_NOTIFY_ENABLED = true AND token configured
+    alt SLACK_NOTIFY_ENABLED = true
+        NOTIFY->>SLACK: POST hooks.slack.com/... { "text": "..." }
+        SLACK-->>NOTIFY: 200 OK
+    end
+
+    alt NOTIFY_WEBHOOK_ENABLED = true
+        NOTIFY->>WEBHOOK: POST your-endpoint/alert<br/>X-Sentinel-Signature: sha256=... (if secret configured)
+        WEBHOOK-->>NOTIFY: 200 OK
+    end
+
+    alt LINE_NOTIFY_ENABLED = true (deprecated — LINE Notify shut down 2025-03-31)
         NOTIFY->>LINE: POST notify-api.line.me/api/notify<br/>Authorization: Bearer {token}
-        LINE-->>NOTIFY: 200 { status: 200, message: "ok" }
-    else not configured
-        NOTIFY->>NOTIFY: log.debug("LINE Notify disabled")
+        LINE-->>NOTIFY: 200 (or error if token expired)
+    end
+
+    alt no providers enabled
+        NOTIFY->>NOTIFY: log.debug("No notification providers enabled")
     end
 
     ALERT->>ALERT: SMOKE_PPM 15 < critThreshold 200 → skip
@@ -279,8 +294,9 @@ sequenceDiagram
     HANDLER->>HANDLER: afterConnectionClosed(session)
     HANDLER->>HANDLER: sessions.remove(session)
 
-    Note over Browser: useWebSocket hook retries after 3s
+    Note over Browser: useWebSocket hook retries with exponential backoff<br/>delay = min(1000 × 2^attempt, 30000) ms ± 30% jitter
     Browser->>WS_CFG: reconnect attempt
+    Note over Browser: On success → attemptRef resets to 0
 ```
 
 ---
@@ -332,6 +348,54 @@ sequenceDiagram
 ---
 
 ## 9. Device Registration (Legacy API-Only Flow)
+
+---
+
+## 10. Secure Device Enrollment (Token Bootstrap)
+
+How a new IoT device obtains its MQTT credentials without requiring a pre-provisioned shared secret.
+
+```mermaid
+sequenceDiagram
+    participant ADMIN as Admin User
+    participant API as DeviceController
+    participant ENROLL as DeviceEnrollmentService
+    participant DB as PostgreSQL
+    participant DEVICE as IoT Device
+
+    Note over ADMIN: Device is in PROVISIONED state<br/>Admin generates a one-time token
+
+    ADMIN->>API: POST /api/v1/devices/{id}/enrollment-token<br/>Authorization: Bearer {admin_token}
+    API->>API: @PreAuthorize hasRole('ADMIN')
+    API->>ENROLL: generateToken(deviceId, orgId, username)
+    ENROLL->>DB: findByIdAndOrganizationId(deviceId, orgId)
+    DB-->>ENROLL: Device (not DECOMMISSIONED)
+    ENROLL->>ENROLL: SecureRandom.nextBytes(32) → rawToken (256-bit)
+    ENROLL->>ENROLL: SHA-256(rawToken) → tokenHash
+    ENROLL->>DB: INSERT device_enrollment_tokens<br/>{ deviceId, tokenHash, expiresAt=now+24h, createdBy }
+    ENROLL->>ENROLL: auditService.log(ENROLLMENT_TOKEN_ISSUED)
+    ENROLL-->>API: EnrollmentTokenResponse { tokenId, rawToken, deviceId, expiresAt }
+    API-->>ADMIN: 200 { token: "gX7kPq...", expiresAt: "..." }
+
+    Note over ADMIN,DEVICE: Admin delivers rawToken out-of-band<br/>(QR code, serial console, provisioning portal)
+
+    DEVICE->>API: POST /api/v1/devices/enroll (unauthenticated)<br/>{ deviceId, token: "gX7kPq..." }
+    API->>ENROLL: enroll(request, remoteIp)
+    ENROLL->>ENROLL: SHA-256(request.token) → tokenHash
+    ENROLL->>DB: findByTokenHash(tokenHash)
+    DB-->>ENROLL: DeviceEnrollmentToken
+    ENROLL->>ENROLL: validate deviceId match
+    ENROLL->>ENROLL: isValid() → not expired AND not used
+    ENROLL->>DB: UPDATE token SET used_at=now, used_by_ip=remoteIp
+    ENROLL->>DB: UPDATE device SET lifecycle_status=ACTIVE, status=ONLINE
+    ENROLL->>ENROLL: SecureRandom → mqttPassword (192-bit)
+    ENROLL->>ENROLL: auditService.log(DEVICE_ENROLLED)
+    ENROLL-->>API: mqttPassword
+    API-->>DEVICE: 200 { mqttUsername: "device-{id}", mqttPassword: "..." }
+
+    Note over DEVICE: Device connects to MQTT broker<br/>with returned credentials
+    Note over DEVICE: Token is now single-use — any<br/>replay attempt returns 409
+```
 
 Minimal flow for creating a device and verifying it goes online when the simulator publishes.
 

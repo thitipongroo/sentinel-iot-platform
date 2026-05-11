@@ -181,7 +181,7 @@ All API endpoints are versioned under `/api/v1/`. Responses always include an `A
 POST /api/v1/auth/login
 Content-Type: application/json
 
-{ "username": "admin", "password": "admin123" }
+{ "username": "admin", "password": "<value of INIT_ADMIN_PASSWORD>" }
 
 → 200 { "accessToken": "eyJ...", "refreshToken": "uuid.uuid", "role": "ADMIN", "username": "admin" }
 
@@ -197,17 +197,21 @@ Authorization: Bearer <accessToken>
 ### Devices
 
 ```http
-POST   /api/v1/devices                        # ADMIN only
-GET    /api/v1/devices                        # ADMIN + OPERATOR
-GET    /api/v1/devices/{id}                   # ADMIN + OPERATOR
-PATCH  /api/v1/devices/{id}/lifecycle         # ADMIN only
-PATCH  /api/v1/devices/{id}/firmware          # ADMIN only
-GET    /api/v1/devices/{id}/capabilities      # ADMIN + OPERATOR
-PUT    /api/v1/devices/{id}/capabilities      # ADMIN only — per-sensor thresholds
+POST   /api/v1/devices                                # ADMIN only
+GET    /api/v1/devices                                # ADMIN + OPERATOR
+GET    /api/v1/devices/{id}                           # ADMIN + OPERATOR
+PATCH  /api/v1/devices/{id}/lifecycle                 # ADMIN only
+PATCH  /api/v1/devices/{id}/firmware                  # ADMIN only
+GET    /api/v1/devices/{id}/capabilities              # ADMIN + OPERATOR
+PUT    /api/v1/devices/{id}/capabilities              # ADMIN only — per-sensor thresholds
+POST   /api/v1/devices/{id}/enrollment-token          # ADMIN only — one-time token (24 h TTL)
+POST   /api/v1/devices/enroll                         # Unauthenticated — device bootstrap
 ```
 
 Valid lifecycle transitions: `PROVISIONED → ACTIVE → INACTIVE → DECOMMISSIONED`.  
 `DECOMMISSIONED` is terminal — no further transitions accepted (HTTP 409).
+
+**Device enrollment flow:** Admin calls `POST /devices/{id}/enrollment-token` → receives a single-use 256-bit token → delivers it out-of-band to the physical device → device calls `POST /devices/enroll` with the token → receives MQTT credentials + transitions to `ACTIVE`. The DB stores only the SHA-256 hash; replay or DB breach cannot recover the raw token.
 
 ### Telemetry
 
@@ -308,19 +312,23 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 | Feature | Implementation |
 | --- | --- |
 | Authentication | JWT (15 min access token, `kid` header for zero-downtime key rotation) + opaque refresh token (7 days, DB-persisted, rotated on every use) |
-| Access Token Revocation | `POST /auth/logout` adds the token's JTI to a Redis blocklist (TTL = remaining token lifetime). Every request checks the blocklist — stolen or logged-out tokens are rejected immediately, closing the 15-min blast-radius window. |
+| Access Token Revocation | `POST /auth/logout` adds the token's JTI to a Redis blocklist on DB 1 (TTL = remaining token lifetime). Every request checks the blocklist — stolen or logged-out tokens are rejected immediately. |
 | Zero-Downtime Key Rotation | Set `JWT_PREVIOUS_SECRET=<old>` + `JWT_SECRET=<new>` and redeploy. Tokens signed with the old key remain valid until they expire (max 15 min); old `JWT_PREVIOUS_SECRET` can be cleared after that. |
-| Refresh Token Reuse Detection | `rotateRefreshToken()` calls `revokeAllByUsername()` when a revoked token is presented — token family invalidation per RFC 6819. A stolen token reused after legitimate rotation immediately logs out the real user and kills all sessions. |
+| Refresh Token Reuse Detection | `rotateRefreshToken()` calls `revokeAllByUsername()` when a revoked token is presented — token family invalidation per RFC 6819. |
+| Device Enrollment | One-time 256-bit SecureRandom tokens; only SHA-256 hash stored in DB; single-use; TTL-bound (default 24 h); bound to a specific device ID. Devices bootstrap via `POST /devices/enroll` (unauthenticated — token is the credential) and receive per-device MQTT credentials. |
 | Rate Limiting | Bucket4j — 100 req/min per IP on `/api/*` (in-process; see Known Limitations) |
 | RBAC | `ADMIN` + `OPERATOR` roles; method-level `@PreAuthorize` |
-| CORS | Restricted to `CORS_ALLOWED_ORIGINS` env var (default: `http://localhost:3000`). Set to your production domain — e.g. `https://your-app.vercel.app`. Headers limited to `Authorization`, `Content-Type`, `X-Request-ID`. |
-| CSRF | Disabled — correct for a stateless JWT API. CSRF tokens protect session-cookie flows; this API uses `Authorization: Bearer` headers which browsers never send cross-origin automatically (unlike cookies). |
-| Secret Management | `JWT_SECRET` required at runtime — no default, no fallback. **Production upgrade path:** inject via HashiCorp Vault (`spring-cloud-vault`) or AWS Secrets Manager rather than a `.env` file. |
-| Audit Logging | Every auth event (LOGIN, LOGOUT, REFRESH), alert acknowledgement, and **all device mutations** (CREATE, LIFECYCLE_UPDATE, FIRMWARE_UPDATE) persisted to `audit_logs` with username + IP. |
-| Audit Retention | `audit_logs` purged daily at 03:30 (cron configurable via `AUDIT_RETENTION_DAYS`, default 90 days). |
-| MQTT Auth | `allow_anonymous false` enforced. Two accounts provisioned at startup: `sentinel-backend` (subscribe + DLQ) and `sentinel-device` (publish only). **Per-device accounts:** set `MQTT_DEVICE_CREDENTIALS=sensor-1:pass1,sensor-2:pass2` — the entrypoint auto-provisions a separate MQTT account and ACL entry for each device, eliminating shared credentials. |
-| MQTT TLS / mTLS | TLS listener on `:8883` enabled when `mosquitto/certs/` contains CA + server certs (run `scripts/gen-mqtt-certs.sh`). Set `MQTT_TLS_REQUIRED=true` to remove the plaintext `:1883` listener entirely. Set `MQTT_MTLS_ENABLED=true` + `--with-client-certs` to require client certificate verification (`require_certificate true`). |
-| Actuator Exposure | `/actuator/health` returns `{"status":"UP/DOWN"}` to unauthenticated callers. Internal details (DB pool, Redis state) shown only to authenticated users (`show-details: when-authorized`). |
+| CORS | Restricted to `CORS_ALLOWED_ORIGINS` env var (default: `http://localhost:3000`). Headers limited to `Authorization`, `Content-Type`, `X-Request-ID`. |
+| CSRF | Disabled — correct for a stateless JWT API. |
+| Secret Management | `JWT_SECRET` required at runtime — no default, no fallback. **Production upgrade path:** inject via HashiCorp Vault (`spring-cloud-vault`) or AWS Secrets Manager. |
+| Audit Logging | Every auth event, alert acknowledgement, device mutation, and enrollment event persisted to `audit_logs` with username + IP. |
+| Audit Retention | `audit_logs` purged daily at 03:30 (`AUDIT_RETENTION_DAYS`, default 90 days). |
+| MQTT Auth | `allow_anonymous false` enforced. Per-device accounts via `MQTT_DEVICE_CREDENTIALS=sensor-1:pass1,sensor-2:pass2`. |
+| MQTT TLS / mTLS | TLS on `:8883` when certs present. `MQTT_TLS_REQUIRED=true` removes plaintext `:1883`. `MQTT_MTLS_ENABLED=true` requires client certificates. |
+| Multi-tenant Isolation | `organizationId` scoping + PostgreSQL Row Level Security (`V7__row_level_security.sql`) + tenant-namespaced Redis keys (`device:{orgId}:{deviceId}`) |
+| Secret Scanning | Gitleaks runs on every CI push — secrets committed to git fail the build |
+| Dependency/Container Scan | Trivy scans filesystem (SCA) and backend container image on every CI push — CRITICAL/HIGH CVEs fail the build. Results in GitHub Security tab (SARIF) |
+| Actuator Exposure | `/actuator/health` public; internal details shown only to authenticated users. |
 | Request Correlation | `X-Request-ID` echoed; `requestId`, `method`, `path`, `username`, `durationMs` in MDC per log line |
 
 ### Known Security Limitations (remaining upgrade path)
@@ -331,6 +339,7 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 | No refresh-token device binding | Refresh tokens bound to user only, not to issuing device or IP | Add fingerprint (IP + User-Agent hash) on issuance; reject reuse from different fingerprint |
 | TLS MQTT is opt-in | Plaintext `:1883` active by default in dev | Set `MQTT_TLS_REQUIRED=true` after running `gen-mqtt-certs.sh`; enforce in production via Helm `values-prod.yaml` |
 | mTLS is opt-in | `require_certificate false` unless `MQTT_MTLS_ENABLED=true` | Run `gen-mqtt-certs.sh --with-client-certs`, mount client certs into each service, set `MQTT_MTLS_ENABLED=true` |
+| RLS session variable | V7 enables RLS; JPA interceptor to call `SET LOCAL app.org_id` not yet implemented | Add Hibernate `EmptyInterceptor` or Spring AOP to set the session variable before each query |
 
 ---
 
@@ -342,16 +351,22 @@ Prometheus scrapes `/actuator/prometheus` every 15s.
 
 | Metric                              | Description                                                  |
 |-------------------------------------|--------------------------------------------------------------|
-| `sentinel_telemetry_received_total` | Total MQTT messages ingested successfully                    |
-| `sentinel_telemetry_dropped_total`  | Messages buffered to replay queue due to DB unavailability   |
-| `sentinel_mqtt_messages_total`      | All MQTT messages received (before validation)               |
-| `sentinel_mqtt_dlq_total`           | Messages routed to DLQ (invalid payload / unknown device)    |
-| `sentinel_replay_queue_size`        | Current depth of the Redis replay queue (Gauge)              |
-| `sentinel_replay_success_total`     | Messages successfully replayed from queue to DB              |
-| `sentinel_replay_failure_total`     | Replay failures (re-queued for next cycle)                   |
-| `http_server_requests_*`            | Request latency histogram (Spring Boot auto-instrumentation) |
-| `resilience4j_circuitbreaker_*`     | CB state, call counts, failure rates                         |
-| `jvm_memory_used_bytes`             | JVM heap usage                                               |
+| `sentinel_telemetry_received_total`  | Total MQTT messages ingested successfully                         |
+| `sentinel_telemetry_dropped_total`   | Messages buffered to replay queue due to DB unavailability        |
+| `sentinel_mqtt_messages_total`       | All MQTT messages received (before validation)                    |
+| `sentinel_mqtt_dlq_total`            | Messages routed to DLQ (invalid payload / unknown device)         |
+| `sentinel_mqtt_load_shed`            | Messages shed at ingestion concurrency limit (Counter)            |
+| `sentinel_mqtt_active_permits`       | Current in-flight MQTT processing count (Gauge)                   |
+| `sentinel_replay_queue_size`         | Current depth of the Redis replay queue (Gauge)                   |
+| `sentinel_replay_success_total`      | Messages successfully replayed from queue to DB                   |
+| `sentinel_replay_failure_total`      | Replay failures (re-queued for next cycle)                        |
+| `sentinel.business.active_devices`  | Devices currently ONLINE (Gauge, refreshed every 30s)             |
+| `sentinel.business.total_devices`   | Total registered devices (Gauge)                                  |
+| `sentinel.business.unack_alerts`    | Unacknowledged alert count (Gauge)                                |
+| `sentinel.business.alert_fired`     | Alerts fired since startup (Counter)                              |
+| `http_server_requests_*`             | Request latency histogram (Spring Boot auto-instrumentation)      |
+| `resilience4j_circuitbreaker_*`      | CB state, call counts, failure rates                              |
+| `jvm_memory_used_bytes`              | JVM heap usage                                                    |
 
 Import `monitoring/grafana/dashboard.json` into Grafana for the pre-built dashboard.
 
@@ -447,10 +462,11 @@ k6 run load-testing/telemetry.js --env BASE_URL=http://localhost:8080
 
 ## Telemetry Retention
 
-Raw telemetry is retained for 30 days (configurable via `TELEMETRY_RETENTION_DAYS`). The retention cron runs at 02:30 daily:
+Raw telemetry is retained for 30 days (configurable via `TELEMETRY_RETENTION_DAYS`). The retention cron runs at 02:30 daily in three phases:
 
-1. **Aggregate**: `telemetry_hourly_aggregates` is upserted with hourly avg/min/max for the previous day. Aggregates have no expiry — they are the long-term analytics record.
+1. **Aggregate with late-arrival look-back**: `telemetry_hourly_aggregates` is upserted for the window `[today − lateArrivalLookbackDays, today)` (default: 2 days). Using `ON CONFLICT DO UPDATE` makes it idempotent, so late IoT messages are retroactively folded into the correct buckets on the next nightly run.
 2. **Prune**: Raw rows older than the retention window are deleted from the partitioned `telemetry` table.
+3. **Drop old partitions**: Empty monthly child tables (e.g. `telemetry_2025_01`) past the retention window are detached and dropped automatically, keeping the partition catalog from growing unbounded.
 
 The dashboard's historical analytics mode uses the hourly aggregates for 24h and 7d windows, showing shaded min/max bands around the average line.
 
@@ -471,9 +487,10 @@ Devices follow a linear state machine: `PROVISIONED → ACTIVE → INACTIVE → 
 
 GitHub Actions runs on every push and PR:
 
-1. **Backend** — Checkstyle → unit tests → integration tests (Testcontainers, real Postgres + Redis + Mosquitto)
-2. **Frontend** — ESLint → Next.js build
-3. **Docker** — `docker compose config` validation (with `JWT_SECRET` placeholder) → parallel image build
+1. **Security scan** — Gitleaks (full git history, blocks on any secret found) + Trivy filesystem scan (SCA, SARIF → GitHub Security tab) + Trivy container image scan (CRITICAL/HIGH CVEs fail the build)
+2. **Backend** — Checkstyle → unit tests → integration tests (Testcontainers, real Postgres + Redis + Mosquitto)
+3. **Frontend** — ESLint → Next.js build
+4. **Docker** — `docker compose config` validation (with `JWT_SECRET` placeholder) → parallel image build
 
 All CI steps are hard-fails — no `|| true` overrides. A red build means a real problem.
 
@@ -557,39 +574,6 @@ Lock all tool versions in `infra/terraform/versions.tf` and `infra/helm/sentinel
 
 ---
 
-## Security Model
-
-| Feature | Implementation |
-| --- | --- |
-| Authentication | JWT (15 min access token, `kid` header for zero-downtime key rotation) + opaque refresh token (7 days, DB-persisted, rotated on every use) |
-| Access Token Revocation | `POST /auth/logout` adds the token's JTI to a Redis blocklist (TTL = remaining token lifetime). Every request checks the blocklist — stolen or logged-out tokens are rejected immediately, closing the 15-min blast-radius window. |
-| Zero-Downtime Key Rotation | Set `JWT_PREVIOUS_SECRET=<old>` + `JWT_SECRET=<new>` and redeploy. Tokens signed with the old key remain valid until they expire (max 15 min); old `JWT_PREVIOUS_SECRET` can be cleared after that. |
-| Refresh Token Reuse Detection | `rotateRefreshToken()` calls `revokeAllByUsername()` when a revoked token is presented — token family invalidation per RFC 6819. A stolen token reused after legitimate rotation immediately logs out the real user and kills all sessions. |
-| Rate Limiting | Bucket4j — 100 req/min per IP on `/api/*` (in-process; see Known Limitations) |
-| RBAC | `ADMIN` + `OPERATOR` roles; method-level `@PreAuthorize` |
-| CORS | Restricted to `CORS_ALLOWED_ORIGINS` env var (default: `http://localhost:3000`). Set to your production domain — e.g. `https://your-app.vercel.app`. Headers limited to `Authorization`, `Content-Type`, `X-Request-ID`. |
-| CSRF | Disabled — correct for a stateless JWT API. CSRF tokens protect session-cookie flows; this API uses `Authorization: Bearer` headers which browsers never send cross-origin automatically (unlike cookies). |
-| Secret Management | `JWT_SECRET` required at runtime — no default, no fallback. **Production upgrade path:** inject via HashiCorp Vault (`spring-cloud-vault`) or AWS Secrets Manager rather than a `.env` file. |
-| Audit Logging | Every auth event (LOGIN, LOGOUT, REFRESH), alert acknowledgement, and **all device mutations** (CREATE, LIFECYCLE_UPDATE, FIRMWARE_UPDATE) persisted to `audit_logs` with username + IP. |
-| Audit Retention | `audit_logs` purged daily at 03:30 (cron configurable via `AUDIT_RETENTION_DAYS`, default 90 days). |
-| MQTT Auth | `allow_anonymous false` enforced. Two accounts provisioned at startup: `sentinel-backend` (subscribe + DLQ) and `sentinel-device` (publish only). **Per-device accounts:** set `MQTT_DEVICE_CREDENTIALS=sensor-1:pass1,sensor-2:pass2` — the entrypoint auto-provisions a separate MQTT account and ACL entry for each device, eliminating shared credentials. |
-| MQTT TLS / mTLS | TLS listener on `:8883` enabled when `mosquitto/certs/` contains CA + server certs (run `scripts/gen-mqtt-certs.sh`). Set `MQTT_TLS_REQUIRED=true` to remove the plaintext `:1883` listener entirely. Set `MQTT_MTLS_ENABLED=true` + `--with-client-certs` to require client certificate verification (`require_certificate true`). |
-| Actuator Exposure | `/actuator/health` returns `{"status":"UP/DOWN"}` to unauthenticated callers. Internal details (DB pool, Redis state) shown only to authenticated users (`show-details: when-authorized`). |
-| Request Correlation | `X-Request-ID` echoed; `requestId`, `method`, `path`, `username`, `durationMs` in MDC per log line |
-| Multi-tenant Isolation | Application-level `organizationId` scoping + PostgreSQL Row Level Security (`V7__row_level_security.sql`) + tenant-namespaced Redis keys |
-| Secret Scanning | Gitleaks runs on every CI push — secrets committed to git fail the build |
-| Dependency/Container Scan | Trivy scans filesystem (SCA) and backend container image on every CI push — CRITICAL/HIGH CVEs fail the build. Results uploaded to GitHub Security tab (SARIF) |
-
-### Known Security Limitations (remaining upgrade path)
-
-| Gap | Current State | Production Fix |
-| --- | --- | --- |
-| Rate limiting is in-process | Each replica has independent bucket — effective limit is `100 × N` replicas | Swap `ConcurrentHashMap` for `bucket4j-redis` (`ProxyManager` backed by Redis atomic counters) |
-| No refresh-token device binding | Refresh tokens bound to user only, not to issuing device or IP | Add fingerprint (IP + User-Agent hash) on issuance; reject reuse from different fingerprint |
-| TLS MQTT is opt-in | Plaintext `:1883` active by default in dev | Set `MQTT_TLS_REQUIRED=true` after running `gen-mqtt-certs.sh`; enforce in production via Helm `values-prod.yaml` |
-| mTLS is opt-in | `require_certificate false` unless `MQTT_MTLS_ENABLED=true` | Run `gen-mqtt-certs.sh --with-client-certs`, mount client certs into each service, set `MQTT_MTLS_ENABLED=true` |
-| RLS session variable not set | V7 migration enables RLS but the JPA interceptor to call `SET LOCAL app.org_id` is not yet implemented | Add a Hibernate `EmptyInterceptor` or Spring AOP around each service method to set the session variable before executing queries |
-
 ---
 
 ## Design Tradeoffs
@@ -650,13 +634,11 @@ Both are CNCF-graduated projects. Jaeger's native OTel support (OTLP ingest on p
 
 4. **Replay queue overflow is silent.** When the queue reaches `TELEMETRY_REPLAY_MAX_QUEUE` (default: 10,000), new entries are dropped. The `sentinel.telemetry.dropped` counter increments, but no alert fires. For extended DB outages, increase `TELEMETRY_REPLAY_MAX_QUEUE` or set up a Prometheus alert rule on that counter.
 
-5. **Hourly aggregation is not backfilled.** The retention cron aggregates at 02:30 daily and only covers the previous calendar day. If the DB was unavailable during a period, the corresponding hourly buckets will have gaps until the next cron run. A future enhancement could run a catch-up aggregation for any un-aggregated hours older than 24h.
+5. **Hourly aggregation covers a 2-day look-back window.** Late-arriving IoT messages up to 2 days old are retroactively folded into the correct hourly buckets on the next nightly run (`lateArrivalLookbackDays`, configurable). Gaps older than the look-back window will not be backfilled automatically.
 
-6. **LINE Notify is deprecated.** LINE Corp scheduled LINE Notify for shutdown. The current integration still works but should be replaced with LINE Messaging API or an alternative (PagerDuty, Slack, etc.) before the shutdown date.
+6. **LINE Notify is shut down.** LINE Corp shut down LINE Notify on **March 31, 2025**. Tokens no longer function. Migrate to the Slack webhook or generic webhook provider (`SLACK_NOTIFY_ENABLED` / `NOTIFY_WEBHOOK_ENABLED`).
 
-7. **Old partition tables are not auto-dropped.** The retention cron deletes rows from `telemetry` (which the partition planner routes to the correct child table), but empty child tables are never `DETACH`ed or `DROP`ped. Over time, the partition catalog accumulates stale tables. A `DROP TABLE telemetry_YYYY_MM` step should be added to the retention cron after data is confirmed deleted and aggregated.
-
-8. **No refresh-token binding to device/IP.** Refresh tokens are bound only to the user, not to the issuing device or IP. A stolen refresh token can be used from any host until it expires (7 days) or is explicitly revoked via logout. Binding to a fingerprint (IP + User-Agent hash) would reduce the blast radius of a token theft.
+7. **No refresh-token binding to device/IP.** Refresh tokens are bound only to the user, not to the issuing device or IP. A stolen refresh token can be used from any host until it expires (7 days) or is explicitly revoked via logout. Binding to a fingerprint (IP + User-Agent hash) would reduce the blast radius of a token theft.
 
 ---
 
@@ -709,7 +691,7 @@ Detailed documentation lives in [`docs/`](docs/):
 | --- | --- |
 | [Architecture](docs/architecture.md) | Component descriptions, data model, deployment topology |
 | [API Reference](docs/api.md) | All endpoints, request/response examples, role matrix |
-| [Sequence Diagrams](docs/sequence-diagrams.md) | 9 Mermaid diagrams — ingestion, DLQ paths, DB outage/replay, auth, JWT filter, alert, WebSocket, lifecycle, device registration |
+| [Sequence Diagrams](docs/sequence-diagrams.md) | 10 Mermaid diagrams — ingestion, DLQ paths, DB outage/replay, auth, JWT filter, alert (multi-provider), WebSocket, lifecycle, device registration, device enrollment |
 | [Scaling Discussion](docs/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap, SLO targets vs observed results |
 | [Capacity Planning](docs/capacity-planning.md) | Device-to-infrastructure matrix, per-layer limits and upgrade triggers, AWS cost estimates, monitoring thresholds |
 | [Design Tradeoffs](docs/tradeoffs.md) | Decisions — Next.js, MQTT, Redis, PostgreSQL, Spring Integration, WebSocket, JWT |

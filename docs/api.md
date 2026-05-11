@@ -241,6 +241,70 @@ Send an empty object `{}` to revert to global thresholds.
 
 ---
 
+### POST /api/v1/devices/{id}/enrollment-token
+
+Generate a one-time enrollment token for a device. **Requires ADMIN role.**
+
+The raw token is returned exactly once — store it securely and deliver it to the physical device via an out-of-band channel (e.g. QR code, provisioning portal, serial console). The database stores only the SHA-256 hash.
+
+```http
+POST /api/v1/devices/3fa85f64-5717-4562-b3fc-2c963f66afa6/enrollment-token
+Authorization: Bearer <admin_token>
+```
+
+#### Response 200
+
+```json
+{
+  "tokenId": "a1b2c3d4-...",
+  "token": "gX7kPq2mNvR...",
+  "deviceId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "expiresAt": "2025-06-02T09:00:00Z"
+}
+```
+
+Token TTL is configurable via `enrollment.token.ttl-hours` (default: 24 hours).
+
+**Response 403** — Non-ADMIN token.  
+**Response 400** — Device not found, or device is `DECOMMISSIONED`.
+
+---
+
+### POST /api/v1/devices/enroll
+
+Bootstrap a device using a one-time enrollment token. **No authentication required** — the token itself is the credential.
+
+On success, the device transitions to `ACTIVE` and receives its per-device MQTT credentials.
+
+```http
+POST /api/v1/devices/enroll
+Content-Type: application/json
+```
+
+```json
+{
+  "deviceId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "token": "gX7kPq2mNvR...",
+  "publicKey": null
+}
+```
+
+> `publicKey` is optional — include the device's public key if mTLS / key-based auth is desired.
+
+#### Response 200
+
+```json
+{
+  "mqttUsername": "device-3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "mqttPassword": "s3cur3pw..."
+}
+```
+
+**Response 400** — Invalid token, token/device mismatch.  
+**Response 409** — Token already used or expired.
+
+---
+
 ## Telemetry
 
 ### GET /api/v1/telemetry/{deviceId}/latest
@@ -518,19 +582,21 @@ The value is injected into every backend log line as `requestId` in the MDC.
 
 ## Role Matrix
 
-| Endpoint | ADMIN | OPERATOR |
-| --- | --- | --- |
-| POST /api/v1/auth/login | ✅ | ✅ |
-| POST /api/v1/auth/refresh | ✅ | ✅ |
-| POST /api/v1/auth/logout | ✅ | ✅ |
-| POST /api/v1/devices | ✅ | ❌ |
-| GET /api/v1/devices | ✅ | ✅ |
-| GET /api/v1/devices/{id} | ✅ | ✅ |
-| PATCH /api/v1/devices/{id}/lifecycle | ✅ | ❌ |
-| PATCH /api/v1/devices/{id}/firmware | ✅ | ❌ |
-| GET /api/v1/devices/{id}/capabilities | ✅ | ✅ |
-| PUT /api/v1/devices/{id}/capabilities | ✅ | ❌ |
-| GET /api/v1/telemetry/* | ✅ | ✅ |
-| GET /api/v1/alerts | ✅ | ✅ |
-| GET /api/v1/alerts/unacknowledged | ✅ | ✅ |
-| PUT /api/v1/alerts/{id}/acknowledge | ✅ | ❌ |
+| Endpoint | ADMIN | OPERATOR | Unauthenticated |
+| --- | --- | --- | --- |
+| POST /api/v1/auth/login | ✅ | ✅ | ✅ |
+| POST /api/v1/auth/refresh | ✅ | ✅ | ✅ |
+| POST /api/v1/auth/logout | ✅ | ✅ | ❌ |
+| POST /api/v1/devices | ✅ | ❌ | ❌ |
+| GET /api/v1/devices | ✅ | ✅ | ❌ |
+| GET /api/v1/devices/{id} | ✅ | ✅ | ❌ |
+| PATCH /api/v1/devices/{id}/lifecycle | ✅ | ❌ | ❌ |
+| PATCH /api/v1/devices/{id}/firmware | ✅ | ❌ | ❌ |
+| GET /api/v1/devices/{id}/capabilities | ✅ | ✅ | ❌ |
+| PUT /api/v1/devices/{id}/capabilities | ✅ | ❌ | ❌ |
+| POST /api/v1/devices/{id}/enrollment-token | ✅ | ❌ | ❌ |
+| POST /api/v1/devices/enroll | ✅ | ✅ | ✅ (token is the credential) |
+| GET /api/v1/telemetry/* | ✅ | ✅ | ❌ |
+| GET /api/v1/alerts | ✅ | ✅ | ❌ |
+| GET /api/v1/alerts/unacknowledged | ✅ | ✅ | ❌ |
+| PUT /api/v1/alerts/{id}/acknowledge | ✅ | ❌ | ❌ |
