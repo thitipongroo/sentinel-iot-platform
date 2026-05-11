@@ -67,7 +67,7 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
-        <p className="text-xs text-gray-500 text-center">Default: admin / admin123</p>
+        <p className="text-xs text-gray-500 text-center">Contact your administrator for credentials.</p>
       </div>
     </div>
   )

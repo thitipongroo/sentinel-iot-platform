@@ -1,6 +1,6 @@
 # ⚡ Sentinel IoT Platform
 
-[![CI](https://github.com/yourusername/sentinel-iot-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/sentinel-iot-platform/actions/workflows/ci.yml)
+[![CI](https://github.com/your-github-username/sentinel-iot-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/your-github-username/sentinel-iot-platform/actions/workflows/ci.yml)
 [![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2-green?logo=springboot)](https://spring.io/projects/spring-boot)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=nextdotjs)](https://nextjs.org/)
@@ -122,7 +122,7 @@ Invalid MQTT payload / unknown device:
 | Infra (cloud)   | Kubernetes (EKS) via Helm + ArgoCD + Terraform (EKS/RDS/ElastiCache/MSK)    |
 | Deployment      | Argo Rollouts (blue/green + canary), KEDA (Kafka-lag autoscaling)           |
 | Backup/DR       | Velero (namespace backup) + pg_dump CronJob + DR restore script             |
-| Notify          | LINE Notify (deprecated — replace with LINE Messaging API)                  |
+| Notify          | Multi-provider: LINE Notify (deprecated), Slack webhook, generic webhook    |
 
 ---
 
@@ -136,11 +136,21 @@ Invalid MQTT payload / unknown device:
 ### Run the full stack
 
 ```bash
-git clone https://github.com/yourusername/sentinel-iot-platform.git
+git clone https://github.com/your-github-username/sentinel-iot-platform.git
 cd sentinel-iot-platform
-cp .env.example .env          # set JWT_SECRET and optionally LINE_NOTIFY_TOKEN
-docker compose up --build
+cp .env.example .env        # fill in JWT_SECRET, INIT_ADMIN_PASSWORD, INIT_OPERATOR_PASSWORD
+docker compose up --build                          # core stack (fast local dev)
+docker compose --profile observability up --build  # + Prometheus / Grafana / Jaeger
+docker compose --profile full up --build           # everything
 ```
+
+#### Compose profiles
+
+| Profile | Services included |
+|---|---|
+| _(none)_ | postgres, redis, mosquitto, kafka, backend, frontend, simulator |
+| `observability` | above + Prometheus, Grafana, Jaeger |
+| `full` | all services |
 
 | Service       | URL                                    |
 |---------------|----------------------------------------|
@@ -152,10 +162,12 @@ docker compose up --build
 | Jaeger UI     | <http://localhost:16686>               |
 | MQTT Broker   | `tcp://localhost:1883`                 |
 
-**Default credentials:**
+**First-run credentials:**
 
-- Dashboard: `admin` / `admin123` or `operator` / `op123`
-- Grafana: `admin` / `admin`
+Set `INIT_ADMIN_PASSWORD` and `INIT_OPERATOR_PASSWORD` in `.env` before the first `docker compose up` — the backend seeds the accounts on startup if they don't exist. No password defaults are provided; leaving these blank skips account creation (you will need to create users manually via a database client or migration).
+
+- Dashboard: `admin` / _(value of `INIT_ADMIN_PASSWORD`)_
+- Grafana: `admin` / _(value of `GRAFANA_PASSWORD`, default `changeme` — change before any internet-facing deployment)_
 
 ---
 
@@ -467,14 +479,35 @@ All CI steps are hard-fails — no `|| true` overrides. A red build means a real
 
 ---
 
-## LINE Notify Setup
+## Notification Setup
+
+The platform supports multiple notification providers. Enable exactly one (or none) per deployment.
+
+### Slack (recommended)
+
+```bash
+# Create an Incoming Webhook at https://api.slack.com/messaging/webhooks
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+SLACK_NOTIFY_ENABLED=true
+```
+
+### Generic Webhook (PagerDuty, Opsgenie, Teams, etc.)
+
+```bash
+NOTIFY_WEBHOOK_URL=https://your-endpoint/alert
+NOTIFY_WEBHOOK_ENABLED=true
+NOTIFY_WEBHOOK_SECRET=your-hmac-secret   # optional — signs payload with HMAC-SHA256
+```
+
+### LINE Notify (deprecated)
 
 ```bash
 # Get token at https://notify-bot.line.me/my/
-docker compose up -e LINE_NOTIFY_TOKEN=your_token -e LINE_NOTIFY_ENABLED=true
+LINE_NOTIFY_TOKEN=your_token
+LINE_NOTIFY_ENABLED=true
 ```
 
-> **Note:** LINE Notify is scheduled for shutdown on **March 31, 2025**. The integration still functions but should be migrated to LINE Messaging API or an alternative webhook before that date.
+> **Warning:** LINE Notify was shut down on **March 31, 2025**. Tokens no longer work. Migrate to Slack webhook or the generic webhook provider.
 
 ---
 
@@ -507,6 +540,55 @@ MQTT_BROKER=mqtt://localhost:1883 DEVICES=sensor-1,sensor-2 node index.js
 | Redis      | Upstash            | Serverless Redis (free tier works)      |
 | MQTT       | HiveMQ Cloud       | Free tier: 100 connections              |
 | Monitoring | Docker VM (VPS)    | `docker compose up prometheus grafana`  |
+
+---
+
+## Infrastructure Ownership
+
+| Tool | Responsibility | Owner |
+|---|---|---|
+| Terraform | Cloud resource provisioning (EKS, RDS, ElastiCache, MSK) | Platform/Infra team |
+| Helm | Application templating + Kubernetes manifests | App team |
+| ArgoCD | GitOps deployment sync — pulls from Git and reconciles Helm releases | Platform/Infra team |
+| Argo Rollouts | Blue/green and canary deployment strategies | App team |
+| KEDA | Kafka-lag-based horizontal pod autoscaling | Platform/Infra team |
+
+Lock all tool versions in `infra/terraform/versions.tf` and `infra/helm/sentinel-iot/Chart.yaml` before promoting to production.
+
+---
+
+## Security Model
+
+| Feature | Implementation |
+| --- | --- |
+| Authentication | JWT (15 min access token, `kid` header for zero-downtime key rotation) + opaque refresh token (7 days, DB-persisted, rotated on every use) |
+| Access Token Revocation | `POST /auth/logout` adds the token's JTI to a Redis blocklist (TTL = remaining token lifetime). Every request checks the blocklist — stolen or logged-out tokens are rejected immediately, closing the 15-min blast-radius window. |
+| Zero-Downtime Key Rotation | Set `JWT_PREVIOUS_SECRET=<old>` + `JWT_SECRET=<new>` and redeploy. Tokens signed with the old key remain valid until they expire (max 15 min); old `JWT_PREVIOUS_SECRET` can be cleared after that. |
+| Refresh Token Reuse Detection | `rotateRefreshToken()` calls `revokeAllByUsername()` when a revoked token is presented — token family invalidation per RFC 6819. A stolen token reused after legitimate rotation immediately logs out the real user and kills all sessions. |
+| Rate Limiting | Bucket4j — 100 req/min per IP on `/api/*` (in-process; see Known Limitations) |
+| RBAC | `ADMIN` + `OPERATOR` roles; method-level `@PreAuthorize` |
+| CORS | Restricted to `CORS_ALLOWED_ORIGINS` env var (default: `http://localhost:3000`). Set to your production domain — e.g. `https://your-app.vercel.app`. Headers limited to `Authorization`, `Content-Type`, `X-Request-ID`. |
+| CSRF | Disabled — correct for a stateless JWT API. CSRF tokens protect session-cookie flows; this API uses `Authorization: Bearer` headers which browsers never send cross-origin automatically (unlike cookies). |
+| Secret Management | `JWT_SECRET` required at runtime — no default, no fallback. **Production upgrade path:** inject via HashiCorp Vault (`spring-cloud-vault`) or AWS Secrets Manager rather than a `.env` file. |
+| Audit Logging | Every auth event (LOGIN, LOGOUT, REFRESH), alert acknowledgement, and **all device mutations** (CREATE, LIFECYCLE_UPDATE, FIRMWARE_UPDATE) persisted to `audit_logs` with username + IP. |
+| Audit Retention | `audit_logs` purged daily at 03:30 (cron configurable via `AUDIT_RETENTION_DAYS`, default 90 days). |
+| MQTT Auth | `allow_anonymous false` enforced. Two accounts provisioned at startup: `sentinel-backend` (subscribe + DLQ) and `sentinel-device` (publish only). **Per-device accounts:** set `MQTT_DEVICE_CREDENTIALS=sensor-1:pass1,sensor-2:pass2` — the entrypoint auto-provisions a separate MQTT account and ACL entry for each device, eliminating shared credentials. |
+| MQTT TLS / mTLS | TLS listener on `:8883` enabled when `mosquitto/certs/` contains CA + server certs (run `scripts/gen-mqtt-certs.sh`). Set `MQTT_TLS_REQUIRED=true` to remove the plaintext `:1883` listener entirely. Set `MQTT_MTLS_ENABLED=true` + `--with-client-certs` to require client certificate verification (`require_certificate true`). |
+| Actuator Exposure | `/actuator/health` returns `{"status":"UP/DOWN"}` to unauthenticated callers. Internal details (DB pool, Redis state) shown only to authenticated users (`show-details: when-authorized`). |
+| Request Correlation | `X-Request-ID` echoed; `requestId`, `method`, `path`, `username`, `durationMs` in MDC per log line |
+| Multi-tenant Isolation | Application-level `organizationId` scoping + PostgreSQL Row Level Security (`V7__row_level_security.sql`) + tenant-namespaced Redis keys |
+| Secret Scanning | Gitleaks runs on every CI push — secrets committed to git fail the build |
+| Dependency/Container Scan | Trivy scans filesystem (SCA) and backend container image on every CI push — CRITICAL/HIGH CVEs fail the build. Results uploaded to GitHub Security tab (SARIF) |
+
+### Known Security Limitations (remaining upgrade path)
+
+| Gap | Current State | Production Fix |
+| --- | --- | --- |
+| Rate limiting is in-process | Each replica has independent bucket — effective limit is `100 × N` replicas | Swap `ConcurrentHashMap` for `bucket4j-redis` (`ProxyManager` backed by Redis atomic counters) |
+| No refresh-token device binding | Refresh tokens bound to user only, not to issuing device or IP | Add fingerprint (IP + User-Agent hash) on issuance; reject reuse from different fingerprint |
+| TLS MQTT is opt-in | Plaintext `:1883` active by default in dev | Set `MQTT_TLS_REQUIRED=true` after running `gen-mqtt-certs.sh`; enforce in production via Helm `values-prod.yaml` |
+| mTLS is opt-in | `require_certificate false` unless `MQTT_MTLS_ENABLED=true` | Run `gen-mqtt-certs.sh --with-client-certs`, mount client certs into each service, set `MQTT_MTLS_ENABLED=true` |
+| RLS session variable not set | V7 migration enables RLS but the JPA interceptor to call `SET LOCAL app.org_id` is not yet implemented | Add a Hibernate `EmptyInterceptor` or Spring AOP around each service method to set the session variable before executing queries |
 
 ---
 

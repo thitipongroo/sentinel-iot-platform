@@ -132,10 +132,24 @@ Replay queue drain (every 30 seconds):
 ### Eclipse Mosquitto (MQTT Broker)
 
 - Protocol: MQTT 3.1.1 over TCP port 1883 and WebSocket port 9001
-- `allow_anonymous true` for development (swap to password file for production)
+- `allow_anonymous false` — password file provisioned at startup by `docker-entrypoint.sh` from `MQTT_USER`/`MQTT_PASS` and per-device `MQTT_DEVICE_CREDENTIALS` env vars
+- Per-user topic ACL enforced via `acl_file` — backend service account can subscribe and publish DLQ; device accounts can publish telemetry topics only
+- TLS listener on port 8883 is auto-appended by the entrypoint when certs exist in `mosquitto/certs/` (run `scripts/gen-mqtt-certs.sh`). Set `MQTT_TLS_REQUIRED=true` to remove plaintext `:1883` entirely
+- mTLS (mutual TLS, per-device client certificates) enabled by setting `MQTT_MTLS_ENABLED=true` — requires `gen-mqtt-certs.sh --with-client-certs`
 - Persistence enabled so retained messages survive restarts
 - QoS 1 used by both simulator and backend subscriber (at-least-once delivery)
 - Receives DLQ messages on `factory/telemetry/dlq` from backend (outbound adapter)
+
+**Production hardening checklist:**
+
+| Control | Status |
+|---|---|
+| `allow_anonymous false` | Enforced |
+| Password file per account | Enforced |
+| Per-user ACL | Enforced |
+| TLS on port 8883 | Opt-in (`MQTT_TLS_REQUIRED=true`) |
+| mTLS client certificates | Opt-in (`MQTT_MTLS_ENABLED=true`) |
+| Broker-side rate limiting | Not yet implemented — use a load balancer or mosquitto plugin |
 
 ### Spring Boot Backend
 

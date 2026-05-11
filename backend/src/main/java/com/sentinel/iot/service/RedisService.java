@@ -1,5 +1,6 @@
 package com.sentinel.iot.service;
 
+import com.sentinel.iot.security.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -11,6 +12,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Redis key schema (tenant-namespaced):
+ *
+ * <pre>
+ *   device:status:{orgId}:{deviceId}      String  TTL=10m  Online/Offline
+ *   device:telemetry:{orgId}:{deviceId}   Hash    TTL=10m  Latest readings
+ *   sentinel:replay:queue                 List    No TTL   Offline buffer (org-agnostic)
+ * </pre>
+ *
+ * The orgId prefix ensures that cache keys from different tenants never collide,
+ * even if device UUIDs were somehow shared (defence-in-depth on top of DB RLS).
+ *
+ * When the calling thread has no tenant context (e.g. ReplayQueueService draining)
+ * the raw deviceId is used as-is — replay messages are always resolved to a specific
+ * device UUID so there is no cross-tenant risk.
+ */
 @Service
 @RequiredArgsConstructor
 public class RedisService {
@@ -25,12 +42,30 @@ public class RedisService {
     @Value("${telemetry.replay.max-queue-size:10000}")
     private int maxQueueSize;
 
+    // ── Tenant-namespaced key helpers ─────────────────────────────────────────
+
+    private String statusKey(String deviceId) {
+        java.util.UUID orgId = TenantContext.get();
+        return orgId != null
+                ? STATUS_PREFIX + orgId + ":" + deviceId
+                : STATUS_PREFIX + deviceId;
+    }
+
+    private String telemetryKey(String deviceId) {
+        java.util.UUID orgId = TenantContext.get();
+        return orgId != null
+                ? TELEMETRY_PREFIX + orgId + ":" + deviceId
+                : TELEMETRY_PREFIX + deviceId;
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────────
+
     public void setDeviceStatus(String deviceId, String status) {
-        redis.opsForValue().set(STATUS_PREFIX + deviceId, status, TTL);
+        redis.opsForValue().set(statusKey(deviceId), status, TTL);
     }
 
     public String getDeviceStatus(String deviceId) {
-        return redis.opsForValue().get(STATUS_PREFIX + deviceId);
+        return redis.opsForValue().get(statusKey(deviceId));
     }
 
     public void setLatestTelemetry(String deviceId, double temperature, double humidity,
@@ -41,12 +76,13 @@ public class RedisService {
         fields.put("motion", motion != null ? String.valueOf(motion) : "false");
         fields.put("smokePpm", smokePpm != null ? String.valueOf(smokePpm) : "0.0");
         fields.put("ts", String.valueOf(System.currentTimeMillis()));
-        redis.opsForHash().putAll(TELEMETRY_PREFIX + deviceId, fields);
-        redis.expire(TELEMETRY_PREFIX + deviceId, TTL);
+        String key = telemetryKey(deviceId);
+        redis.opsForHash().putAll(key, fields);
+        redis.expire(key, TTL);
     }
 
     public Map<Object, Object> getLatestTelemetry(String deviceId) {
-        return redis.opsForHash().entries(TELEMETRY_PREFIX + deviceId);
+        return redis.opsForHash().entries(telemetryKey(deviceId));
     }
 
     // ── Replay queue (offline buffering) ─────────────────────────────────────

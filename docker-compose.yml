@@ -1,3 +1,16 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Sentinel IoT Platform — Docker Compose
+#
+# Profiles:
+#   (no profile / default)  — core stack: postgres, redis, mosquitto, kafka, backend, frontend, simulator
+#   observability            — adds Prometheus, Grafana, Jaeger
+#   full                     — core + observability (equivalent to running both)
+#
+# Usage:
+#   docker compose up                                  # core only (fast onboarding)
+#   docker compose --profile observability up          # core + monitoring
+#   docker compose --profile full up                   # everything
+# ──────────────────────────────────────────────────────────────────────────────
 version: '3.9'
 
 networks:
@@ -155,8 +168,6 @@ services:
         condition: service_healthy
       mosquitto:
         condition: service_healthy
-      jaeger:
-        condition: service_healthy
       kafka:
         condition: service_healthy
     healthcheck:
@@ -202,11 +213,12 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ─── Tracing ───────────────────────────────────────────────────────────────
+  # ─── Tracing (profile: observability | full) ────────────────────────────────
 
   jaeger:
     image: jaegertracing/all-in-one:1.57
     container_name: sentinel-jaeger
+    profiles: [observability, full]
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
       SPAN_STORAGE_TYPE: badger
@@ -225,11 +237,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # ─── Monitoring ────────────────────────────────────────────────────────────
+  # ─── Monitoring (profile: observability | full) ─────────────────────────────
 
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: sentinel-prometheus
+    profiles: [observability, full]
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -243,8 +256,9 @@ services:
   grafana:
     image: grafana/grafana:10.4.3
     container_name: sentinel-grafana
+    profiles: [observability, full]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-changeme}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana_data:/var/lib/grafana

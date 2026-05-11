@@ -71,10 +71,23 @@ jwt:
   # Redis key prefix for the access-token revocation blocklist (JTI-based, TTL = token remaining lifetime).
   revocation-key-prefix: "jwt:revoked:"
 
+init:
+  admin:
+    password: ${INIT_ADMIN_PASSWORD:}
+  operator:
+    password: ${INIT_OPERATOR_PASSWORD:}
+
 notification:
   line:
     token: ${LINE_NOTIFY_TOKEN:}
     enabled: ${LINE_NOTIFY_ENABLED:false}
+  slack:
+    webhook-url: ${SLACK_WEBHOOK_URL:}
+    enabled: ${SLACK_NOTIFY_ENABLED:false}
+  webhook:
+    url: ${NOTIFY_WEBHOOK_URL:}
+    enabled: ${NOTIFY_WEBHOOK_ENABLED:false}
+    secret: ${NOTIFY_WEBHOOK_SECRET:}
 
 alert:
   temperature-threshold: ${TEMP_THRESHOLD:80.0}
@@ -84,6 +97,13 @@ alert:
 audit:
   retention-days: ${AUDIT_RETENTION_DAYS:90}
   cron: "0 30 3 * * *"
+
+ingestion:
+  max-concurrent-messages: ${INGESTION_MAX_CONCURRENT:200}
+
+metrics:
+  business:
+    refresh-interval-ms: ${METRICS_BUSINESS_REFRESH_MS:30000}
 
 telemetry:
   retention-days: ${TELEMETRY_RETENTION_DAYS:30}

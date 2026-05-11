@@ -22,6 +22,7 @@ public class AlertService {
 
     private final AlertRepository alertRepository;
     private final NotificationService notificationService;
+    private final BusinessMetricsService businessMetricsService;
 
     // ── Global fallback thresholds (used when a device has no capability config) ─
     @Value("${alert.temperature-threshold}")
@@ -135,6 +136,7 @@ public class AlertService {
     public Alert createAlert(UUID deviceId, String level, String message) {
         Alert alert = new Alert(deviceId, level, message);
         Alert saved = alertRepository.save(alert);
+        businessMetricsService.recordAlertFired();
         log.warn("Alert created: [{}] {} — {}", level, deviceId, message);
         return saved;
     }

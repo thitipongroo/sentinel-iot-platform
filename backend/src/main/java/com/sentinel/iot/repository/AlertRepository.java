@@ -12,4 +12,5 @@ public interface AlertRepository extends JpaRepository<Alert, UUID> {
     List<Alert> findByDeviceIdOrderByCreatedAtDesc(UUID deviceId);
     List<Alert> findByAcknowledgedFalseOrderByCreatedAtDesc();
     List<Alert> findTop50ByOrderByCreatedAtDesc();
+    long countByAcknowledgedFalse();
 }
