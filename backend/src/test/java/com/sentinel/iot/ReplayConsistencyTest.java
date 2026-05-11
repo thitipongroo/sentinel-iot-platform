@@ -2,7 +2,6 @@ package com.sentinel.iot;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinel.iot.dto.ReplayQueueMessage;
-import com.sentinel.iot.model.Telemetry;
 import com.sentinel.iot.repository.TelemetryRepository;
 import com.sentinel.iot.service.RedisService;
 import com.sentinel.iot.service.ReplayQueueService;
@@ -31,6 +30,8 @@ class ReplayConsistencyTest extends BaseIntegrationTest {
     @Autowired private TelemetryRepository telemetryRepository;
     @Autowired private ObjectMapper        objectMapper;
     @Autowired private StringRedisTemplate stringRedisTemplate;
+
+    @SuppressWarnings("deprecation")
 
     private UUID deviceId;
 
