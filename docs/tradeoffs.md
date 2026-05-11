@@ -121,12 +121,14 @@ TimescaleDB is the preferred migration path beyond 500M rows because it is a Pos
 | --- | --- | --- |
 | State | Access token stateless; refresh token in DB | All state in session store |
 | Horizontal scaling | Any replica validates access token independently | All replicas must share session store |
-| Token revocation | Refresh token revocable (row delete); access token lives until expiry | Immediate (delete session) |
+| Token revocation | Refresh token revocable (row delete); access token revocable via Redis JTI blocklist (TTL = remaining lifetime) | Immediate (delete session) |
 | Payload per request | ~300–500 bytes | ~50 bytes (session ID cookie) |
 
 **Reasoning:** The 15-minute access token expiry limits the blast radius of a stolen token — an attacker has at most 15 minutes without needing to hit the refresh endpoint (which would reveal the theft via rotation). Refresh token rotation means using a stolen refresh token immediately invalidates it and logs the legitimate user out, creating a detectable security signal.
 
-**Tradeoff accepted:** Access tokens cannot be revoked before the 15-minute expiry. A Redis-based blocklist would close this gap but adds statefulness.
+**Tradeoff resolved:** Access token revocation is implemented via a Redis JTI blocklist. On logout, `AuthController` extracts the token's `jti` claim and stores it in Redis with TTL equal to the token's remaining lifetime (`jwt:revoked:{jti}`). `JwtAuthFilter` checks this blocklist on every authenticated request — revoked tokens are rejected immediately, closing the 15-minute blast-radius window.
+
+**Remaining statefulness tradeoff:** The blocklist adds one Redis read per authenticated request. This is acceptable because Redis latency is < 1 ms and the instance is already required for telemetry cache, replay queue, and WebSocket pub/sub. The incremental cost of the revocation check is negligible.
 
 ---
 
@@ -332,7 +334,7 @@ The tradeoff vs TimescaleDB: monthly partitions must be pre-created in migration
 | Partitioning | Native RANGE | TimescaleDB | Zero new dependencies, same Postgres |
 | MQTT consumer | Spring Integration | Raw Paho | Declarative, DLQ routing |
 | Realtime | WebSocket | SSE | Bidirectional for future commands |
-| Auth | JWT + Refresh token | Server sessions | Stateless, 15-min blast radius, rotation |
+| Auth | JWT + Refresh token + Redis JTI blocklist | Server sessions | Stateless + revocable; 15-min max blast radius, rotation |
 | Replay queue | Redis List | Kafka | Reuses existing infra, single consumer |
 | Lifecycle terminal | DECOMMISSIONED blocked | Allow re-activation | Audit integrity, unambiguous removal |
 | Replay loop | Direct repository | TelemetryService | Avoid double CB/retry during recovery |
