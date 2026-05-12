@@ -52,7 +52,7 @@ public class SecurityConfig {
                         // WebSocket upgrade auth is handled by JwtWebSocketHandshakeInterceptor
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/api-docs/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger/**", "/api-docs/**", "/swagger-ui.html", "/swagger").permitAll()
                         .requestMatchers(HttpMethod.POST,  "/api/v1/devices/enroll").permitAll()
                         .requestMatchers(HttpMethod.POST,  "/api/v1/devices").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/devices/**").hasRole("ADMIN")

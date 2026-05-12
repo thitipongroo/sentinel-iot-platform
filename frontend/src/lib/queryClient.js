@@ -33,4 +33,6 @@ export const qk = {
   telemetryHourly:  (id, from, to)=> ['telemetry', id, 'hourly', from, to],
   telemetryCached:  (id)          => ['telemetry', id, 'cache'],
   stats:            ()            => ['stats'],
+  users:            ()            => ['users'],
+  settings:         ()            => ['settings'],
 }

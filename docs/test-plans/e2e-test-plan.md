@@ -2,7 +2,7 @@
 
 **Stack:** Next.js 14 · Cypress 13 · App Router  
 **สถานะปัจจุบัน:** ✅ Implemented — 39 tests | 7 files | 0 failures  
-**ขอบเขต:** Auth, device management, telemetry, alerts, admin features และ edge cases
+**ขอบเขต:** Auth, device management, telemetry, alerts, users, settings, admin features และ edge cases
 
 ---
 
@@ -56,13 +56,19 @@ frontend/
 │   │   ├── devices.json                 (สร้างใหม่)
 │   │   ├── alerts.json                  (สร้างใหม่)
 │   │   ├── telemetry.json               (สร้างใหม่)
-│   │   └── stats.json                   (สร้างใหม่)
+│   │   ├── stats.json                   (สร้างใหม่)
+│   │   ├── users.json                   (สร้างใหม่)
+│   │   └── settings.json                (สร้างใหม่)
 │   └── e2e/
 │       ├── auth.cy.js                   (สร้างใหม่)
 │       ├── dashboard.cy.js              (เขียนใหม่ทั้งหมด)
-│       ├── device-filters.cy.js         (สร้างใหม่)
+│       ├── devices-page.cy.js           (สร้างใหม่ — /devices list page)
+│       ├── device-detail.cy.js          (สร้างใหม่ — /devices/[id] detail page)
+│       ├── device-filters.cy.js         (สร้างใหม่ — device selection on dashboard)
 │       ├── telemetry-chart.cy.js        (สร้างใหม่)
-│       ├── alerts.cy.js                 (สร้างใหม่)
+│       ├── alerts.cy.js                 (อัพเดต — ครอบคลุม /alerts page)
+│       ├── users.cy.js                  (สร้างใหม่ — /users ADMIN page)
+│       ├── settings.cy.js               (สร้างใหม่ — /settings page)
 │       ├── admin.cy.js                  (สร้างใหม่)
 │       └── edge-cases.cy.js             (สร้างใหม่)
 ```
@@ -146,21 +152,86 @@ video: false
 
 ---
 
-### 6. `alerts.cy.js` — 5 tests
+### 6. `alerts.cy.js` — 8 tests (อัพเดต — ครอบคลุม /alerts page แทน AlertList component บน dashboard)
 
-ทดสอบ AlertList filter tabs และ acknowledge flow
+ทดสอบหน้า `/alerts` ทั้งหมด: filter, acknowledge flow, Acknowledge All
 
 | Test | สิ่งที่ตรวจสอบ |
 |------|--------------|
-| shows all alerts by default | render → แสดง alert ทั้งหมด |
-| unacknowledged badge shows correct count | 2 unacked alerts → badge แสดง "2" |
-| clicking Unacknowledged tab filters list | คลิก tab → แสดงเฉพาะ unacked |
-| ADMIN sees Acknowledge button on unacked alert | role ADMIN + unacked alert → ปุ่ม "Ack" ปรากฏ |
-| clicking Acknowledge calls API and removes from unacked tab | กด Ack → PUT `/alerts/{id}/acknowledge` ถูกเรียก |
+| shows all alerts by default | เปิด `/alerts` → แสดง alert ทั้งหมด |
+| shows unacknowledged summary in header | 2 unacked → header แสดง "2 unacknowledged" |
+| filter by CRITICAL level hides WARNING alerts | เลือก Level = CRITICAL → WARNING alerts หายไป |
+| filter by UNACKNOWLEDGED status hides acknowledged alerts | เลือก Status = UNACKNOWLEDGED → acknowledged alerts หายไป |
+| Clear button resets both filters | กด Clear → filters กลับ ALL / ALL, แสดง alert ครบ |
+| ADMIN sees Acknowledge button per unacked alert | role ADMIN + unacked alert → ปุ่ม "Acknowledge" ปรากฏ |
+| clicking Acknowledge calls API with optimistic update | กด Ack → PUT `/alerts/{id}/acknowledge` ถูกเรียก + opacity ของ row เปลี่ยนทันที |
+| ADMIN sees Acknowledge All button when unacked > 0 | role ADMIN + มี unacked → "Acknowledge All" ปรากฏ; คลิก → API ถูกเรียกทุก unacked |
 
 ---
 
-### 7. `admin.cy.js` — 6 tests
+### 7. `devices-page.cy.js` — 7 tests (ใหม่ — /devices list page)
+
+ทดสอบหน้า `/devices`: list, search/filter, AddDeviceModal
+
+| Test | สิ่งที่ตรวจสอบ |
+|------|--------------|
+| navigates to /devices and shows device table | ไปที่ `/devices` → table แสดง device list |
+| search by name filters results | พิมพ์ชื่อ device → แสดงเฉพาะ device ที่ตรง |
+| status filter shows only ONLINE devices | เลือก ONLINE → device OFFLINE หายไป |
+| lifecycle filter shows only ACTIVE devices | เลือก ACTIVE → lifecycle อื่นหายไป |
+| Clear button resets all filters | กด Clear → devices ทั้งหมดกลับมา |
+| ADMIN sees Register Device button | role ADMIN → "+ Register Device" ปรากฏ |
+| Add device modal submits POST /devices | คลิก Register → กรอก form → POST `/api/v1/devices` ถูกเรียก → modal ปิด |
+
+---
+
+### 8. `device-detail.cy.js` — 6 tests (ใหม่ — /devices/[id] detail page)
+
+ทดสอบหน้า `/devices/:id`: info card, breadcrumb, telemetry, alerts, management
+
+| Test | สิ่งที่ตรวจสอบ |
+|------|--------------|
+| shows device info card with correct fields | ไปที่ `/devices/uuid-1` → name, status, location, firmware แสดงถูกต้อง |
+| breadcrumb links back to /devices | breadcrumb มี "Devices" link ที่ชี้กลับ `/devices` |
+| shows telemetry chart | TelemetryChart render อยู่ใน DOM |
+| ADMIN sees DeviceManagement panel | role ADMIN → lifecycle dropdown + firmware input ปรากฏ |
+| OPERATOR does not see DeviceManagement panel | role OPERATOR → DeviceManagement ไม่ปรากฏ |
+| shows recent alerts for the device | device มี alerts → "Recent Alerts" section แสดง |
+
+---
+
+### 9. `users.cy.js` — 8 tests (ใหม่ — /users ADMIN page)
+
+ทดสอบหน้า `/users`: list, add, delete, change role, self-protection
+
+| Test | สิ่งที่ตรวจสอบ |
+|------|--------------|
+| ADMIN can access /users and see user table | role ADMIN → navigate `/users` → user list แสดง |
+| own row shows "(you)" label | user ที่ login อยู่ → แสดง "(you)" ในชื่อ |
+| own row delete button is disabled | self → Delete button มี attribute `disabled` |
+| own row role dropdown is disabled | self → role select มี attribute `disabled` |
+| clicking Add User opens modal | กด "+ Add User" → modal ปรากฏ |
+| submitting Add User form calls POST /users | กรอก form ครบ → POST `/api/v1/users` ถูกเรียก → modal ปิด |
+| clicking Delete opens confirm modal, confirming calls DELETE | กด Delete → confirm modal → กด "Delete" → DELETE `/api/v1/users/{username}` ถูกเรียก |
+| changing role dropdown calls PATCH /users/{username}/role | เปลี่ยน role → PATCH `/api/v1/users/{username}/role` ถูกเรียกพร้อม role ใหม่ |
+
+---
+
+### 10. `settings.cy.js` — 5 tests (ใหม่ — /settings page)
+
+ทดสอบหน้า `/settings`: แสดงค่า thresholds, retention, notification status
+
+| Test | สิ่งที่ตรวจสอบ |
+|------|--------------|
+| shows alert threshold values from API | temperature/humidity/smokePpm แสดงค่าถูกต้องจาก fixture |
+| shows retention settings | telemetryDays, auditDays แสดงถูกต้อง |
+| shows Enabled pill for active notification channel | `slack: true` → Slack แสดง "Enabled" pill สีเขียว |
+| shows Disabled pill for inactive notification channel | `line: false` → LINE แสดง "Disabled" pill สีเทา |
+| page has no edit buttons (read-only) | ไม่มี `<button>` หรือ `<input>` ที่ให้แก้ไข config ใดๆ |
+
+---
+
+### 11. `admin.cy.js` — 6 tests
 
 ทดสอบ DeviceManagement component (ADMIN-only)
 
@@ -194,12 +265,16 @@ video: false
 |-------|-----------|------------|
 | Authentication | 1 | 5 |
 | Dashboard Overview | 1 | 6 |
-| Device Filters | 1 | 7 |
+| Devices List Page (`/devices`) | 1 | 7 |
+| Device Detail Page (`/devices/[id]`) | 1 | 6 |
+| Device Filters (dashboard) | 1 | 7 |
 | Telemetry Chart | 1 | 6 |
-| Alerts | 1 | 5 |
+| Alerts Page (`/alerts`) | 1 | 8 |
+| Users Page (`/users`) | 1 | 8 |
+| Settings Page (`/settings`) | 1 | 5 |
 | Admin Features | 1 | 6 |
 | Edge Cases | 1 | 4 |
-| **รวม** | **7 files** | **39 tests** |
+| **รวม** | **11 files** | **68 tests** |
 
 ---
 
@@ -236,6 +311,25 @@ video: false
   { "deviceId": "uuid-1", "temperature": 72.4, "humidity": 55.0, "smokePpm": 15.0, "motion": false, "timestamp": "<iso>" },
   { "deviceId": "uuid-1", "temperature": 75.1, "humidity": 53.2, "smokePpm": 18.0, "motion": true,  "timestamp": "<iso>" }
 ]
+```
+
+### `users.json`
+```json
+[
+  { "id": "u1", "username": "admin",    "role": "ADMIN"    },
+  { "id": "u2", "username": "operator", "role": "OPERATOR" },
+  { "id": "u3", "username": "viewer",   "role": "OPERATOR" }
+]
+```
+
+### `settings.json`
+
+```json
+{
+  "thresholds":    { "temperatureCelsius": 80, "humidityPercent": 90, "smokePpm": 200 },
+  "retention":     { "telemetryDays": 90, "auditDays": 365 },
+  "notifications": { "slack": true, "line": false, "webhook": false }
+}
 ```
 
 ---

@@ -28,10 +28,10 @@
 │  │  (sensors)   │  factory/      │   MQTT Broker    │◀── DLQ ── factory/      │
 │  └──────────────┘  telemetry     └───────┬──────────┘        telemetry/dlq    │
 │                                          │ subscribe                          │
-│  ┌──────────────┐              ┌─────────▼───────────┐    ┌─────────────────┐ │
-│  │  Simulator   │── MQTT ─────▶│   Spring Boot       │──▶ │ Redis 7         │ │
-│  │  (Node.js)   │              │   Backend           │    │ • Latest cache  │ │
-│  └──────────────┘              │                     │    │ • Replay queue  │ │
+│                                ┌─────────▼───────────┐    ┌─────────────────┐ │
+│                                │   Spring Boot       │──▶ │ Redis 7         │ │
+│                                │   Backend           │    │ • Latest cache  │ │
+│                                │                     │    │ • Replay queue  │ │
 │                                │  • JWT Auth         │    └─────────────────┘ │
 │  ┌──────────────┐  REST/WS     │  • MQTT Consumer    │                        │
 │  │  Next.js     │◀────────────▶│    + DLQ routing    │    ┌─────────────────┐ │
@@ -50,6 +50,8 @@
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
+> **หมายเหตุ — Node.js Simulator:** ใช้สำหรับ development และ demo เท่านั้น เพื่อจำลอง IoT Devices โดย publish MQTT telemetry ในรูปแบบเดียวกับอุปกรณ์จริง ใน production ให้ลบ `simulator` service ออกจาก `docker-compose.yml` และแทนด้วย firmware ของอุปกรณ์จริง
+
 ### Data Flow — Normal Path
 
 <!-- 
@@ -57,7 +59,7 @@
 -->
 
 ```text
-Device/Simulator
+IoT Device
   │── MQTT publish ──▶ Mosquitto
                           │── Spring Integration ──▶ MqttConsumerService
                                                           │── validate payload
@@ -133,34 +135,94 @@ Invalid MQTT payload / unknown device:
 - Docker + Docker Compose v2
 - (Optional) JDK 21 and Node 20 for local dev
 
-### Run the full stack
+### 1. Clone และตั้งค่า `.env`
 
 ```bash
 git clone https://github.com/your-github-username/sentinel-iot-platform.git
 cd sentinel-iot-platform
-cp .env.example .env   # fill in JWT_SECRET, INIT_ADMIN_PASSWORD, INIT_OPERATOR_PASSWORD
-make up                # core stack (fast local dev)
-make up-obs            # core + Prometheus / Grafana / Jaeger  (tracing auto-enabled)
-make up-full           # everything, rebuild images
+cp .env.template .env
 ```
 
-> **No `make`?** Use `docker compose` directly — see the table below for the equivalent commands.
+เปิด `.env` และกำหนดค่า:
 
-#### Compose profiles
+```env
+JWT_SECRET=<openssl rand -base64 48>
+INIT_ADMIN_PASSWORD=<your-admin-password>
+INIT_OPERATOR_PASSWORD=<your-operator-password>
+COMPOSE_PROFILES=dev       # development (รัน simulator)
+# COMPOSE_PROFILES=prod    # production  (ไม่รัน simulator)
+```
 
-| `make` target | Equivalent command | Services included |
-|---|---|---|
-| `make up` | `docker compose up -d` | postgres, redis, mosquitto, kafka, backend, frontend, simulator |
-| `make up-obs` | `TRACING_ENABLED=true docker compose --profile observability up -d` | above + Prometheus, Grafana, Jaeger |
-| `make up-full` | `TRACING_ENABLED=true docker compose --profile full up --build -d` | all services |
-| `make down` | `docker compose --profile observability --profile full down` | stops all profiles |
-| `make down-v` | `docker compose --profile observability --profile full down -v` | stops all + wipes volumes |
+---
+
+### 2. Development
+
+Simulator จะรันอัตโนมัติเพื่อส่งข้อมูล telemetry จำลอง
+
+```bash
+# Linux / macOS / Git Bash
+make up          # core + simulator
+make up-obs      # core + simulator + Prometheus / Grafana / Jaeger
+
+# Windows PowerShell
+docker compose up -d
+```
+
+---
+
+### 3. Production
+
+Simulator จะไม่รัน อุปกรณ์จริงต้อง publish MQTT เข้ามาเอง
+
+ใน `.env` ตั้งค่า:
+
+```env
+COMPOSE_PROFILES=prod
+```
+
+จากนั้น:
+
+```bash
+# Linux / macOS / Git Bash
+make up          # core stack เท่านั้น (ไม่มี simulator)
+make up-obs      # core + Prometheus / Grafana / Jaeger
+
+# Windows PowerShell
+docker compose up -d
+```
+
+---
+
+### Compose profiles reference
+
+| `COMPOSE_PROFILES` | Services ที่รัน |
+|---|---|
+| `dev` | core + **simulator** |
+| `prod` | core เท่านั้น |
+| `dev,observability` | core + simulator + Prometheus + Grafana + Jaeger |
+| `prod,observability` | core + Prometheus + Grafana + Jaeger |
+
+> **core** = postgres, redis, mosquitto, kafka, backend, frontend
+
+---
+
+### Shortcut commands (`make` / `./run.sh`)
+
+| คำสั่ง | Equivalent | หมายเหตุ |
+|--------|-----------|---------|
+| `make up` | `docker compose up -d` | ใช้ `COMPOSE_PROFILES` จาก `.env` |
+| `make up-obs` | `TRACING_ENABLED=true docker compose up -d` | เปิด tracing อัตโนมัติ |
+| `make up-full` | `TRACING_ENABLED=true docker compose up --build -d` | rebuild images ด้วย |
+| `make down` | `docker compose down` | หยุดทุก service |
+| `make down-v` | `docker compose down -v` | หยุด + ลบ volumes |
+
+**Windows (Git Bash) — ไม่มี `make`:** ใช้ `./run.sh` แทน เช่น `./run.sh up-obs`
 
 | Service       | URL                                    |
 |---------------|----------------------------------------|
 | Dashboard     | <http://localhost:3000>                |
 | Backend API   | <http://localhost:8080/api/v1>         |
-| Swagger UI    | <http://localhost:8080/swagger-ui.html>|
+| Swagger UI    | <http://localhost:8080/swagger>         |
 | Prometheus    | <http://localhost:9090>                |
 | Grafana       | <http://localhost:3001>                |
 | Jaeger UI     | <http://localhost:16686>               |
@@ -168,9 +230,41 @@ make up-full           # everything, rebuild images
 
 **First-run credentials:**
 
-Set `INIT_ADMIN_PASSWORD` and `INIT_OPERATOR_PASSWORD` in `.env` before the first `docker compose up` — the backend seeds the accounts on startup if they don't exist. No password defaults are provided; leaving these blank skips account creation (you will need to create users manually via a database client or migration).
+1. ตั้งค่าใน `.env` ก่อน start stack ครั้งแรก:
 
-- Dashboard: `admin` / _(value of `INIT_ADMIN_PASSWORD`)_
+   ```env
+   INIT_ADMIN_PASSWORD=<your-admin-password>
+   INIT_OPERATOR_PASSWORD=<your-operator-password>
+   ```
+
+   > **`JWT_SECRET`** — มี 2 วิธี:
+   > - **อัตโนมัติ:** `make <target>` หรือ `./run.sh <command>` จะ generate และบันทึกลง `.env` ให้เองหากยังไม่มีค่า
+   > - **Manual:** รันคำสั่งนี้ใน terminal แล้วนำค่าที่ได้ไปใส่ใน `.env`
+   >
+   >   ```bash
+   >   openssl rand -base64 48
+   >   ```
+
+2. Start หรือ recreate service ที่ต้องการ (กรณีรันไปแล้วโดยที่ค่ายังว่าง):
+
+   ```bash
+   docker compose up -d --force-recreate <service>
+   ```
+
+   แทน `<service>` ด้วยชื่อ service ที่ต้องการ เช่น `backend`, `frontend`, `mosquitto` ฯลฯ
+
+   ตัวอย่าง:
+
+   ```bash
+   docker compose up -d --force-recreate backend
+   ```
+
+   Backend จะ seed admin/operator account อัตโนมัติเมื่อ startup หาก account ยังไม่มีอยู่
+
+3. Login ที่ <http://localhost:3000> ด้วย `admin` / _(ค่า `INIT_ADMIN_PASSWORD`)_
+
+> **หมาะ:** ถ้าไม่ตั้ง `JWT_SECRET` ก่อน start, backend จะ start ได้แต่ sign token ไม่ได้ — กดปุ่ม Sign In แล้วจะไม่มีอะไรเกิดขึ้น
+
 - Grafana: `admin` / _(value of `GRAFANA_PASSWORD`, default `changeme` — change before any internet-facing deployment)_
 
 ---
@@ -502,6 +596,66 @@ All CI steps are hard-fails — no `|| true` overrides. A red build means a real
 
 ---
 
+## MQTT TLS / mTLS
+
+By default the broker listens on port **1883 (plain TCP)** — suitable for local development and demo.
+For production deployments where devices communicate over the internet, enable TLS on port **8883**.
+
+### Generate certificates
+
+```bash
+# TLS only — encrypts traffic, clients verify the server cert
+bash scripts/gen-mqtt-certs.sh mqtt.yourdomain.com
+
+# mTLS — server AND every client must present a certificate
+bash scripts/gen-mqtt-certs.sh mqtt.yourdomain.com --with-client-certs
+```
+
+Use `localhost` as the hostname for local testing:
+
+```bash
+bash scripts/gen-mqtt-certs.sh localhost
+```
+
+Certificates are written to `mosquitto/certs/`:
+
+| File | Purpose |
+|------|---------|
+| `ca.crt` | CA certificate — distribute to all MQTT clients |
+| `server.crt` / `server.key` | Mosquitto server certificate |
+| `client-backend.crt` / `.key` | Backend service client cert (mTLS only) |
+| `client-device.crt` / `.key` | Default device client cert (mTLS only) |
+
+### Activate TLS
+
+Restart Mosquitto after generating certificates:
+
+```bash
+docker compose restart mosquitto
+```
+
+### Test the connection
+
+```bash
+# TLS
+mosquitto_pub --cafile mosquitto/certs/ca.crt \
+  -h mqtt.yourdomain.com -p 8883 \
+  -t test -m hello \
+  -u sentinel-device -P <password>
+
+# mTLS
+mosquitto_pub --cafile mosquitto/certs/ca.crt \
+  --cert mosquitto/certs/client-device.crt \
+  --key  mosquitto/certs/client-device.key \
+  -h mqtt.yourdomain.com -p 8883 \
+  -t test -m hello
+```
+
+> Self-signed certificates are suitable for dev and portfolio demonstration only.
+> For production use a proper CA (Let's Encrypt, internal PKI, or AWS ACM PCA).
+
+---
+
 ## Notification Setup
 
 The platform supports multiple notification providers. Enable exactly one (or none) per deployment.
@@ -550,6 +704,74 @@ cd simulator
 npm install
 MQTT_BROKER=mqtt://localhost:1883 DEVICES=sensor-1,sensor-2 node index.js
 ```
+
+---
+
+## Demo Data
+
+Seed 500 devices + 7 days of historical telemetry + sample alerts into the database so the Dashboard, Prometheus, Grafana, and Jaeger UIs all have meaningful data to display from the moment the stack starts.
+
+### What gets seeded
+
+500 devices spread across 100 buildings (5 sensor types per building):
+
+| Profile | Count | Location | Temperature range |
+|---------|-------|----------|-------------------|
+| Assembly Line | 100 | Building N — Assembly Line | 60–82 °C |
+| Cold Storage | 100 | Building N — Cold Storage | 15–25 °C, high humidity |
+| Engine Room | 100 | Building N — Engine Room | 70–92 °C (most alerts) |
+| Server Room | 100 | Building N — Server Room | 18–28 °C, stable |
+| Packaging Area | 100 | Building N — Packaging Area | 22–35 °C, high motion |
+
+- **~1 000 000 telemetry rows** — 5-minute intervals × 7 days × 490 active devices
+- **Hourly aggregates** pre-computed for fast historical charts
+- **~120 sample alerts** — engine-room critical temp, smoke spikes, humidity, 10 offline-device alerts
+- **sensor-1 / sensor-2 / sensor-3** match the MQTT simulator device IDs — live readings merge into the historical timeline automatically
+- Devices 491–500 are `OFFLINE` (demo of device-down state)
+
+### Run the seed
+
+**Git Bash / Linux / macOS:**
+
+```bash
+./scripts/seed-demo.sh
+```
+
+**Windows PowerShell:**
+
+```powershell
+docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/seed-demo.sql
+```
+
+> Safe to re-run — automatically removes existing seed devices before inserting fresh data.
+
+### Remove demo data
+
+**Git Bash / Linux / macOS:**
+
+```bash
+./scripts/unseed-demo.sh
+```
+
+**Windows PowerShell:**
+
+```powershell
+docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/unseed-demo.sql
+```
+
+### What to check after seeding
+
+| Service | URL | What you see |
+|---------|-----|--------------|
+| Dashboard | [localhost:3000](http://localhost:3000) | Live + 30-day charts per device, active alerts |
+| Swagger UI | [localhost:8080/swagger](http://localhost:8080/swagger) | Test API endpoints interactively |
+| Prometheus | [localhost:9090](http://localhost:9090) | `sentinel_*` custom metrics (scrapes every 15 s) |
+| Grafana | [localhost:3001](http://localhost:3001) | Pre-built dashboards populated with real data |
+| Jaeger | [localhost:16686](http://localhost:16686) | Traces generated by every API call |
+
+> **Prometheus / Grafana:** historical telemetry data lives in PostgreSQL; Prometheus only stores real-time scrape samples. The Grafana dashboards that visualise PostgreSQL data (via the Postgres data source) show the full 30-day history immediately. Dashboards backed by Prometheus metrics populate within a few minutes of live traffic.
+>
+> **Jaeger:** traces are recorded for every HTTP request to the backend while the observability profile is running. Navigate the dashboard after seeding to generate a few traces (`./run.sh up-obs` or `make up-obs` enables the observability profile).
 
 ---
 

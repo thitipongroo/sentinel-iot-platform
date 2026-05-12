@@ -1,16 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
   const { login } = useAuth()
-  const router = useRouter()
+  const router    = useRouter()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -20,7 +21,7 @@ export default function LoginPage() {
       await login(username, password)
       router.push('/dashboard')
     } catch {
-      setError('Invalid username or password')
+      setError('Invalid username or password. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -35,30 +36,43 @@ export default function LoginPage() {
           <p className="text-gray-400 text-sm mt-1">Industrial Monitoring Platform</p>
         </div>
 
+        {error && (
+          <div role="alert" className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-sentinel-danger/15 border border-sentinel-danger/40 text-sentinel-danger text-sm">
+            <span className="flex-shrink-0 mt-0.5">✕</span>
+            <span>{error}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-sm text-gray-400 mb-1 block">Username</label>
             <input
               type="text"
               value={username}
-              onChange={e => setUsername(e.target.value)}
-              className="w-full bg-sentinel-700 border border-sentinel-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-sentinel-accent"
+              onChange={e => { setUsername(e.target.value); setError('') }}
+              className={`w-full bg-sentinel-700 border rounded-lg px-3 py-2 text-white focus:outline-none focus:border-sentinel-accent ${error ? 'border-sentinel-danger' : 'border-sentinel-600'}`}
               placeholder="admin"
+              autoComplete="username"
               required
             />
           </div>
           <div>
-            <label className="text-sm text-gray-400 mb-1 block">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm text-gray-400">Password</label>
+              <Link href="/forgot-password" className="text-xs text-sentinel-accent hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full bg-sentinel-700 border border-sentinel-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-sentinel-accent"
+              onChange={e => { setPassword(e.target.value); setError('') }}
+              className={`w-full bg-sentinel-700 border rounded-lg px-3 py-2 text-white focus:outline-none focus:border-sentinel-accent ${error ? 'border-sentinel-danger' : 'border-sentinel-600'}`}
               placeholder="••••••••"
+              autoComplete="current-password"
               required
             />
           </div>
-          {error && <p className="text-sentinel-danger text-sm">{error}</p>}
           <button
             type="submit"
             disabled={loading}
@@ -67,7 +81,6 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
-        <p className="text-xs text-gray-500 text-center">Contact your administrator for credentials.</p>
       </div>
     </div>
   )

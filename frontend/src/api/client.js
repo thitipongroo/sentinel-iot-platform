@@ -93,4 +93,17 @@ export const alertsApi = {
   acknowledge:     (id)  => api.put(`/alerts/${id}/acknowledge`)
 }
 
+export const usersApi = {
+  list:          ()                        => api.get('/users'),
+  create:        (data)                    => api.post('/users', data),
+  delete:        (username)                => api.delete(`/users/${username}`),
+  changeRole:    (username, role)          => api.patch(`/users/${username}/role`, { role }),
+  resetPassword: (username, newPassword)   => api.patch(`/users/${username}/password`, { newPassword }),
+}
+
+export const settingsApi = {
+  get:    ()     => api.get('/settings'),
+  update: (data) => api.patch('/settings', data),
+}
+
 export default api

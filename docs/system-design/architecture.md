@@ -21,10 +21,10 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
  │ (sensors)   │   │  │              MQTT Broker                        │  │
  └─────────────┘   │  │  tcp/1883 (devices)  ←── DLQ ──── factory/      │  │
                    │  │                              telemetry/dlq      │  │
- ┌─────────────┐   │  └──────────────────┬──────────────────────────────┘  │
- │  Node.js    │──▶│                     │ subscribe factory/telemetry     │
- │  Simulator  │   │  ┌──────────────────▼──────────────────────────────┐  │
- └─────────────┘   │  │               Spring Boot 3.2 Backend           │  │
+                   │  └──────────────────┬──────────────────────────────┘  │
+                   │                     │ subscribe factory/telemetry     │
+                   │  ┌──────────────────▼──────────────────────────────┐  │
+                   │  │               Spring Boot 3.2 Backend           │  │
                    │  │                                                 │  │
                    │  │  ┌──────────────────────────────────────────-┐  │  │
                    │  │  │  MqttConsumerService (Spring Integration) │  │  │
@@ -75,6 +75,11 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
                    │  └──────────────────┘                                 │
                    └───────────────────────────────────────────────────────┘
 ```
+
+> **หมายเหตุ — Node.js Simulator:** ใช้สำหรับ **development และ demo เท่านั้น**
+> ทำหน้าที่จำลอง IoT Devices โดย publish MQTT telemetry ในรูปแบบเดียวกับอุปกรณ์จริง
+> ใน production ให้ลบ `simulator` service ออกจาก `docker-compose.yml`
+> และแทนที่ด้วย firmware ของอุปกรณ์จริงที่ publish ไปยัง MQTT Broker โดยตรง
 
 ---
 

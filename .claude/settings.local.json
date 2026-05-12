@@ -7,7 +7,19 @@
       "Bash(file d:/workspace/sentinel-iot-platform/mosquitto/*)",
       "Bash(docker compose *)",
       "Bash(docker run *)",
-      "Bash(docker network *)"
+      "Bash(docker network *)",
+      "Bash(chmod +x \"d:/workspace/sentinel-iot-platform/run.sh\")",
+      "Bash(openssl rand *)",
+      "Bash(dos2unix d:/workspace/sentinel-iot-platform/scripts/seed-demo.sh)",
+      "Bash(sed -i 's/\\\\r//' d:/workspace/sentinel-iot-platform/scripts/seed-demo.sh)",
+      "Bash(chmod +x d:/workspace/sentinel-iot-platform/scripts/seed-demo.sh)",
+      "Bash(sed -i 's/\\\\r//' d:/workspace/sentinel-iot-platform/scripts/unseed-demo.sh)",
+      "Bash(chmod +x d:/workspace/sentinel-iot-platform/scripts/unseed-demo.sh)",
+      "Bash(mkdir -p \"d:/workspace/sentinel-iot-platform/frontend/src/app/devices/[id]\" 2>/dev/null; echo \"done\")",
+      "Bash(git mv *)"
+    ],
+    "additionalDirectories": [
+      "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices"
     ]
   }
 }

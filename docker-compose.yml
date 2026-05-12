@@ -2,14 +2,23 @@
 # Sentinel IoT Platform — Docker Compose
 #
 # Profiles:
-#   (no profile / default)  — core stack: postgres, redis, mosquitto, kafka, backend, frontend, simulator
+#   (no profile / default)  — core stack: postgres, redis, mosquitto, kafka, backend, frontend
+#   dev                      — adds Node.js Simulator (development / demo only)
 #   observability            — adds Prometheus, Grafana, Jaeger
-#   full                     — core + observability (equivalent to running both)
+#   full                     — core + dev + observability
 #
-# Usage:
-#   docker compose up                                  # core only (fast onboarding)
+# Recommended: set COMPOSE_PROFILES in .env instead of passing --profile each time.
+#
+# Development  →  COMPOSE_PROFILES=dev
+# Production   →  COMPOSE_PROFILES=prod      (no service uses this profile — simulator will not start)
+# With monitoring (dev)  →  COMPOSE_PROFILES=dev,observability
+# With monitoring (prod) →  COMPOSE_PROFILES=prod,observability
+#
+# Usage (manual override):
+#   docker compose up                                  # core only
+#   docker compose --profile dev up                    # core + simulator
 #   docker compose --profile observability up          # core + monitoring
-#   docker compose --profile full up                   # everything
+#   docker compose --profile dev --profile observability up   # everything
 # ──────────────────────────────────────────────────────────────────────────────
 networks:
   sentinel-net:
@@ -148,6 +157,8 @@ services:
       MQTT_USER: ${MQTT_USER:-sentinel-backend}
       MQTT_PASS: ${MQTT_PASS:-changeme}
       JWT_SECRET: ${JWT_SECRET}
+      INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-}
+      INIT_OPERATOR_PASSWORD: ${INIT_OPERATOR_PASSWORD:-}
       LINE_NOTIFY_TOKEN: ${LINE_NOTIFY_TOKEN:-}
       LINE_NOTIFY_ENABLED: ${LINE_NOTIFY_ENABLED:-false}
       TEMP_THRESHOLD: ${TEMP_THRESHOLD:-80}
@@ -197,6 +208,7 @@ services:
       context: ./simulator
       dockerfile: Dockerfile
     container_name: sentinel-simulator
+    profiles: [dev]
     environment:
       MQTT_BROKER: ${SIMULATOR_MQTT_BROKER:-mqtt://mosquitto:1883}
       MQTT_TOPIC: factory/telemetry
