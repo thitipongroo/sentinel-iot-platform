@@ -25,13 +25,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ReplayConsistencyTest extends BaseIntegrationTest {
 
-    @Autowired private ReplayQueueService  replayQueueService;
+    @SuppressWarnings("removal")
+    @Autowired private ReplayQueueService replayQueueService;
     @Autowired private RedisService        redisService;
     @Autowired private TelemetryRepository telemetryRepository;
     @Autowired private ObjectMapper        objectMapper;
     @Autowired private StringRedisTemplate stringRedisTemplate;
-
-    @SuppressWarnings("deprecation")
 
     private UUID deviceId;
 
