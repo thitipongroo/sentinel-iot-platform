@@ -34,15 +34,16 @@ docs/
 
 ## test-reports/
 
-ผลการรัน test suite แยกตามประเภท — รวม 225 tests | 0 failures
+ผลการรัน test suite แยกตามประเภท — รวม 280 tests | 0 failures
 
 | ไฟล์ | ประเภท | Tests | ผล |
 |------|--------|-------|-----|
-| [README.md](test-reports/README.md) | **Summary** — ภาพรวมทั้งระบบ + links | 225 | ✅ |
+| [README.md](test-reports/README.md) | **Summary** — ภาพรวมทั้งระบบ + links | 280 | ✅ |
 | [backend-unit-test-report.md](test-reports/backend-unit-test-report.md) | Backend Unit (JUnit 5 + Mockito) | 28 | ✅ |
 | [backend-integration-test-report.md](test-reports/backend-integration-test-report.md) | Backend Integration (Testcontainers) | 34 | ✅ |
 | [backend-concurrency-test-report.md](test-reports/backend-concurrency-test-report.md) | Backend Concurrency (WebSocket thread safety) | 3 | ✅ |
 | [backend-security-test-report.md](test-reports/backend-security-test-report.md) | Backend Security (JWT, RBAC, multi-tenant, rate limit) | 45 | ✅ |
+| [backend-regression-test-report.md](test-reports/backend-regression-test-report.md) | Backend Regression (API contract, RBAC, migration, WebSocket) | 55 | ✅ |
 | [frontend-unit-test-report.md](test-reports/frontend-unit-test-report.md) | Frontend Unit (Jest + React Testing Library) | 76 | ✅ |
 | [frontend-e2e-test-report.md](test-reports/frontend-e2e-test-report.md) | Frontend E2E (Cypress) | 39 | ✅ |
 
@@ -100,4 +101,4 @@ Diagram และ visual asset ที่อ้างอิงจากเอก�
 | [frontend-unit-test-plan.md](test-plans/frontend-unit-test-plan.md) | React component unit tests (Jest + React Testing Library) | 76 | ✅ Implemented |
 | [performance-test-plan.md](test-plans/performance-test-plan.md) | Normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast | 16 | 📋 วางแผน |
 | [load-test-plan.md](test-plans/load-test-plan.md) | Ramp-up (0→500 VU), spike, soak (2 hr), Kafka consumer, multi-tenant | 22 | 📋 วางแผน |
-| [regression-test-plan.md](test-plans/regression-test-plan.md) | API contract, HTTP status, auth, RBAC, multi-tenant, migration, rate limit, WebSocket | 55 | 📋 วางแผน |
+| [regression-test-plan.md](test-plans/regression-test-plan.md) | API contract, HTTP status, auth, RBAC, multi-tenant, migration, rate limit, WebSocket | 55 | ✅ Implemented |

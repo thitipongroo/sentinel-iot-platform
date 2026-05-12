@@ -2,7 +2,7 @@
 
 **ขอบเขต:** Backend REST API · Auth & RBAC · Multi-Tenant Isolation · Database Migrations · Rate Limiting · WebSocket  
 **วิธีทดสอบ:** REST Assured + JUnit 5 (extends `BaseIntegrationTest` — Testcontainers)  
-**สถานะ:** 📋 วางแผนแล้ว — ยังไม่ได้ implement  
+**สถานะ:** ✅ Implemented — 55 tests | 7 files | 0 failures  
 **Environment:** Testcontainers (PostgreSQL 16 + Redis 7 + Mosquitto) — ไม่ต้องใช้ Docker Compose เต็ม  
 **Trigger:** ทุก PR ที่แตะ backend code, Flyway migrations, หรือ Spring Boot version  
 **เป้าหมาย:** ตรวจให้มั่นใจว่า **behavior ที่มีอยู่ไม่เปลี่ยน** หลัง code changes, dependency upgrades หรือ migration ใหม่
