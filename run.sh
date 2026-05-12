@@ -31,10 +31,10 @@ case "$CMD" in
     TRACING_ENABLED=true docker compose --profile full up --build -d
     ;;
   down)
-    docker compose --profile observability --profile full down
+    docker compose --profile dev --profile observability --profile full down
     ;;
   down-v)
-    docker compose --profile observability --profile full down -v
+    docker compose --profile dev --profile observability --profile full down -v
     ;;
   logs)
     docker compose logs -f

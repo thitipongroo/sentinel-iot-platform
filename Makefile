@@ -32,11 +32,11 @@ up-full:
 
 # ── Stop all containers (all profiles) ───────────────────────────────────────
 down:
-	docker compose --profile observability --profile full down
+	docker compose --profile dev --profile observability --profile full down
 
 # ── Stop all containers and wipe all data volumes ────────────────────────────
 down-v:
-	docker compose --profile observability --profile full down -v
+	docker compose --profile dev --profile observability --profile full down -v
 
 # ── Tail logs ────────────────────────────────────────────────────────────────
 logs:
