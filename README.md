@@ -173,7 +173,7 @@ Set `INIT_ADMIN_PASSWORD` and `INIT_OPERATOR_PASSWORD` in `.env` before the firs
 
 ## API Reference
 
-All API endpoints are versioned under `/api/v1/`. Responses always include an `API-Version: 1` header. See [`docs/api.md`](docs/api.md) for the full reference.
+All API endpoints are versioned under `/api/v1/`. Responses always include an `API-Version: 1` header. See [`docs/system-design/api.md`](docs/system-design/api.md) for the full reference.
 
 ### Authentication
 
@@ -687,19 +687,43 @@ sentinel-iot-platform/
 
 ## Documentation
 
-Detailed documentation lives in [`docs/`](docs/):
+Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/README.md) for the full directory index.
+
+### Design & Architecture (`docs/system-design/`)
 
 | Document | Contents |
 | --- | --- |
-| [Architecture](docs/architecture.md) | Component descriptions, data model, deployment topology |
-| [API Reference](docs/api.md) | All endpoints, request/response examples, role matrix |
-| [Sequence Diagrams](docs/sequence-diagrams.md) | 10 Mermaid diagrams — ingestion, DLQ paths, DB outage/replay, auth, JWT filter, alert (multi-provider), WebSocket, lifecycle, device registration, device enrollment |
-| [Scaling Discussion](docs/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap, SLO targets vs observed results |
-| [Capacity Planning](docs/capacity-planning.md) | Device-to-infrastructure matrix, per-layer limits and upgrade triggers, AWS cost estimates, monitoring thresholds |
-| [Design Tradeoffs](docs/tradeoffs.md) | Decisions — Next.js, MQTT, Redis, PostgreSQL, Spring Integration, WebSocket, JWT |
+| [Architecture](docs/system-design/architecture.md) | Component descriptions, data model, deployment topology |
+| [API Reference](docs/system-design/api.md) | All endpoints, request/response examples, role matrix |
+| [Sequence Diagrams](docs/system-design/sequence-diagrams.md) | 10 Mermaid diagrams — ingestion, DLQ paths, DB outage/replay, auth, JWT filter, alert (multi-provider), WebSocket, lifecycle, device registration, device enrollment |
+| [Scaling Discussion](docs/system-design/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap, SLO targets vs observed results |
+| [Capacity Planning](docs/system-design/capacity-planning.md) | Device-to-infrastructure matrix, per-layer limits and upgrade triggers, AWS cost estimates, monitoring thresholds |
+| [Design Tradeoffs](docs/system-design/tradeoffs.md) | Decisions — Next.js, MQTT, Redis, PostgreSQL, Spring Integration, WebSocket, JWT |
+
+### Runbooks (`docs/runbooks/`)
+
+| Document | Contents |
+| --- | --- |
 | [Incident Runbooks](docs/runbooks/) | Runbooks for all 9 SLO alerts + incident response flow (severity levels, post-mortem template) |
 | [Chaos Testing](docs/runbooks/chaos-testing.md) | 5 chaos experiments — DB down, Redis down, pod kill, network partition, MQTT restart |
 | [Failure Testing Checklist](docs/runbooks/failure-testing.md) | 6 failure scenarios with trigger commands, verification steps, and per-release sign-off table |
+
+### Test Plans (`docs/test-plans/`)
+
+| Document | Contents |
+| --- | --- |
+| [Security Test Plan](docs/test-plans/security-test-plan.md) | 45 test cases — JWT auth, RBAC, multi-tenant isolation, rate limit, WebSocket, error handling |
+| [Performance Test Plan](docs/test-plans/performance-test-plan.md) | 16 test cases — normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast |
+| [Load Test Plan](docs/test-plans/load-test-plan.md) | 22 test cases — ramp-up (0→500 VU), spike, soak (2 hr), Kafka consumer, multi-tenant |
+| [Regression Test Plan](docs/test-plans/regression-test-plan.md) | 55 test cases — API contract, HTTP status, auth, RBAC, multi-tenant, migration, rate limit, WebSocket |
+| [E2E Test Plan](docs/test-plans/e2e-test-plan.md) | Full user journeys (Playwright) — device lifecycle, alert, WebSocket |
+| [Backend Integration Test Plan](docs/test-plans/backend-integration-test-plan.md) | Spring MVC + Testcontainers integration tests |
+
+### Reports (`docs/test-reports/`)
+
+| Document | Contents |
+| --- | --- |
+| [Test Report](docs/test-reports/test-report.md) | Test execution summary — 221 tests across backend unit/integration/security/E2E and frontend |
 
 ---
 
