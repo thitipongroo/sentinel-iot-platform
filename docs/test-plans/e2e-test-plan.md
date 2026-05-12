@@ -1,8 +1,8 @@
 # E2E Test Plan — Sentinel IoT Dashboard (Cypress)
 
 **Stack:** Next.js 14 · Cypress 13 · App Router  
-**สถานะปัจจุบัน:** ❌ มี test file 1 ไฟล์ (4 tests) แต่รันไม่ได้ — ไม่มี `cypress.config.js`, URL ผิด, auth approach ผิด  
-**เป้าหมาย:** ~39 test cases ครอบคลุม auth, device management, telemetry, alerts, admin features และ edge cases
+**สถานะปัจจุบัน:** ✅ Implemented — 39 tests | 7 files | 0 failures  
+**ขอบเขต:** Auth, device management, telemetry, alerts, admin features และ edge cases
 
 ---
 
@@ -181,10 +181,10 @@ video: false
 
 | Test | สิ่งที่ตรวจสอบ |
 |------|--------------|
-| shows OfflineBanner when network goes offline | `cy.goOffline()` → banner "You are offline" ปรากฏ |
-| dismissing OfflineBanner hides it | กด X บน banner → banner หาย |
-| shows VersionBanner on api-version mismatch | response header `api-version: 2` → banner "A new version is available" ปรากฏ |
-| shows VersionBanner on 406 response | API คืน 406 → banner "Client outdated" ปรากฏ |
+| shows OfflineBanner when network goes offline | dispatch `offline` event → banner "You are offline" ปรากฏ |
+| OfflineBanner disappears when network comes back online | dispatch `online` event → banner หาย |
+| shows VersionBanner on api-version mismatch | dispatch `sentinel:api-version-mismatch` → "A new version is available." ปรากฏ |
+| shows VersionBanner on api-version-rejected event | dispatch `sentinel:api-version-rejected` → "This client version is no longer supported by the server." ปรากฏ |
 
 ---
 

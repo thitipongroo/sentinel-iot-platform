@@ -86,12 +86,12 @@ Diagram และ visual asset ที่อ้างอิงจากเอก�
 
 | ไฟล์ | ขอบเขต | Test Cases | สถานะ |
 |------|--------|-----------|-------|
-| [backend-unit-test-plan.md](test-plans/backend-unit-test-plan.md) | Service, Repository, Filter unit tests | — | 📋 วางแผน |
-| [backend-integration-test-plan.md](test-plans/backend-integration-test-plan.md) | Spring MVC + Testcontainers integration tests | — | ✅ Implemented |
-| [backend-concurrency-test-plan.md](test-plans/backend-concurrency-test-plan.md) | Thread safety, TenantContext isolation, rate limiter concurrency | — | 📋 วางแผน |
+| [backend-unit-test-plan.md](test-plans/backend-unit-test-plan.md) | Service, Repository, Filter unit tests | 28 | ✅ Implemented |
+| [backend-integration-test-plan.md](test-plans/backend-integration-test-plan.md) | Spring MVC + Testcontainers integration tests | 75 | ✅ Implemented |
+| [backend-concurrency-test-plan.md](test-plans/backend-concurrency-test-plan.md) | Thread safety, TenantContext isolation, rate limiter concurrency | 3 | ✅ Implemented |
 | [security-test-plan.md](test-plans/security-test-plan.md) | JWT auth, RBAC, multi-tenant isolation, rate limit, WebSocket, error handling | 45 | ✅ Implemented |
-| [e2e-test-plan.md](test-plans/e2e-test-plan.md) | Full user journeys (Playwright) — device lifecycle, alert, WebSocket | — | ✅ Implemented |
-| [frontend-unit-test-plan.md](test-plans/frontend-unit-test-plan.md) | React component unit tests (Vitest) | — | 📋 วางแผน |
+| [e2e-test-plan.md](test-plans/e2e-test-plan.md) | Full user journeys (Cypress) — device lifecycle, alert, WebSocket | 39 | ✅ Implemented |
+| [frontend-unit-test-plan.md](test-plans/frontend-unit-test-plan.md) | React component unit tests (Jest + React Testing Library) | 76 | ✅ Implemented |
 | [performance-test-plan.md](test-plans/performance-test-plan.md) | Normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast | 16 | 📋 วางแผน |
 | [load-test-plan.md](test-plans/load-test-plan.md) | Ramp-up (0→500 VU), spike, soak (2 hr), Kafka consumer, multi-tenant | 22 | 📋 วางแผน |
 | [regression-test-plan.md](test-plans/regression-test-plan.md) | API contract, HTTP status, auth, RBAC, multi-tenant, migration, rate limit, WebSocket | 55 | 📋 วางแผน |
