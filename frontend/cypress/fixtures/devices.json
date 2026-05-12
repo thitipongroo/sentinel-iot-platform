@@ -1,7 +1,7 @@
 [
   {
     "id": "uuid-1",
-    "name": "sensor-1",
+    "name": "sensor-alpha",
     "status": "ONLINE",
     "lifecycleStatus": "ACTIVE",
     "location": "Factory A",
@@ -10,11 +10,38 @@
   },
   {
     "id": "uuid-2",
-    "name": "sensor-2",
+    "name": "sensor-beta",
     "status": "OFFLINE",
     "lifecycleStatus": "ACTIVE",
     "location": "Factory B",
     "firmwareVersion": "1.1.0",
+    "lastSeen": null
+  },
+  {
+    "id": "uuid-3",
+    "name": "sensor-gamma",
+    "status": "ONLINE",
+    "lifecycleStatus": "PROVISIONED",
+    "location": "Factory A",
+    "firmwareVersion": "1.0.0",
+    "lastSeen": "2026-05-12T09:30:00Z"
+  },
+  {
+    "id": "uuid-4",
+    "name": "sensor-delta",
+    "status": "ONLINE",
+    "lifecycleStatus": "INACTIVE",
+    "location": "Factory C",
+    "firmwareVersion": "1.2.0",
+    "lastSeen": "2026-05-12T08:00:00Z"
+  },
+  {
+    "id": "uuid-5",
+    "name": "sensor-omega",
+    "status": "OFFLINE",
+    "lifecycleStatus": "DECOMMISSIONED",
+    "location": "Factory C",
+    "firmwareVersion": "0.9.0",
     "lastSeen": null
   }
 ]

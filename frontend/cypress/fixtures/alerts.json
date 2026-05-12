@@ -10,8 +10,16 @@
   {
     "id": "a2",
     "deviceId": "uuid-2",
+    "level": "CRITICAL",
+    "message": "Smoke level exceeded 200 ppm",
+    "acknowledged": false,
+    "createdAt": "2026-05-12T08:30:00Z"
+  },
+  {
+    "id": "a3",
+    "deviceId": "uuid-3",
     "level": "WARNING",
-    "message": "Smoke level above threshold",
+    "message": "Temperature above 70°C",
     "acknowledged": true,
     "createdAt": "2026-05-12T08:00:00Z"
   }
