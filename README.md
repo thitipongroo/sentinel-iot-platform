@@ -138,19 +138,23 @@ Invalid MQTT payload / unknown device:
 ```bash
 git clone https://github.com/your-github-username/sentinel-iot-platform.git
 cd sentinel-iot-platform
-cp .env.example .env        # fill in JWT_SECRET, INIT_ADMIN_PASSWORD, INIT_OPERATOR_PASSWORD
-docker compose up --build                          # core stack (fast local dev)
-docker compose --profile observability up --build  # + Prometheus / Grafana / Jaeger
-docker compose --profile full up --build           # everything
+cp .env.example .env   # fill in JWT_SECRET, INIT_ADMIN_PASSWORD, INIT_OPERATOR_PASSWORD
+make up                # core stack (fast local dev)
+make up-obs            # core + Prometheus / Grafana / Jaeger  (tracing auto-enabled)
+make up-full           # everything, rebuild images
 ```
+
+> **No `make`?** Use `docker compose` directly — see the table below for the equivalent commands.
 
 #### Compose profiles
 
-| Profile | Services included |
-|---|---|
-| _(none)_ | postgres, redis, mosquitto, kafka, backend, frontend, simulator |
-| `observability` | above + Prometheus, Grafana, Jaeger |
-| `full` | all services |
+| `make` target | Equivalent command | Services included |
+|---|---|---|
+| `make up` | `docker compose up -d` | postgres, redis, mosquitto, kafka, backend, frontend, simulator |
+| `make up-obs` | `TRACING_ENABLED=true docker compose --profile observability up -d` | above + Prometheus, Grafana, Jaeger |
+| `make up-full` | `TRACING_ENABLED=true docker compose --profile full up --build -d` | all services |
+| `make down` | `docker compose --profile observability --profile full down` | stops all profiles |
+| `make down-v` | `docker compose --profile observability --profile full down -v` | stops all + wipes volumes |
 
 | Service       | URL                                    |
 |---------------|----------------------------------------|

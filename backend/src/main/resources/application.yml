@@ -147,8 +147,9 @@ management:
   tracing:
     sampling:
       probability: 1.0
-    # Propagates traceId + spanId into MDC so every log line is correlated with its trace
-    enabled: true
+    # Propagates traceId + spanId into MDC so every log line is correlated with its trace.
+    # Disabled by default; set TRACING_ENABLED=true when running with --profile observability.
+    enabled: ${TRACING_ENABLED:false}
   otlp:
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}

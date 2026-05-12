@@ -1,5 +1,5 @@
 -- Hourly pre-aggregated telemetry for historical analytics.
--- Raw telemetry is retained for ${telemetry.retention-days} days (default 30),
+-- Raw telemetry is retained for a configurable number of days (default 30, see telemetry.retention-days),
 -- then pruned by TelemetryRetentionService. This table keeps summaries indefinitely.
 CREATE TABLE IF NOT EXISTS telemetry_hourly_aggregates (
     id           UUID             PRIMARY KEY DEFAULT gen_random_uuid(),

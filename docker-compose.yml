@@ -11,8 +11,6 @@
 #   docker compose --profile observability up          # core + monitoring
 #   docker compose --profile full up                   # everything
 # ──────────────────────────────────────────────────────────────────────────────
-version: '3.9'
-
 networks:
   sentinel-net:
     driver: bridge
@@ -156,6 +154,7 @@ services:
       SMOKE_THRESHOLD: ${SMOKE_THRESHOLD:-200}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_APPLICATION_NAME: sentinel-iot-platform
+      TRACING_ENABLED: ${TRACING_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
       SPRING_PROFILES_ACTIVE: prod
     ports:
@@ -219,6 +218,7 @@ services:
     image: jaegertracing/all-in-one:1.57
     container_name: sentinel-jaeger
     profiles: [observability, full]
+    user: root
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
       SPAN_STORAGE_TYPE: badger

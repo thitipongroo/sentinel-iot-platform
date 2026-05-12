@@ -25,13 +25,14 @@
 #   Then: MQTT_TLS_REQUIRED=true docker compose up mosquitto
 set -eu
 
-PASSWD_FILE="/mosquitto/config/passwd"
+PASSWD_FILE="/mosquitto/data/passwd"
 CERTS_DIR="/mosquitto/certs"
-RUNTIME_CONFIG="/tmp/mosquitto-runtime.conf"
-RUNTIME_ACL="/tmp/mosquitto-runtime.acl"
+RUNTIME_CONFIG="/mosquitto/data/runtime.conf"
+RUNTIME_ACL="/mosquitto/data/runtime.acl"
 
 # ── 1. Provision backend service account ────────────────────────────────────
 echo "[entrypoint] Provisioning MQTT password file..."
+rm -f "$PASSWD_FILE"
 mosquitto_passwd -b -c "$PASSWD_FILE" \
   "${MQTT_USER:-sentinel-backend}" "${MQTT_PASS:-changeme}"
 
@@ -58,6 +59,7 @@ if [ -n "${MQTT_DEVICE_CREDENTIALS:-}" ]; then
   rm -f /tmp/_dev_creds
 fi
 
+chown mosquitto:mosquitto "$PASSWD_FILE"
 chmod 600 "$PASSWD_FILE"
 echo "[entrypoint] Password file written."
 
@@ -148,4 +150,6 @@ else
   echo "[entrypoint] To enable TLS: bash scripts/gen-mqtt-certs.sh && docker compose restart mosquitto"
 fi
 
+chown mosquitto:mosquitto "$RUNTIME_ACL" "$RUNTIME_CONFIG"
+chmod 600 "$RUNTIME_ACL" "$RUNTIME_CONFIG"
 exec mosquitto -c "$RUNTIME_CONFIG"

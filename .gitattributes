@@ -1,0 +1,15 @@
+# Normalize line endings: all files checkout as LF on all platforms.
+* text=auto eol=lf
+
+# Shell scripts must always be LF — CRLF breaks sh/bash inside Linux containers.
+*.sh text eol=lf
+
+# Container and CI config files
+Dockerfile text eol=lf
+docker-compose*.yml text eol=lf
+*.conf text eol=lf
+*.acl text eol=lf
+
+# Windows-only binaries — never convert
+*.exe binary
+*.dll binary

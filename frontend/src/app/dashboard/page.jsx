@@ -56,7 +56,7 @@ export default function DashboardPage() {
   }, [devices, selectedDeviceId, setSelectedDeviceId])
 
   const { data: telemetry = [] } = useQuery({
-    queryKey: qk.telemetry(selectedDevice?.id),
+    queryKey: qk.telemetryLatest(selectedDevice?.id, 50),
     queryFn:  () => telemetryApi.latest(selectedDevice.id, 50).then(r => [...r.data].reverse()),
     enabled:  !!selectedDevice,
   })
@@ -66,7 +66,7 @@ export default function DashboardPage() {
     if (!lastMessage || !selectedDevice) return
     if (lastMessage.deviceId !== selectedDevice.name) return
 
-    qc.setQueryData(qk.telemetry(selectedDevice.id), (prev = []) =>
+    qc.setQueryData(qk.telemetryLatest(selectedDevice.id, 50), (prev = []) =>
       [...prev.slice(-49), {
         id:          Date.now(),
         temperature: lastMessage.temperature,
