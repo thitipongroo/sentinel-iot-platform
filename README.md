@@ -206,17 +206,26 @@ docker compose up -d
 
 ---
 
-### Shortcut commands (`make` / `./run.sh`)
+### Shortcut commands
 
-| คำสั่ง | Equivalent | หมายเหตุ |
-|--------|-----------|---------|
-| `make up` | `docker compose up -d` | ใช้ `COMPOSE_PROFILES` จาก `.env` |
-| `make up-obs` | `TRACING_ENABLED=true docker compose up -d` | เปิด tracing อัตโนมัติ |
-| `make up-full` | `TRACING_ENABLED=true docker compose up --build -d` | rebuild images ด้วย |
-| `make down` | `docker compose down` | หยุดทุก service |
-| `make down-v` | `docker compose down -v` | หยุด + ลบ volumes |
+`Makefile` และ `run.sh` เป็น wrapper ของ `docker compose` — ใช้แทนกันได้ทุกคำสั่ง
 
-**Windows (Git Bash) — ไม่มี `make`:** ใช้ `./run.sh` แทน เช่น `./run.sh up-obs`
+| คำสั่ง (`make`) | คำสั่ง (`./run.sh`) | ผลลัพธ์ |
+|----------------|-------------------|---------|
+| `make up` | `./run.sh up` | Start stack ตาม `COMPOSE_PROFILES` ใน `.env` |
+| `make up-obs` | `./run.sh up-obs` | Start stack + เปิด Prometheus / Grafana / Jaeger (tracing อัตโนมัติ) |
+| `make up-full` | `./run.sh up-full` | Start stack + monitoring + rebuild images ทั้งหมด |
+| `make build` | `./run.sh build` | Rebuild images แล้ว start (ไม่เปิด monitoring) |
+| `make down` | `./run.sh down` | หยุดทุก container |
+| `make down-v` | `./run.sh down-v` | หยุดทุก container + ลบ volumes ทั้งหมด (ข้อมูลหาย) |
+| `make logs` | `./run.sh logs` | Tail logs ทุก service |
+| `make ps` | `./run.sh ps` | แสดงสถานะ container |
+
+> **หมายเหตุ:**
+>
+> - `make` ใช้ได้บน Linux / macOS และ Git Bash (Windows)
+> - `./run.sh` ใช้ได้บน Linux / macOS / Git Bash — ทางเลือกสำหรับระบบที่ไม่มี `make`
+> - ทั้งสองคำสั่ง generate `JWT_SECRET` ลง `.env` อัตโนมัติหากยังไม่มีค่า
 
 | Service       | URL                                    |
 |---------------|----------------------------------------|
