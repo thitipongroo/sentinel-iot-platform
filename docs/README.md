@@ -34,11 +34,17 @@ docs/
 
 ## test-reports/
 
-ผลการรัน test suite — รวม test counts, pass/fail status และ notes ต่อแต่ละ component
+ผลการรัน test suite แยกตามประเภท — รวม 225 tests | 0 failures
 
-| ไฟล์ | คำอธิบาย |
-|------|----------|
-| [test-report.md](test-reports/test-report.md) | รายงานสรุป test ทั้งหมด — backend unit/integration/security/E2E, frontend unit, จำนวน test cases รวม 221 tests |
+| ไฟล์ | ประเภท | Tests | ผล |
+|------|--------|-------|-----|
+| [README.md](test-reports/README.md) | **Summary** — ภาพรวมทั้งระบบ + links | 225 | ✅ |
+| [backend-unit-test-report.md](test-reports/backend-unit-test-report.md) | Backend Unit (JUnit 5 + Mockito) | 28 | ✅ |
+| [backend-integration-test-report.md](test-reports/backend-integration-test-report.md) | Backend Integration (Testcontainers) | 34 | ✅ |
+| [backend-concurrency-test-report.md](test-reports/backend-concurrency-test-report.md) | Backend Concurrency (WebSocket thread safety) | 3 | ✅ |
+| [backend-security-test-report.md](test-reports/backend-security-test-report.md) | Backend Security (JWT, RBAC, multi-tenant, rate limit) | 45 | ✅ |
+| [frontend-unit-test-report.md](test-reports/frontend-unit-test-report.md) | Frontend Unit (Jest + React Testing Library) | 76 | ✅ |
+| [frontend-e2e-test-report.md](test-reports/frontend-e2e-test-report.md) | Frontend E2E (Cypress) | 39 | ✅ |
 
 ---
 

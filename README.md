@@ -723,7 +723,7 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 
 | Document | Contents |
 | --- | --- |
-| [Test Report](docs/test-reports/test-report.md) | Test execution summary — 221 tests across backend unit/integration/security/E2E and frontend |
+| [Test Report](docs/test-reports/README.md) | Test execution summary — 225 tests across backend unit/integration/security/E2E and frontend |
 
 ---
 
