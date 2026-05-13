@@ -858,8 +858,6 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 
 ## Screenshots
 
-> _(Add screenshots after first `docker compose up`)_
-
 | Dashboard                                    | Alerts                                 | Grafana                                  |
 |----------------------------------------------|----------------------------------------|------------------------------------------|
 | ![dashboard](docs/screenshots/dashboard.png) | ![alerts](docs/screenshots/alerts.png) | ![grafana](docs/screenshots/grafana.png) |
