@@ -62,6 +62,7 @@ public class TelemetryDlqConsumer {
                 .register(meterRegistry);
     }
 
+    @SuppressWarnings("null")
     @KafkaListener(
             topics = "${kafka.topics.telemetry-dlq:telemetry.dlq}",
             containerFactory = "dlqKafkaListenerContainerFactory",

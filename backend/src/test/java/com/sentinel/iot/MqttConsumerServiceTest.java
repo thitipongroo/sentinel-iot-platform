@@ -31,6 +31,7 @@ class MqttConsumerServiceTest {
         service = new MqttConsumerService(kafkaProducer, mqttDlqChannel, new SimpleMeterRegistry(), 200);
     }
 
+    @SuppressWarnings("null")
     @Test
     void handleMessage_withValidPayload_forwardsToKafka() {
         service.handleMessage(message(VALID_PAYLOAD));
