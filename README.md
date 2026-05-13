@@ -15,10 +15,6 @@
 
 ## Architecture Diagram
 
-<!-- 
-![Sentinel IoT Platform Architecture](docs/screenshots/sentinel-architecture-diagram.png)
--->
-
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────┐
 │                            Sentinel IoT Platform                              │
@@ -52,10 +48,6 @@
 
 ### Data Flow — Normal Path
 
-<!-- 
-![Normal Ingestion Data Flow](docs/screenshots/sentinel-dataflow-normal-path.png)
--->
-
 ```text
 IoT Device
   │── MQTT publish ──▶ Mosquitto
@@ -71,10 +63,6 @@ IoT Device
 ```
 
 ### Data Flow — Failure Paths
-
-<!--
-![Failure Ingestion Data Flow](docs/screenshots/sentinel-dataflow-failure-path.png)
--->
 
 ```text
 DB unavailable (circuit breaker OPEN):
@@ -92,10 +80,6 @@ Invalid MQTT payload / unknown device:
 ---
 
 ## Tech Stack
-
-<!--
-![Sentinel Tech Stack](docs/screenshots/sentinel-tech-stack.png)
--->
 
 | Layer           | Technology                                                                  |
 |-----------------|-----------------------------------------------------------------------------|
@@ -146,8 +130,7 @@ cp .env.template .env
 ```env
 INIT_ADMIN_PASSWORD=<your-admin-password>
 INIT_OPERATOR_PASSWORD=<your-operator-password>
-COMPOSE_PROFILES=dev       # development (รัน simulator)
-# COMPOSE_PROFILES=prod    # production
+COMPOSE_PROFILES=prod
 ```
 
 ---
@@ -155,8 +138,8 @@ COMPOSE_PROFILES=dev       # development (รัน simulator)
 จากนั้น:
 
 ```bash
-# Linux / macOS / Git Bash (Windows ไม่ได้ติดตั้ง Make)
-make up          # core 
+# Linux / macOS / Git Bash
+make up          # core
 make up-obs      # core + Prometheus / Grafana / Jaeger
 
 # Windows PowerShell
@@ -169,12 +152,12 @@ docker compose up -d
 
 | `COMPOSE_PROFILES` | Services ที่รัน |
 |---|---|
-| `dev` | core + **simulator** |
 | `prod` | core เท่านั้น |
-| `dev,observability` | core + simulator + Prometheus + Grafana + Jaeger |
 | `prod,observability` | core + Prometheus + Grafana + Jaeger |
 
 > **core** = postgres, redis, mosquitto, kafka, backend, frontend
+>
+> สำหรับ `dev` profile (simulator) ดูที่ [docs/demo/README.md](docs/demo/README.md)
 
 ---
 
@@ -185,9 +168,9 @@ docker compose up -d
 | คำสั่ง (`make`) | คำสั่ง (`./run.sh`) | ผลลัพธ์ |
 |----------------|-------------------|---------|
 | `make up` | `./run.sh up` | Start stack ตาม `COMPOSE_PROFILES` ใน `.env` |
-| `make up-obs` | `./run.sh up-obs` | Start stack + เปิด Prometheus / Grafana / Jaeger (tracing อัตโนมัติ) |
+| `make up-obs` | `./run.sh up-obs` | Start stack + เปิด Prometheus / Grafana / Jaeger |
 | `make up-full` | `./run.sh up-full` | Start stack + monitoring + rebuild images ทั้งหมด |
-| `make build` | `./run.sh build` | Rebuild images แล้ว start (ไม่เปิด monitoring) |
+| `make build` | `./run.sh build` | Rebuild images แล้ว start |
 | `make down` | `./run.sh down` | หยุดทุก container |
 | `make down-v` | `./run.sh down-v` | หยุดทุก container + ลบ volumes ทั้งหมด (ข้อมูลหาย) |
 | `make logs` | `./run.sh logs` | Tail logs ทุก service |
@@ -230,14 +213,6 @@ docker compose up -d
 
    ```bash
    docker compose up -d --force-recreate <service>
-   ```
-
-   แทน `<service>` ด้วยชื่อ service ที่ต้องการ เช่น `backend`, `frontend`, `mosquitto` ฯลฯ
-
-   ตัวอย่าง:
-
-   ```bash
-   docker compose up -d --force-recreate backend
    ```
 
    Backend จะ seed admin/operator account อัตโนมัติเมื่อ startup หาก account ยังไม่มีอยู่
@@ -308,9 +283,11 @@ Telemetry rows support two payload generations: `schemaVersion=1` (fixed scalar 
 ### Alerts
 
 ```http
-GET /api/v1/alerts
+GET /api/v1/alerts?page=0&size=50
 GET /api/v1/alerts/unacknowledged
+GET /api/v1/alerts/device/{deviceId}
 PUT /api/v1/alerts/{id}/acknowledge    # ADMIN only
+PUT /api/v1/alerts/acknowledge-all     # ADMIN only
 ```
 
 ### WebSocket
@@ -467,80 +444,6 @@ The `traceId` and `spanId` are injected into MDC via Micrometer Tracing, so ever
 
 ---
 
-## Load Testing
-
-### Methodology
-
-**Script:** `load-testing/telemetry.js` (k6)  
-**Endpoint:** `GET /api/telemetry/{deviceId}/cache` — the Redis-backed hot read path used by the dashboard  
-**Hardware:** MacBook Pro M3, 16 GB RAM, Docker Compose (no resource limits set)  
-**Scenario:** `ramping-arrival-rate` — 10 → 1,000 req/s over 5 minutes, sustained at 1,000 req/s for 2 minutes  
-**Pass thresholds:** p95 < 200ms, p99 < 500ms, success rate > 95%
-
-> **Note:** k6 cannot drive MQTT traffic directly. This test measures the HTTP read path (Redis → Spring Boot → HTTP). MQTT ingestion throughput is exercised separately by the Node.js simulator — see [docs/demo/README.md](docs/demo/README.md).
-
-### Running the test
-
-```bash
-# Prerequisites: k6 (brew install k6), full stack running
-docker compose up -d
-k6 run load-testing/telemetry.js --env BASE_URL=http://localhost:8080
-# Results written to load-testing/results.json
-```
-
-### Representative results (MacBook Pro M3, 16 GB RAM)
-
-```text
-  http_reqs............: 180,432  (1,003 req/s peak, 601 req/s avg)
-  http_req_duration....: avg=48ms   p(95)=112ms   p(99)=187ms
-  success_rate.........: 99.7%
-  failed_requests......: 0.3%
-
-  Peak: 1,003 req/s → 60,180 read ops/min  (observed p95=112ms; SLO target: p95 < 200ms)
-```
-
-### Observed bottleneck
-
-HikariCP pool size defaults to 10. At 1,000 req/s, connection contention elevates p99. Increasing `spring.datasource.hikari.maximum-pool-size` to 20–30 extends the linear region before the DB connection pool becomes the limit.
-
----
-
-## Running Tests
-
-### Backend unit tests
-
-```bash
-cd backend
-mvn test -Dtest="*Test"
-```
-
-### Backend integration tests (requires Docker)
-
-```bash
-cd backend
-mvn verify -Dtest="*IntegrationTest"
-```
-
-All integration tests extend `BaseIntegrationTest`, which spins up Postgres, Redis, and Mosquitto via Testcontainers and wires connection properties via `@DynamicPropertySource`. No pre-existing local services required.
-
-### Frontend E2E (Cypress)
-
-```bash
-cd frontend
-npm install
-npm run test       # headless
-npx cypress open   # interactive
-```
-
-### Load test
-
-```bash
-# Install k6: brew install k6
-k6 run load-testing/telemetry.js --env BASE_URL=http://localhost:8080
-```
-
----
-
 ## Telemetry Retention
 
 Raw telemetry is retained for 30 days (configurable via `TELEMETRY_RETENTION_DAYS`). The retention cron runs at 02:30 daily in three phases:
@@ -592,12 +495,6 @@ bash scripts/gen-mqtt-certs.sh mqtt.yourdomain.com
 bash scripts/gen-mqtt-certs.sh mqtt.yourdomain.com --with-client-certs
 ```
 
-Use `localhost` as the hostname for local testing:
-
-```bash
-bash scripts/gen-mqtt-certs.sh localhost
-```
-
 Certificates are written to `mosquitto/certs/`:
 
 | File | Purpose |
@@ -608,8 +505,6 @@ Certificates are written to `mosquitto/certs/`:
 | `client-device.crt` / `.key` | Default device client cert (mTLS only) |
 
 ### Activate TLS
-
-Restart Mosquitto after generating certificates:
 
 ```bash
 docker compose restart mosquitto
@@ -669,15 +564,6 @@ LINE_NOTIFY_ENABLED=true
 
 ---
 
-## Demo / Simulator
-
-> สำหรับ development และ demo เท่านั้น — ดูรายละเอียดทั้งหมดได้ที่ [docs/demo/README.md](docs/demo/README.md)
-
-- **Node.js Simulator** — จำลอง IoT devices โดย publish MQTT telemetry ทุก 5 วินาที รันอัตโนมัติเมื่อ `COMPOSE_PROFILES=dev`
-- **Demo Data** — seed 500 devices + ~1,000,000 telemetry rows + ~120 alerts ลงฐานข้อมูล ด้วย `./scripts/seed-demo.sh`
-
----
-
 ## Deployment
 
 | Service    | Platform           | Notes                                   |
@@ -702,8 +588,6 @@ LINE_NOTIFY_ENABLED=true
 | KEDA | Kafka-lag-based horizontal pod autoscaling | Platform/Infra team |
 
 Lock all tool versions in `infra/terraform/versions.tf` and `infra/helm/sentinel-iot/Chart.yaml` before promoting to production.
-
----
 
 ---
 
@@ -802,12 +686,13 @@ sentinel-iot-platform/
 │           ├── AlertList.jsx               # All / Unacknowledged filter tabs
 │           ├── StatsBar.jsx                # 6 tiles including Buffered (replay queue size)
 │           └── DeviceManagement.jsx        # ADMIN-only lifecycle + firmware panel
-├── simulator/                  # Node.js MQTT publisher (dev/demo only — docs/demo/README.md)
+├── simulator/                  # Node.js MQTT publisher — สำหรับ dev/demo เท่านั้น (docs/demo/README.md)
 ├── monitoring/
 │   ├── prometheus.yml
 │   └── grafana/provisioning/   # Prometheus + Jaeger datasources + pre-built dashboard
 ├── mosquitto/                  # MQTT broker config
-├── load-testing/               # k6 scripts
+├── load-testing/               # k6 scripts — ดูวิธีรันได้ที่ docs/demo/README.md
+├── scripts/                    # seed-demo.sh, unseed-demo.sh, gen-mqtt-certs.sh
 ├── .github/workflows/ci.yml    # Checkstyle → unit tests → integration tests → Docker build
 └── docker-compose.yml          # Full stack (backend, postgres, redis, mosquitto, jaeger, grafana, prometheus)
 ```
@@ -853,6 +738,12 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 | Document | Contents |
 | --- | --- |
 | [Test Report](docs/test-reports/README.md) | Test execution summary — 225 tests across backend unit/integration/security/E2E and frontend |
+
+### Demo & Development (`docs/demo/`)
+
+| Document | Contents |
+| --- | --- |
+| [Demo Guide](docs/demo/README.md) | Node.js Simulator, Demo Data seeding, Running Tests, Load Testing |
 
 ---
 

@@ -135,3 +135,132 @@ docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/unseed-d
 > **Prometheus / Grafana:** historical telemetry data อยู่ใน PostgreSQL — Prometheus เก็บเฉพาะ real-time scrape samples. Grafana dashboards ที่ใช้ Postgres data source จะแสดง 30-day history ทันที ส่วน dashboards ที่ใช้ Prometheus metrics จะ populate ภายในไม่กี่นาทีหลัง live traffic เริ่ม
 >
 > **Jaeger:** traces บันทึกทุก HTTP request ขณะที่ observability profile รันอยู่ ให้เปิด dashboard หลัง seeding เพื่อสร้าง traces (`./run.sh up-obs` หรือ `make up-obs`)
+
+---
+
+## Development Quick Start
+
+สำหรับ local development ที่ต้องการ simulator รันพร้อมกับ stack ให้ตั้งค่า `COMPOSE_PROFILES=dev` ใน `.env`:
+
+```env
+INIT_ADMIN_PASSWORD=<your-admin-password>
+INIT_OPERATOR_PASSWORD=<your-operator-password>
+COMPOSE_PROFILES=dev
+```
+
+| `COMPOSE_PROFILES`      | Services ที่รัน                                      |
+|-------------------------|------------------------------------------------------|
+| `dev`                   | core + Node.js Simulator                             |
+| `dev,observability`     | core + Simulator + Prometheus + Grafana + Jaeger     |
+| `prod`                  | core เท่านั้น (ไม่มี simulator)                      |
+| `prod,observability`    | core + Prometheus + Grafana + Jaeger                 |
+
+> **core** = postgres, redis, mosquitto, kafka, backend, frontend
+
+```bash
+# Linux / macOS / Git Bash
+make up          # core + simulator (dev profile)
+make up-obs      # core + simulator + monitoring
+
+# Windows PowerShell
+docker compose up -d
+```
+
+---
+
+## Running Tests
+
+### Backend Unit Tests
+
+```bash
+cd backend
+mvn test
+```
+
+### Backend Integration Tests
+
+Integration tests ใช้ Testcontainers — Docker ต้องรันอยู่
+
+```bash
+cd backend
+mvn verify
+```
+
+Tests ครอบคลุม:
+
+- REST controller layer (Spring MVC MockMvc)
+- Database layer (real PostgreSQL via Testcontainers)
+- Redis cache (real Redis via Testcontainers)
+- MQTT ingestion pipeline (real Mosquitto via Testcontainers)
+- JWT auth + RBAC
+- Multi-tenant isolation (Row Level Security)
+
+### Frontend
+
+```bash
+cd frontend
+npm run lint      # ESLint
+npm run build     # Next.js production build (type-check included)
+```
+
+### Load Test
+
+ต้องมี k6 ติดตั้งและ stack รันอยู่:
+
+```bash
+k6 run load-testing/telemetry.js
+```
+
+หรือระบุ URL สำหรับ environment อื่น:
+
+```bash
+BASE_URL=http://staging.example.com k6 run load-testing/telemetry.js
+```
+
+---
+
+## Load Testing
+
+### Methodology
+
+Script อยู่ที่ [`load-testing/telemetry.js`](../../load-testing/telemetry.js)
+
+- **Endpoint ที่ทดสอบ:** `GET /api/v1/telemetry/{deviceId}/cache` — Redis-backed hot read path
+- **Executor:** `ramping-arrival-rate` — ควบคุม RPS โดยตรง ไม่ใช่จำนวน VU
+- **Ramp-up:**
+
+  | ช่วงเวลา | Target RPS |
+  |----------|------------|
+  | 0–30s    | 10 → 100   |
+  | 30–90s   | 100 → 500  |
+  | 90–150s  | 500 → 1,000|
+  | 150–270s | 1,000 (sustained) |
+  | 270–300s | 1,000 → 0  |
+
+### Pass Thresholds
+
+| Metric               | SLO Target |
+|----------------------|------------|
+| `http_req_duration`  | p95 < 200 ms, p99 < 500 ms |
+| `success_rate`       | > 95%      |
+| `http_req_failed`    | < 5%       |
+
+### Representative Results
+
+ทดสอบบน MacBook Pro M3, 16 GB RAM — Docker Compose (single node):
+
+| Metric           | Observed |
+|------------------|----------|
+| Total requests   | 180,432  |
+| Peak RPS         | ~1,000   |
+| p95 latency      | 112 ms   |
+| p99 latency      | 187 ms   |
+| Success rate     | 99.7%    |
+
+ผ่านทุก SLO threshold
+
+### Observed Bottleneck
+
+ที่ peak 1,000 RPS, bottleneck คือ **HikariCP connection pool** — connection wait time เพิ่มขึ้นก่อน CPU/memory จะถึง limit Redis cache read path ยังไม่ saturated ที่ scale นี้
+
+การปรับ: เพิ่ม `HIKARI_MAXIMUM_POOL_SIZE` (default 10) หรือ scale backend horizontally — Redis pub/sub fan-out รองรับ horizontal scaling อยู่แล้ว
