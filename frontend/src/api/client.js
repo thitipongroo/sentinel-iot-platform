@@ -46,7 +46,8 @@ api.interceptors.response.use(
     return res
   },
   err => {
-    if (err.response?.status === 401 && typeof window !== 'undefined') {
+    if (err.response?.status === 401 && typeof window !== 'undefined'
+        && err.config?.url !== '/auth/login') {
       clearAccessToken()
       window.location.href = '/login'
     }
@@ -88,9 +89,11 @@ export const telemetryApi = {
 }
 
 export const alertsApi = {
-  list:            ()    => api.get('/alerts'),
-  unacknowledged:  ()    => api.get('/alerts/unacknowledged'),
-  acknowledge:     (id)  => api.put(`/alerts/${id}/acknowledge`)
+  list:            (page = 0, size = 50) => api.get('/alerts', { params: { page, size } }),
+  unacknowledged:  ()                    => api.get('/alerts/unacknowledged'),
+  listByDevice:    (deviceId)            => api.get(`/alerts/device/${deviceId}`),
+  acknowledge:     (id)                  => api.put(`/alerts/${id}/acknowledge`),
+  acknowledgeAll:  ()                    => api.put('/alerts/acknowledge-all'),
 }
 
 export const usersApi = {

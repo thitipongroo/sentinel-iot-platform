@@ -1,7 +1,8 @@
 package com.sentinel.iot.config;
 
 import com.sentinel.iot.security.TenantContext;
-import lombok.RequiredArgsConstructor;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.hibernate.Session;
@@ -9,7 +10,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import jakarta.persistence.EntityManagerFactory;
 import java.sql.Statement;
 import java.util.UUID;
 
@@ -34,10 +34,10 @@ import java.util.UUID;
 @Aspect
 @Component
 @Order(1)
-@RequiredArgsConstructor
 public class TenantRlsAspect {
 
-    private final EntityManagerFactory entityManagerFactory;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Before("@within(org.springframework.transaction.annotation.Transactional) || " +
             "@annotation(org.springframework.transaction.annotation.Transactional)")
@@ -46,8 +46,7 @@ public class TenantRlsAspect {
         if (orgId == null || !TransactionSynchronizationManager.isActualTransactionActive()) {
             return;
         }
-        Session session = entityManagerFactory.unwrap(
-                org.hibernate.SessionFactory.class).getCurrentSession();
+        Session session = entityManager.unwrap(Session.class);
         String safeOrgId = orgId.toString();
         session.doWork(conn -> {
             try (Statement stmt = conn.createStatement()) {

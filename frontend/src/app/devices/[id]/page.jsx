@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import Link from 'next/link'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
@@ -52,16 +51,11 @@ export default function DeviceDetailPage({ params }) {
     enabled:  !!user && !!id,
   })
 
-  const { data: allAlerts = [] } = useQuery({
-    queryKey: qk.alerts(),
-    queryFn:  () => alertsApi.list().then(r => r.data),
-    enabled:  !!user,
+  const { data: deviceAlerts = [] } = useQuery({
+    queryKey: ['alerts', 'device', id],
+    queryFn:  () => alertsApi.listByDevice(id).then(r => r.data),
+    enabled:  !!user && !!id,
   })
-
-  const deviceAlerts = useMemo(
-    () => allAlerts.filter(a => a.deviceId === id),
-    [allAlerts, id]
-  )
 
   const relativeTime = (ts) => {
     if (!ts) return '—'

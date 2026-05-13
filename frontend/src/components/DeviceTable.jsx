@@ -112,18 +112,18 @@ export default function DeviceTable({ devices = [], selected, onSelect, lastMess
     <section className="card h-full flex flex-col" aria-label="Device list">
 
       {/* ── Filter bar ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2 mb-3" role="search" aria-label="Filter devices">
+      <div className="flex items-center gap-2 mb-3" role="search" aria-label="Filter devices">
         {/* Search */}
-        <div className="relative flex-1 min-w-[140px]">
+        <div className="relative flex items-center flex-1 min-w-0">
           <Search
             size={14}
-            className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500"
+            className="absolute left-2 text-gray-500 pointer-events-none"
             aria-hidden="true"
           />
           <input
             type="search"
             aria-label="Search by name, location, or firmware"
-            placeholder="Name, location, firmware…"
+            placeholder="Search…"
             value={filters.search}
             onChange={(e) => setFilter('search', e.target.value)}
             className="w-full pl-7 pr-3 py-1.5 text-sm bg-sentinel-900 border border-sentinel-700
@@ -157,7 +157,7 @@ export default function DeviceTable({ devices = [], selected, onSelect, lastMess
         {(filters.search || filters.status !== 'ALL' || filters.lifecycle !== 'ALL') && (
           <button
             onClick={() => useStore.getState().resetFilters()}
-            className="self-end text-xs text-gray-500 hover:text-white underline underline-offset-2 pb-1"
+            className="text-xs text-gray-500 hover:text-white underline underline-offset-2 whitespace-nowrap"
             aria-label="Clear all filters"
           >
             Clear
@@ -200,7 +200,7 @@ export default function DeviceTable({ devices = [], selected, onSelect, lastMess
       <div
         ref={parentRef}
         className="flex-1 overflow-y-auto"
-        style={{ minHeight: 200, maxHeight: 480 }}
+        style={{ minHeight: 200, maxHeight: 'calc(100vh - 23rem)' }}
       >
         {filtered.length === 0 ? (
           <p className="text-gray-500 text-sm text-center py-12">

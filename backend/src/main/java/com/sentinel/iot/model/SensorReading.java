@@ -1,5 +1,7 @@
 package com.sentinel.iot.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 /**
  * A single sensor measurement inside a Telemetry record's {@code readings} JSONB column.
  * Stored as a JSON object: {"value": 25.5, "unit": "°C", "quality": "GOOD"}
@@ -8,6 +10,9 @@ package com.sentinel.iot.model;
  * @param unit    engineering unit string (e.g. "°C", "ppm"); may be null for CUSTOM sensors
  * @param quality data quality flag per OPC-UA convention
  */
+// ignoreUnknown = true: isUsable() is serialized as "usable" by Jackson but is not a
+// constructor param, so deserialization (Hibernate deep-copy) would fail without this.
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record SensorReading(
         Double value,
         String unit,

@@ -11,6 +11,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -147,8 +152,20 @@ public class AlertService {
         return alertRepository.findByAcknowledgedFalseOrderByCreatedAtDesc();
     }
 
-    public List<Alert> getRecent() {
-        return alertRepository.findTop50ByOrderByCreatedAtDesc();
+    public List<Alert> getByDevice(UUID deviceId) {
+        return alertRepository.findByDeviceIdOrderByCreatedAtDesc(deviceId);
+    }
+
+    public Page<Alert> getPage(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        return alertRepository.findAllByOrderByCreatedAtDesc(pageable);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public int acknowledgeAll() {
+        int count = alertRepository.acknowledgeAll();
+        log.warn("Bulk acknowledge: {} alerts acknowledged", count);
+        return count;
     }
 
     @SuppressWarnings("null")

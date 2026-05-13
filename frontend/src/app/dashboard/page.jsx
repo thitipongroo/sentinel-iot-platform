@@ -28,11 +28,12 @@ export default function DashboardPage() {
     enabled:  !!user,
   })
 
-  const { data: alerts = [] } = useQuery({
+  const { data: alertPage } = useQuery({
     queryKey: qk.alerts(),
-    queryFn:  () => alertsApi.list().then(r => r.data),
+    queryFn:  () => alertsApi.list(0, 50).then(r => r.data),
     enabled:  !!user,
   })
+  const alerts = alertPage?.content ?? []
 
   const { data: stats = { lastMinute: 0, replayQueueSize: 0 } } = useQuery({
     queryKey: qk.stats(),
@@ -77,8 +78,9 @@ export default function DashboardPage() {
     onMutate: async (alertId) => {
       await qc.cancelQueries({ queryKey: qk.alerts() })
       const prev = qc.getQueryData(qk.alerts())
-      qc.setQueryData(qk.alerts(), (old = []) =>
-        old.map(a => a.id === alertId ? { ...a, acknowledged: true } : a)
+      qc.setQueryData(qk.alerts(), (old) => old
+        ? { ...old, content: old.content.map(a => a.id === alertId ? { ...a, acknowledged: true } : a) }
+        : old
       )
       return { prev }
     },
@@ -95,8 +97,8 @@ export default function DashboardPage() {
     <AppShell>
       <StatsBar devices={devices} alerts={alerts} stats={stats} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-        <div className="lg:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6" style={{ height: 'calc(100vh - 13rem)' }}>
+        <div className="lg:col-span-1 min-h-0">
           <ErrorBoundary label="Device list">
             <DeviceTable
               devices={devices}
@@ -107,18 +109,20 @@ export default function DashboardPage() {
           </ErrorBoundary>
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 flex flex-col gap-6 min-h-0">
           <ErrorBoundary label="Telemetry chart">
             <TelemetryChart data={telemetry} device={selectedDevice} />
           </ErrorBoundary>
 
-          <ErrorBoundary label="Alert list">
-            <AlertList
-              alerts={alerts}
-              onAcknowledge={(id) => acknowledgeMutation.mutate(id)}
-              userRole={user?.role}
-            />
-          </ErrorBoundary>
+          <div className="flex-1 min-h-0">
+            <ErrorBoundary label="Alert list">
+              <AlertList
+                alerts={alerts}
+                onAcknowledge={(id) => acknowledgeMutation.mutate(id)}
+                userRole={user?.role}
+              />
+            </ErrorBoundary>
+          </div>
 
           {isAdmin && selectedDevice && (
             <ErrorBoundary label="Device management">

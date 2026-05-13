@@ -14,10 +14,21 @@ export default function AlertsPage() {
 
   const [levelF,  setLevelF]  = useState('ALL')
   const [statusF, setStatusF] = useState('ALL')
+  const [page, setPage]       = useState(0)
+  const PAGE_SIZE = 50
 
-  const { data: alerts = [], isLoading } = useQuery({
-    queryKey: qk.alerts(),
-    queryFn:  () => alertsApi.list().then(r => r.data),
+  const { data: alertPage, isLoading } = useQuery({
+    queryKey: [...qk.alerts(), page],
+    queryFn:  () => alertsApi.list(page, PAGE_SIZE).then(r => r.data),
+    enabled:  !!user,
+  })
+  const alerts     = alertPage?.content  ?? []
+  const totalPages = alertPage?.totalPages ?? 1
+  const totalItems = alertPage?.totalElements ?? 0
+
+  const { data: unackedAlerts = [] } = useQuery({
+    queryKey: qk.alertsUnacked(),
+    queryFn:  () => alertsApi.unacknowledged().then(r => r.data),
     enabled:  !!user,
   })
 
@@ -42,10 +53,7 @@ export default function AlertsPage() {
   }, [alerts, levelF, statusF])
 
   const acknowledgeAll = useMutation({
-    mutationFn: () =>
-      Promise.all(
-        alerts.filter(a => !a.acknowledged).map(a => alertsApi.acknowledge(a.id))
-      ),
+    mutationFn: () => alertsApi.acknowledgeAll(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.alerts() })
       qc.invalidateQueries({ queryKey: qk.alertsUnacked() })
@@ -70,7 +78,9 @@ export default function AlertsPage() {
   })
 
   const isAdmin = user?.role === 'ADMIN'
-  const unacked = alerts.filter(a => !a.acknowledged).length
+  const unacked = unackedAlerts.length
+  const hasPrev = page > 0
+  const hasNext = page < totalPages - 1
 
   const relativeTime = (ts) => {
     if (!ts) return '—'
@@ -87,7 +97,7 @@ export default function AlertsPage() {
         <div>
           <h1 className="text-xl font-semibold text-white">Alerts</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {unacked > 0 ? `${unacked} unacknowledged` : 'All clear'}
+            {totalItems} total · {unacked > 0 ? `${unacked} unacknowledged` : 'all clear'}
           </p>
         </div>
         {isAdmin && unacked > 0 && (
@@ -110,14 +120,14 @@ export default function AlertsPage() {
           <select
             key={f.label}
             value={f.value}
-            onChange={e => f.set(e.target.value)}
+            onChange={e => { f.set(e.target.value); setPage(0) }}
             className="px-3 py-2 text-sm bg-sentinel-800 border border-sentinel-700 rounded-lg text-gray-300 focus:outline-none focus:border-sentinel-accent"
           >
             {f.opts.map(o => <option key={o}>{o}</option>)}
           </select>
         ))}
         {(levelF !== 'ALL' || statusF !== 'ALL') && (
-          <button onClick={() => { setLevelF('ALL'); setStatusF('ALL') }}
+          <button onClick={() => { setLevelF('ALL'); setStatusF('ALL'); setPage(0) }}
             className="text-xs text-gray-500 hover:text-gray-300 px-2">
             Clear
           </button>
@@ -172,10 +182,22 @@ export default function AlertsPage() {
               })}
             </ul>
           )}
-          {filtered.length > 0 && (
-            <p className="px-4 py-2 text-xs text-gray-600 border-t border-sentinel-700/50">
-              Showing {filtered.length} of {alerts.length} alerts
-            </p>
+          {totalPages > 1 && (
+            <div className="px-4 py-3 flex items-center justify-between border-t border-sentinel-700/50">
+              <span className="text-xs text-gray-600">
+                Page {page + 1} of {totalPages} · {totalItems} alerts total
+              </span>
+              <div className="flex gap-2">
+                <button onClick={() => setPage(p => p - 1)} disabled={!hasPrev}
+                  className="text-xs px-3 py-1 border border-sentinel-700 text-gray-400 rounded hover:bg-sentinel-700/50 transition disabled:opacity-30">
+                  ← Prev
+                </button>
+                <button onClick={() => setPage(p => p + 1)} disabled={!hasNext}
+                  className="text-xs px-3 py-1 border border-sentinel-700 text-gray-400 rounded hover:bg-sentinel-700/50 transition disabled:opacity-30">
+                  Next →
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </ErrorBoundary>

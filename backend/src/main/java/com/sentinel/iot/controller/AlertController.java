@@ -12,6 +12,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.data.domain.Page;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -25,15 +27,35 @@ public class AlertController {
     private final AuditService auditService;
 
     @GetMapping
-    @Operation(summary = "Get the 50 most recent alerts")
-    public ResponseEntity<List<Alert>> getRecent() {
-        return ResponseEntity.ok(alertService.getRecent());
+    @Operation(summary = "Get paginated alerts ordered by most recent")
+    public ResponseEntity<Page<Alert>> getAlerts(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ResponseEntity.ok(alertService.getPage(page, size));
     }
 
     @GetMapping("/unacknowledged")
     @Operation(summary = "Get all unacknowledged alerts")
     public ResponseEntity<List<Alert>> getUnacknowledged() {
         return ResponseEntity.ok(alertService.getUnacknowledged());
+    }
+
+    @GetMapping("/device/{deviceId}")
+    @Operation(summary = "Get all alerts for a specific device")
+    public ResponseEntity<List<Alert>> getByDevice(@PathVariable UUID deviceId) {
+        return ResponseEntity.ok(alertService.getByDevice(deviceId));
+    }
+
+    @PutMapping("/acknowledge-all")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Acknowledge all unacknowledged alerts (ADMIN only)")
+    public ResponseEntity<Void> acknowledgeAll(Authentication authentication,
+                                               HttpServletRequest request) {
+        int count = alertService.acknowledgeAll();
+        String ip = resolveIp(request);
+        auditService.log(authentication.getName(), "ACKNOWLEDGE_ALL_ALERTS",
+                "/api/alerts/acknowledge-all", "count=" + count, ip);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/acknowledge")
