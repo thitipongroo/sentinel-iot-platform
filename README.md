@@ -866,4 +866,4 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 
 ## License
 
-MIT © 2024 — Built as a flagship portfolio project demonstrating production IoT architecture.
+MIT © 2026 — Project demonstrating production IoT architecture.
