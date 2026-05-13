@@ -8,12 +8,23 @@
 
 ```text
 docs/
+├── demo/            # Node.js Simulator & Demo Data (dev/demo only)
 ├── system-design/   # System design & architecture documents
 ├── test-reports/    # Test execution reports
 ├── runbooks/        # Operational runbooks & incident response
 ├── screenshots/     # Architecture diagrams & visual assets
 └── test-plans/      # Test plans (unit, integration, e2e, security, performance)
 ```
+
+---
+
+## demo/
+
+คู่มือสำหรับ development และ demo — ไม่เกี่ยวข้องกับ production
+
+| ไฟล์ | คำอธิบาย |
+|------|----------|
+| [README.md](demo/README.md) | Node.js Simulator (MQTT publisher) + Demo Data seeding |
 
 ---
 

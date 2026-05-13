@@ -50,8 +50,6 @@
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **หมายเหตุ — Node.js Simulator:** ใช้สำหรับ development และ demo เท่านั้น เพื่อจำลอง IoT Devices โดย publish MQTT telemetry ในรูปแบบเดียวกับอุปกรณ์จริง ใน production ให้ลบ `simulator` service ออกจาก `docker-compose.yml` และแทนด้วย firmware ของอุปกรณ์จริง
-
 ### Data Flow — Normal Path
 
 <!-- 
@@ -135,7 +133,7 @@ Invalid MQTT payload / unknown device:
 - Docker + Docker Compose v2
 - (Optional) JDK 21 and Node 20 for local dev
 
-### 1. Clone และตั้งค่า `.env`
+### Clone และตั้งค่า `.env`
 
 ```bash
 git clone https://github.com/your-github-username/sentinel-iot-platform.git
@@ -146,45 +144,19 @@ cp .env.template .env
 เปิด `.env` และกำหนดค่า:
 
 ```env
-JWT_SECRET=<openssl rand -base64 48>
 INIT_ADMIN_PASSWORD=<your-admin-password>
 INIT_OPERATOR_PASSWORD=<your-operator-password>
 COMPOSE_PROFILES=dev       # development (รัน simulator)
-# COMPOSE_PROFILES=prod    # production  (ไม่รัน simulator)
+# COMPOSE_PROFILES=prod    # production
 ```
 
 ---
-
-### 2. Development
-
-Simulator จะรันอัตโนมัติเพื่อส่งข้อมูล telemetry จำลอง
-
-```bash
-# Linux / macOS / Git Bash
-make up          # core + simulator
-make up-obs      # core + simulator + Prometheus / Grafana / Jaeger
-
-# Windows PowerShell
-docker compose up -d
-```
-
----
-
-### 3. Production
-
-Simulator จะไม่รัน อุปกรณ์จริงต้อง publish MQTT เข้ามาเอง
-
-ใน `.env` ตั้งค่า:
-
-```env
-COMPOSE_PROFILES=prod
-```
 
 จากนั้น:
 
 ```bash
-# Linux / macOS / Git Bash
-make up          # core stack เท่านั้น (ไม่มี simulator)
+# Linux / macOS / Git Bash (Windows ไม่ได้ติดตั้ง Make)
+make up          # core 
 make up-obs      # core + Prometheus / Grafana / Jaeger
 
 # Windows PowerShell
@@ -505,7 +477,7 @@ The `traceId` and `spanId` are injected into MDC via Micrometer Tracing, so ever
 **Scenario:** `ramping-arrival-rate` — 10 → 1,000 req/s over 5 minutes, sustained at 1,000 req/s for 2 minutes  
 **Pass thresholds:** p95 < 200ms, p99 < 500ms, success rate > 95%
 
-> **Note:** k6 cannot drive MQTT traffic directly. This test measures the HTTP read path (Redis → Spring Boot → HTTP). MQTT ingestion throughput is exercised separately by the Node.js simulator (`simulator/`), which publishes at a configurable interval across N devices.
+> **Note:** k6 cannot drive MQTT traffic directly. This test measures the HTTP read path (Redis → Spring Boot → HTTP). MQTT ingestion throughput is exercised separately by the Node.js simulator — see [docs/demo/README.md](docs/demo/README.md).
 
 ### Running the test
 
@@ -697,90 +669,12 @@ LINE_NOTIFY_ENABLED=true
 
 ---
 
-## Device Simulator
+## Demo / Simulator
 
-The Node.js simulator publishes 4-sensor telemetry every 5 seconds per device with randomised spikes:
+> สำหรับ development และ demo เท่านั้น — ดูรายละเอียดทั้งหมดได้ที่ [docs/demo/README.md](docs/demo/README.md)
 
-| Sensor        | Normal range | Spike condition        | Rate |
-|---------------|--------------|------------------------|------|
-| `temperature` | 60–78 °C     | 81–95 °C (CRITICAL)    | 5%   |
-| `humidity`    | 35–85 %      | —                      | —    |
-| `motion`      | false        | true (detected)        | 20%  |
-| `smokePpm`    | 5–50 ppm     | 201–350 ppm (CRITICAL) | 3%   |
-
-```bash
-cd simulator
-npm install
-MQTT_BROKER=mqtt://localhost:1883 DEVICES=sensor-1,sensor-2 node index.js
-```
-
----
-
-## Demo Data
-
-Seed 500 devices + 7 days of historical telemetry + sample alerts into the database so the Dashboard, Prometheus, Grafana, and Jaeger UIs all have meaningful data to display from the moment the stack starts.
-
-### What gets seeded
-
-500 devices spread across 100 buildings (5 sensor types per building):
-
-| Profile | Count | Location | Temperature range |
-|---------|-------|----------|-------------------|
-| Assembly Line | 100 | Building N — Assembly Line | 60–82 °C |
-| Cold Storage | 100 | Building N — Cold Storage | 15–25 °C, high humidity |
-| Engine Room | 100 | Building N — Engine Room | 70–92 °C (most alerts) |
-| Server Room | 100 | Building N — Server Room | 18–28 °C, stable |
-| Packaging Area | 100 | Building N — Packaging Area | 22–35 °C, high motion |
-
-- **~1 000 000 telemetry rows** — 5-minute intervals × 7 days × 490 active devices
-- **Hourly aggregates** pre-computed for fast historical charts
-- **~120 sample alerts** — engine-room critical temp, smoke spikes, humidity, 10 offline-device alerts
-- **sensor-1 / sensor-2 / sensor-3** match the MQTT simulator device IDs — live readings merge into the historical timeline automatically
-- Devices 491–500 are `OFFLINE` (demo of device-down state)
-
-### Run the seed
-
-**Git Bash / Linux / macOS:**
-
-```bash
-./scripts/seed-demo.sh
-```
-
-**Windows PowerShell:**
-
-```powershell
-docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/seed-demo.sql
-```
-
-> Safe to re-run — automatically removes existing seed devices before inserting fresh data.
-
-### Remove demo data
-
-**Git Bash / Linux / macOS:**
-
-```bash
-./scripts/unseed-demo.sh
-```
-
-**Windows PowerShell:**
-
-```powershell
-docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/unseed-demo.sql
-```
-
-### What to check after seeding
-
-| Service | URL | What you see |
-|---------|-----|--------------|
-| Dashboard | [localhost:3000](http://localhost:3000) | Live + 30-day charts per device, active alerts |
-| Swagger UI | [localhost:8080/swagger](http://localhost:8080/swagger) | Test API endpoints interactively |
-| Prometheus | [localhost:9090](http://localhost:9090) | `sentinel_*` custom metrics (scrapes every 15 s) |
-| Grafana | [localhost:3001](http://localhost:3001) | Pre-built dashboards populated with real data |
-| Jaeger | [localhost:16686](http://localhost:16686) | Traces generated by every API call |
-
-> **Prometheus / Grafana:** historical telemetry data lives in PostgreSQL; Prometheus only stores real-time scrape samples. The Grafana dashboards that visualise PostgreSQL data (via the Postgres data source) show the full 30-day history immediately. Dashboards backed by Prometheus metrics populate within a few minutes of live traffic.
->
-> **Jaeger:** traces are recorded for every HTTP request to the backend while the observability profile is running. Navigate the dashboard after seeding to generate a few traces (`./run.sh up-obs` or `make up-obs` enables the observability profile).
+- **Node.js Simulator** — จำลอง IoT devices โดย publish MQTT telemetry ทุก 5 วินาที รันอัตโนมัติเมื่อ `COMPOSE_PROFILES=dev`
+- **Demo Data** — seed 500 devices + ~1,000,000 telemetry rows + ~120 alerts ลงฐานข้อมูล ด้วย `./scripts/seed-demo.sh`
 
 ---
 
@@ -908,7 +802,7 @@ sentinel-iot-platform/
 │           ├── AlertList.jsx               # All / Unacknowledged filter tabs
 │           ├── StatsBar.jsx                # 6 tiles including Buffered (replay queue size)
 │           └── DeviceManagement.jsx        # ADMIN-only lifecycle + firmware panel
-├── simulator/                  # Node.js MQTT publisher
+├── simulator/                  # Node.js MQTT publisher (dev/demo only — docs/demo/README.md)
 ├── monitoring/
 │   ├── prometheus.yml
 │   └── grafana/provisioning/   # Prometheus + Jaeger datasources + pre-built dashboard
