@@ -26,6 +26,7 @@ public class SlackNotificationProvider implements NotificationProvider {
             headers.setContentType(MediaType.APPLICATION_JSON);
             String body = "{\"text\": \"" + escapeJson(message) + "\"}";
             HttpEntity<String> entity = new HttpEntity<>(body, headers);
+            @SuppressWarnings("null")
             ResponseEntity<String> resp = restTemplate.postForEntity(webhookUrl, entity, String.class);
             log.info("Slack notification sent. status={}", resp.getStatusCode());
         } catch (Exception e) {

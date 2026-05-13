@@ -95,6 +95,7 @@ class RateLimitRegressionTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     private MockHttpServletResponse invoke(String path, String remoteAddr) throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest("GET", path);
         req.setRemoteAddr(remoteAddr);

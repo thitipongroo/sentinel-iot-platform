@@ -67,6 +67,7 @@ public class KafkaTelemetryConsumer {
                 .register(meterRegistry);
     }
 
+    @SuppressWarnings("null")
     @KafkaListener(
             topics            = "${kafka.topics.telemetry-raw:telemetry.raw}",
             containerFactory  = "batchKafkaListenerContainerFactory",

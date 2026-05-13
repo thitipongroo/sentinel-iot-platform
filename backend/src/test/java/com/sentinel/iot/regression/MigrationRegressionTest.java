@@ -39,6 +39,7 @@ class MigrationRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.6.2 — Seed users (admin + operator) survive all migrations
+    @SuppressWarnings("null")
     @Test
     void seedUsers_surviveAllMigrations() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")

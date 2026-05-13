@@ -107,6 +107,7 @@ class RateLimitSecurityTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     private MockHttpServletResponse invoke(String path, String remoteAddr) throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest("POST", path);
         req.setRemoteAddr(remoteAddr);

@@ -60,14 +60,17 @@ public class RedisService {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     public void setDeviceStatus(String deviceId, String status) {
         redis.opsForValue().set(statusKey(deviceId), status, TTL);
     }
 
+    @SuppressWarnings("null")
     public String getDeviceStatus(String deviceId) {
         return redis.opsForValue().get(statusKey(deviceId));
     }
 
+    @SuppressWarnings("null")
     public void setLatestTelemetry(String deviceId, double temperature, double humidity,
                                    Boolean motion, Double smokePpm) {
         Map<String, String> fields = new HashMap<>();
@@ -81,12 +84,14 @@ public class RedisService {
         redis.expire(key, TTL);
     }
 
+    @SuppressWarnings("null")
     public Map<Object, Object> getLatestTelemetry(String deviceId) {
         return redis.opsForHash().entries(telemetryKey(deviceId));
     }
 
     // ── Replay queue (offline buffering) ─────────────────────────────────────
 
+    @SuppressWarnings("null")
     public void pushToReplayQueue(String serializedMessage) {
         Long size = redis.opsForList().size(REPLAY_QUEUE_KEY);
         if (size == null || size < maxQueueSize) {

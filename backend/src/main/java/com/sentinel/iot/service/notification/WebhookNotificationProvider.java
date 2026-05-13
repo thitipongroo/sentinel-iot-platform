@@ -47,6 +47,7 @@ public class WebhookNotificationProvider implements NotificationProvider {
             }
 
             HttpEntity<String> entity = new HttpEntity<>(body, headers);
+            @SuppressWarnings("null")
             ResponseEntity<String> resp = restTemplate.postForEntity(webhookUrl, entity, String.class);
             log.info("Webhook notification sent. status={}", resp.getStatusCode());
         } catch (Exception e) {

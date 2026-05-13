@@ -39,6 +39,7 @@ class MqttConsumerServiceTest {
         verify(mqttDlqChannel, never()).send(any(), anyLong());
     }
 
+    @SuppressWarnings("null")
     @Test
     void handleMessage_withMalformedJson_routesToDlq() {
         service.handleMessage(message("not-valid-json{{{"));
@@ -48,6 +49,7 @@ class MqttConsumerServiceTest {
         verify(kafkaProducer, never()).publish(any(), any());
     }
 
+    @SuppressWarnings("null")
     @Test
     void handleMessage_withMissingTemperature_routesToDlq() {
         String payload = "{\"deviceId\":\"sensor-1\",\"humidity\":60.0}";
@@ -58,6 +60,7 @@ class MqttConsumerServiceTest {
                 "VALIDATION_ERROR".equals(m.getHeaders().get("dlq-error-code"))), anyLong());
     }
 
+    @SuppressWarnings("null")
     @Test
     void handleMessage_withTemperatureOutOfRange_routesToDlq() {
         String payload = "{\"deviceId\":\"sensor-1\",\"temperature\":999.0,\"humidity\":60.0}";
@@ -68,6 +71,7 @@ class MqttConsumerServiceTest {
                 "VALIDATION_ERROR".equals(m.getHeaders().get("dlq-error-code"))), anyLong());
     }
 
+    @SuppressWarnings("null")
     @Test
     void handleMessage_withNegativeHumidity_routesToDlq() {
         String payload = "{\"deviceId\":\"sensor-1\",\"temperature\":45.0,\"humidity\":-5.0}";
@@ -78,6 +82,7 @@ class MqttConsumerServiceTest {
                 "VALIDATION_ERROR".equals(m.getHeaders().get("dlq-error-code"))), anyLong());
     }
 
+    @SuppressWarnings("null")
     @Test
     void handleMessage_withMissingDeviceId_routesToDlq() {
         String payload = "{\"temperature\":45.0,\"humidity\":60.0}";
@@ -88,6 +93,7 @@ class MqttConsumerServiceTest {
                 "VALIDATION_ERROR".equals(m.getHeaders().get("dlq-error-code"))), anyLong());
     }
 
+    @SuppressWarnings("null")
     private Message<String> message(String payload) {
         return MessageBuilder.withPayload(payload).build();
     }

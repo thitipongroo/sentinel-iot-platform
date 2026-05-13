@@ -38,6 +38,7 @@ class AuthRegressionTest extends BaseIntegrationTest {
     // 3.3.2 — Refresh token rotation: new token issued, old token becomes invalid
     @Test
     void refreshTokenRotation_oldTokenIsRevoked() throws Exception {
+        @SuppressWarnings("null")
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(authRequest("operator", "op123"))))
@@ -60,6 +61,7 @@ class AuthRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.3.3 — Set-Cookie header retains HttpOnly, Secure, SameSite=Strict flags
+    @SuppressWarnings("null")
     @Test
     void loginResponse_cookieFlagsUnchanged() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
@@ -96,6 +98,7 @@ class AuthRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.3.5 — Login response body must NOT contain refreshToken field
+    @SuppressWarnings("null")
     @Test
     void loginResponseBody_hasNoRefreshTokenField() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
@@ -124,6 +127,7 @@ class AuthRegressionTest extends BaseIntegrationTest {
         return loginBody(username, password).get("accessToken").asText();
     }
 
+    @SuppressWarnings("null")
     private JsonNode loginBody(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

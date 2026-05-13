@@ -43,6 +43,7 @@ public class UserService {
         return new UserResponse(saved.getId(), saved.getUsername(), saved.getRole());
     }
 
+    @SuppressWarnings("null")
     public void delete(String username, UUID orgId) {
         AppUser user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));

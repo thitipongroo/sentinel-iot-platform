@@ -118,6 +118,7 @@ public class DeviceEnrollmentService {
         tokenRepository.save(token);
 
         // Transition device to ACTIVE
+        @SuppressWarnings("null")
         Device device = deviceRepository.findById(token.getDeviceId())
                 .orElseThrow(() -> new IllegalStateException("Device not found during enrollment"));
         device.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);

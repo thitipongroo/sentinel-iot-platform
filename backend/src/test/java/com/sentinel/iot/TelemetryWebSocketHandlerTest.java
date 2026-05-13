@@ -26,6 +26,7 @@ class TelemetryWebSocketHandlerTest {
         handler = new TelemetryWebSocketHandler();
     }
 
+    @SuppressWarnings("null")
     @Test
     void afterConnectionEstablished_tracksSession() throws Exception {
         WebSocketSession session = openSession("s1");
@@ -36,6 +37,7 @@ class TelemetryWebSocketHandlerTest {
         verify(session).sendMessage(any(TextMessage.class));
     }
 
+    @SuppressWarnings("null")
     @Test
     void afterConnectionClosed_removesSession() throws Exception {
         WebSocketSession session = openSession("s1");
@@ -47,6 +49,7 @@ class TelemetryWebSocketHandlerTest {
         verify(session, never()).sendMessage(any());
     }
 
+    @SuppressWarnings("null")
     @Test
     void broadcast_sendsToAllOpenSessions() throws Exception {
         WebSocketSession s1 = openSession("s1");
@@ -63,6 +66,7 @@ class TelemetryWebSocketHandlerTest {
         verify(s3).sendMessage(any(TextMessage.class));
     }
 
+    @SuppressWarnings("null")
     @Test
     void broadcast_skipsClosedSessions() throws Exception {
         WebSocketSession open   = openSession("open");
@@ -76,6 +80,7 @@ class TelemetryWebSocketHandlerTest {
         verify(closed, never()).sendMessage(any());
     }
 
+    @SuppressWarnings("null")
     @Test
     void broadcast_continuesWhenOneSendFails() throws Exception {
         WebSocketSession good = openSession("good");

@@ -89,7 +89,8 @@ class RefreshTokenSecurityTest extends BaseIntegrationTest {
 
     // ── 2.4 Refresh token not exposed in login response body ─────────────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void refreshTokenNotExposedInResponseBody() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,7 +111,8 @@ class RefreshTokenSecurityTest extends BaseIntegrationTest {
 
     // ── 2.5 Refresh cookie carries HttpOnly, Secure, SameSite=Strict ─────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void refreshCookieHasSecurityAttributes() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -169,7 +171,8 @@ class RefreshTokenSecurityTest extends BaseIntegrationTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private Cookie loginAndGetRefreshCookie(String username, String password) throws Exception {
+    @SuppressWarnings("null")
+private Cookie loginAndGetRefreshCookie(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(authRequest(username, password))))
@@ -180,7 +183,8 @@ class RefreshTokenSecurityTest extends BaseIntegrationTest {
         return cookie;
     }
 
-    private String loginAndGetToken(String username, String password) throws Exception {
+    @SuppressWarnings("null")
+private String loginAndGetToken(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(authRequest(username, password))))

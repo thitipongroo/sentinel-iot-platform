@@ -146,6 +146,7 @@ public class SchemaCompatibilityService implements ApplicationRunner {
         return new HttpEntity<>(body, headers);
     }
 
+    @SuppressWarnings("null")
     private String loadResource(String location) throws IOException {
         Resource resource = resourceLoader.getResource(location);
         return resource.getContentAsString(StandardCharsets.UTF_8);

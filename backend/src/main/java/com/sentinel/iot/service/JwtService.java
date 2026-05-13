@@ -78,6 +78,7 @@ public class JwtService {
     // Stores the token's JTI in Redis with TTL equal to the token's remaining lifetime.
     // JwtAuthFilter checks this blocklist on every authenticated request.
     // This closes the 15-minute window where a stolen or logged-out token stays valid.
+    @SuppressWarnings("null")
     public void revokeAccessToken(String token) {
         try {
             Claims claims = parseClaims(token);

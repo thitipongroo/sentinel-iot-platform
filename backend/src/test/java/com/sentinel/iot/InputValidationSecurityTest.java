@@ -29,7 +29,8 @@ class InputValidationSecurityTest extends BaseIntegrationTest {
 
     // ── 6.1 Non-semver firmware version is rejected ──────────────────────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void nonSemverFirmwareVersion_isRejected() throws Exception {
         String adminToken = loginAndGetToken("admin", "admin123");
         String deviceId = createDevice(adminToken, "valid-fw-device-" + System.nanoTime());
@@ -43,7 +44,8 @@ class InputValidationSecurityTest extends BaseIntegrationTest {
 
     // ── 6.2 Empty device name is rejected ────────────────────────────────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void emptyDeviceName_isRejected() throws Exception {
         String adminToken = loginAndGetToken("admin", "admin123");
 
@@ -62,6 +64,7 @@ class InputValidationSecurityTest extends BaseIntegrationTest {
         String sqlPayload = "'; DROP TABLE devices; --";
 
         // JPA uses parameterized queries — the payload is stored verbatim, not executed
+        @SuppressWarnings("null")
         MvcResult created = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -89,6 +92,7 @@ class InputValidationSecurityTest extends BaseIntegrationTest {
         String adminToken = loginAndGetToken("admin", "admin123");
         String xssPayload = "<script>alert(1)</script>";
 
+        @SuppressWarnings("null")
         MvcResult created = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -111,7 +115,8 @@ class InputValidationSecurityTest extends BaseIntegrationTest {
 
     // ── 6.5 Invalid lifecycle enum value is rejected ─────────────────────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void invalidLifecycleEnum_isRejected() throws Exception {
         String adminToken = loginAndGetToken("admin", "admin123");
         String deviceId = createDevice(adminToken, "enum-test-device-" + System.nanoTime());
@@ -125,7 +130,8 @@ class InputValidationSecurityTest extends BaseIntegrationTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private String loginAndGetToken(String username, String password) throws Exception {
+    @SuppressWarnings("null")
+private String loginAndGetToken(String username, String password) throws Exception {
         AuthRequest req = new AuthRequest();
         req.setUsername(username);
         req.setPassword(password);
@@ -140,7 +146,8 @@ class InputValidationSecurityTest extends BaseIntegrationTest {
                 .get("accessToken").asText();
     }
 
-    private String createDevice(String token, String name) throws Exception {
+    @SuppressWarnings("null")
+private String createDevice(String token, String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)

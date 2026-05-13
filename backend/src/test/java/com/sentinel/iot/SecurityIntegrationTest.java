@@ -37,6 +37,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
 
     // ── Authentication ────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     @Test
     void login_producesJwtWithCorrectRole() throws Exception {
         AuthRequest req = new AuthRequest();
@@ -71,6 +72,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
 
     // ── Role-based access ─────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     @Test
     @WithMockUser(roles = "ADMIN")
     void adminCanCreateDevice() throws Exception {
@@ -83,6 +85,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
                 .andExpect(status().isCreated());
     }
 
+    @SuppressWarnings("null")
     @Test
     @WithMockUser(roles = "OPERATOR")
     void operatorCannotCreateDevice() throws Exception {
@@ -140,6 +143,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
 
     // ── helper ────────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     private String loginAndGetToken(String username, String password) throws Exception {
         AuthRequest req = new AuthRequest();
         req.setUsername(username);

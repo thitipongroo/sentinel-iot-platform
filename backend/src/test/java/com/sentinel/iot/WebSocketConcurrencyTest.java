@@ -75,6 +75,7 @@ class WebSocketConcurrencyTest extends BaseIntegrationTest {
                 .isZero();
     }
 
+    @SuppressWarnings("null")
     @Test
     void closedSessions_removedDuringBroadcast() throws Exception {
         String orgId = UUID.randomUUID().toString();
@@ -97,6 +98,7 @@ class WebSocketConcurrencyTest extends BaseIntegrationTest {
         verify(closed, never()).sendMessage(any());
     }
 
+    @SuppressWarnings("null")
     @Test
     void disconnectedSession_notBroadcastedAfterClose() throws Exception {
         String orgId = UUID.randomUUID().toString();

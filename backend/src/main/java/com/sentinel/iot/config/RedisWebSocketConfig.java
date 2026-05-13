@@ -31,6 +31,7 @@ public class RedisWebSocketConfig {
     @Value("${ws.broadcast.channel:ws:telemetry}")
     private String broadcastChannel;
 
+    @SuppressWarnings("null")
     @Bean
     public RedisMessageListenerContainer webSocketBroadcastListenerContainer(
             RedisConnectionFactory connectionFactory,

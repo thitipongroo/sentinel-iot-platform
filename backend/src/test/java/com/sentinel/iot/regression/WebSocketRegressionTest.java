@@ -33,6 +33,7 @@ class WebSocketRegressionTest extends BaseIntegrationTest {
     @Autowired UserDetailsServiceImpl userDetailsService;
 
     // 3.8.1 — Valid token → beforeHandshake returns true and sets orgId attribute
+    @SuppressWarnings("null")
     @Test
     void validToken_handshakeAccepted_orgIdSetInAttributes() throws Exception {
         String token = jwtService.generateAccessToken("admin", "ADMIN", UUID.randomUUID());
@@ -81,6 +82,7 @@ class WebSocketRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.8.4 — broadcastLocal does not deliver messages to sessions of a different org
+    @SuppressWarnings("null")
     @Test
     void broadcastLocal_doesNotDeliverCrossOrgMessages() throws Exception {
         UUID orgA = UUID.randomUUID();
@@ -105,6 +107,7 @@ class WebSocketRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.8.5 — Closed session is removed from the session set after afterConnectionClosed
+    @SuppressWarnings("null")
     @Test
     void closedSession_isRemovedFromSessionSet_noBroadcastAfterClose() throws Exception {
         UUID orgId = UUID.randomUUID();

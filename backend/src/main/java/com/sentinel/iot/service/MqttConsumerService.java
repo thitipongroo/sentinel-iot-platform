@@ -176,6 +176,7 @@ public class MqttConsumerService {
     private void sendToDlq(String rawPayload, String errorCode, String errorDetail) {
         try {
             dlqCounter.increment();
+            @SuppressWarnings("null")
             Message<String> dlqMessage = MessageBuilder
                     .withPayload(rawPayload)
                     .setHeader("dlq-error-code", errorCode)

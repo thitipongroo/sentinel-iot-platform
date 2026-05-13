@@ -24,6 +24,7 @@ public class LineNotifyProvider implements NotificationProvider {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    @SuppressWarnings("null")
     @Override
     public void send(String message) {
         if (!isEnabled()) return;

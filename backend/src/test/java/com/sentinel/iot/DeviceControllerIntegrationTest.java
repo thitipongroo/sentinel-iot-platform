@@ -33,6 +33,7 @@ class DeviceControllerIntegrationTest extends BaseIntegrationTest {
         TenantContext.clear();
     }
 
+    @SuppressWarnings("null")
     @Test
     @WithMockUser(roles = "ADMIN")
     void shouldCreateAndFetchDevice() throws Exception {
@@ -51,6 +52,7 @@ class DeviceControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$[?(@.name == 'integration-sensor')]").exists());
     }
 
+    @SuppressWarnings("null")
     @Test
     @WithMockUser(roles = "OPERATOR")
     void operatorCannotCreateDevice() throws Exception {

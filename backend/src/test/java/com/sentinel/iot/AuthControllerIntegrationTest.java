@@ -20,6 +20,7 @@ class AuthControllerIntegrationTest extends BaseIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
 
+    @SuppressWarnings("null")
     @Test
     void login_withValidCredentials_returnsAccessAndRefreshTokens() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
@@ -35,6 +36,7 @@ class AuthControllerIntegrationTest extends BaseIntegrationTest {
         assertThat(result.getResponse().getCookie(REFRESH_COOKIE).getValue()).isNotBlank();
     }
 
+    @SuppressWarnings("null")
     @Test
     void login_withInvalidCredentials_returns401() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
@@ -46,6 +48,7 @@ class AuthControllerIntegrationTest extends BaseIntegrationTest {
     @Test
     void refreshToken_withValidToken_returnsNewTokens() throws Exception {
         // Step 1: login to get the refresh cookie
+        @SuppressWarnings("null")
         MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(authRequest("operator", "op123"))))

@@ -35,6 +35,7 @@ class DeviceServiceTest {
         request.setLocation("Factory A");
     }
 
+    @SuppressWarnings("null")
     @Test
     void create_shouldSaveAndReturnDevice() {
         when(deviceRepository.existsByName("sensor-1")).thenReturn(false);

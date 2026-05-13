@@ -29,11 +29,12 @@ public class ApiVersionFilter extends OncePerRequestFilter {
     private static final String SUNSET_DATE     = "Sat, 01 Jan 2027 00:00:00 GMT";
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
+    protected boolean shouldNotFilter(@SuppressWarnings("null") HttpServletRequest request) {
         String path = request.getRequestURI();
         return !path.startsWith("/api/");
     }
 
+    @SuppressWarnings("null")
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,

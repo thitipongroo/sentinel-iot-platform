@@ -117,6 +117,7 @@ public class AuthController {
     }
 
     private void setRefreshCookie(HttpServletResponse response, String rawToken) {
+        @SuppressWarnings("null")
         ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, rawToken)
                 .httpOnly(true)
                 .secure(true)

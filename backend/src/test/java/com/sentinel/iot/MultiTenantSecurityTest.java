@@ -153,7 +153,8 @@ class MultiTenantSecurityTest extends BaseIntegrationTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private String loginAndGetToken(String username, String password) throws Exception {
+    @SuppressWarnings("null")
+private String loginAndGetToken(String username, String password) throws Exception {
         AuthRequest req = new AuthRequest();
         req.setUsername(username);
         req.setPassword(password);
@@ -168,7 +169,8 @@ class MultiTenantSecurityTest extends BaseIntegrationTest {
                 .get("accessToken").asText();
     }
 
-    private String createDevice(String token, String name) throws Exception {
+    @SuppressWarnings("null")
+private String createDevice(String token, String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)

@@ -31,6 +31,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
 
     // ── 3.1 API Contract ──────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     @Test
     void loginResponseSchema_hasRequiredFieldsAndNoRefreshTokenInBody() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
@@ -140,6 +141,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
         assertThat(error.has("stackTrace")).isFalse();
     }
 
+    @SuppressWarnings("null")
     @Test
     void errorResponseSchema_400_hasProblemDetailFormat() throws Exception {
         String token = loginAndGetToken("admin", "admin123");
@@ -170,6 +172,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
 
     // ── 3.2 HTTP Status Code Regression ──────────────────────────────────────
 
+    @SuppressWarnings("null")
     @Test
     void validLogin_returns200() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
@@ -178,6 +181,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    @SuppressWarnings("null")
     @Test
     void invalidLogin_returns401() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
@@ -186,6 +190,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @SuppressWarnings("null")
     @Test
     void createDevice_asAdmin_returns201() throws Exception {
         String token = loginAndGetToken("admin", "admin123");
@@ -197,6 +202,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
                 .andExpect(status().isCreated());
     }
 
+    @SuppressWarnings("null")
     @Test
     void createDevice_asOperator_returns403() throws Exception {
         String token = loginAndGetToken("operator", "op123");
@@ -217,6 +223,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @SuppressWarnings("null")
     @Test
     void createDevice_withBlankName_returns400() throws Exception {
         String token = loginAndGetToken("admin", "admin123");
@@ -228,6 +235,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @SuppressWarnings("null")
     @Test
     void patchLifecycle_onDecommissionedDevice_returns400() throws Exception {
         String token = loginAndGetToken("admin", "admin123");
@@ -252,6 +260,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @SuppressWarnings("null")
     @Test
     void malformedJsonBody_returns400() throws Exception {
         String token = loginAndGetToken("admin", "admin123");
@@ -278,6 +287,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     private String loginAndGetToken(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -288,6 +298,7 @@ class ApiContractRegressionTest extends BaseIntegrationTest {
                 .get("accessToken").asText();
     }
 
+    @SuppressWarnings("null")
     private String createDevice(String token, String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + token)

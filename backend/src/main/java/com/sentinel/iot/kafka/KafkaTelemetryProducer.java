@@ -21,6 +21,7 @@ public class KafkaTelemetryProducer {
      * The device name is used as the partition key so all events from one device
      * land on the same partition, preserving per-device ordering.
      */
+    @SuppressWarnings("null")
     public void publish(String deviceName, String rawPayload) {
         kafkaTemplate.send(topic, deviceName, rawPayload)
                 .whenComplete((result, ex) -> {

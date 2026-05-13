@@ -147,7 +147,8 @@ class JwtSecurityTest extends BaseIntegrationTest {
 
     // ── 1.7 Token signed with wrong secret is rejected ───────────────────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void tokenSignedWithWrongSecret_isRejected() throws Exception {
         UUID orgId = getAdminOrgId();
         SecretKey wrongKey = Keys.hmacShaKeyFor(
@@ -215,7 +216,8 @@ class JwtSecurityTest extends BaseIntegrationTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private String loginAndGetToken(String username, String password) throws Exception {
+    @SuppressWarnings("null")
+private String loginAndGetToken(String username, String password) throws Exception {
         AuthRequest req = new AuthRequest();
         req.setUsername(username);
         req.setPassword(password);
@@ -236,7 +238,8 @@ class JwtSecurityTest extends BaseIntegrationTest {
                 .getOrganizationId();
     }
 
-    private String createDevice(String token, String name) throws Exception {
+    @SuppressWarnings("null")
+private String createDevice(String token, String name) throws Exception {
         String body = objectMapper.writeValueAsString(Map.of("name", name));
         MvcResult result = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + token)

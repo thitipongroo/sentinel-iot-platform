@@ -26,7 +26,8 @@ class ErrorHandlingSecurityTest extends BaseIntegrationTest {
 
     // ── 9.1 Login failure returns identical status for unknown user and wrong password ──
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void loginFailure_sameStatusForUnknownUserAndWrongPassword() throws Exception {
         // Spring DaoAuthenticationProvider hides UsernameNotFoundException as
         // BadCredentialsException by default — both paths return the same HTTP status
@@ -51,6 +52,7 @@ class ErrorHandlingSecurityTest extends BaseIntegrationTest {
         String adminToken = loginAndGetToken("admin", "admin123");
 
         // Submitting an empty name triggers @NotBlank — GlobalExceptionHandler returns ProblemDetail
+        @SuppressWarnings("null")
         MvcResult result = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -79,7 +81,8 @@ class ErrorHandlingSecurityTest extends BaseIntegrationTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private String loginAndGetToken(String username, String password) throws Exception {
+    @SuppressWarnings("null")
+private String loginAndGetToken(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(authRequest(username, password))))

@@ -28,7 +28,8 @@ class RbacSecurityTest extends BaseIntegrationTest {
 
     // ── 3.1 OPERATOR cannot create device ────────────────────────────────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void operator_cannotCreateDevice() throws Exception {
         String token = loginAndGetToken("operator", "op123");
 
@@ -41,7 +42,8 @@ class RbacSecurityTest extends BaseIntegrationTest {
 
     // ── 3.2 OPERATOR cannot patch lifecycle ──────────────────────────────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void operator_cannotPatchLifecycle() throws Exception {
         String adminToken = loginAndGetToken("admin", "admin123");
         String deviceId = createDevice(adminToken, "rbac-lifecycle-" + System.nanoTime());
@@ -57,7 +59,8 @@ class RbacSecurityTest extends BaseIntegrationTest {
 
     // ── 3.3 OPERATOR cannot patch firmware ───────────────────────────────────
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void operator_cannotPatchFirmware() throws Exception {
         String adminToken = loginAndGetToken("admin", "admin123");
         String deviceId = createDevice(adminToken, "rbac-firmware-" + System.nanoTime());
@@ -133,7 +136,8 @@ class RbacSecurityTest extends BaseIntegrationTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
-    private String loginAndGetToken(String username, String password) throws Exception {
+    @SuppressWarnings("null")
+private String loginAndGetToken(String username, String password) throws Exception {
         AuthRequest req = new AuthRequest();
         req.setUsername(username);
         req.setPassword(password);
@@ -148,7 +152,8 @@ class RbacSecurityTest extends BaseIntegrationTest {
                 .get("accessToken").asText();
     }
 
-    private String createDevice(String token, String name) throws Exception {
+    @SuppressWarnings("null")
+private String createDevice(String token, String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)

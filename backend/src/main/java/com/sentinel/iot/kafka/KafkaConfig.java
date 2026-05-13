@@ -29,7 +29,8 @@ public class KafkaConfig {
 
     // ── Topic declarations ────────────────────────────────────────────────────
 
-    @Bean
+    @SuppressWarnings("null")
+@Bean
     public NewTopic telemetryRawTopic() {
         return TopicBuilder.name(telemetryRawTopic)
                 .partitions(3)
@@ -37,7 +38,8 @@ public class KafkaConfig {
                 .build();
     }
 
-    @Bean
+    @SuppressWarnings("null")
+@Bean
     public NewTopic telemetryDlqTopic() {
         return TopicBuilder.name(telemetryDlqTopic)
                 .partitions(3)
@@ -59,7 +61,8 @@ public class KafkaConfig {
      * Partition assignment: DLQ records land on the same partition number as the
      * original record (mod 3) to preserve per-device ordering in the DLQ.
      */
-    @Bean
+    @SuppressWarnings("null")
+@Bean
     public DefaultErrorHandler kafkaBatchErrorHandler(KafkaTemplate<String, String> kafkaTemplate) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
@@ -78,7 +81,8 @@ public class KafkaConfig {
      * AckMode.BATCH commits the offset only after saveAll() returns successfully.
      * On failure, DefaultErrorHandler retries then routes to DLQ.
      */
-    @Bean
+    @SuppressWarnings("null")
+@Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> batchKafkaListenerContainerFactory(
             ConsumerFactory<String, String> consumerFactory,
             DefaultErrorHandler kafkaBatchErrorHandler) {
@@ -97,7 +101,8 @@ public class KafkaConfig {
      * No DeadLetterPublishingRecoverer here — if the DLQ consumer fails, Kafka redelivers
      * with exponential backoff until DB recovers. 7-day topic retention is the safety net.
      */
-    @Bean
+    @SuppressWarnings("null")
+@Bean
     public ConcurrentKafkaListenerContainerFactory<String, String> dlqKafkaListenerContainerFactory(
             ConsumerFactory<String, String> consumerFactory) {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =

@@ -33,7 +33,8 @@ class AlertServiceTest {
 
     private final UUID deviceId = UUID.randomUUID();
 
-    @BeforeEach
+    @SuppressWarnings("null")
+@BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(alertService, "temperatureThreshold", 80.0);
         ReflectionTestUtils.setField(alertService, "humidityThreshold", 90.0);
@@ -41,7 +42,8 @@ class AlertServiceTest {
         lenient().when(alertRepository.save(any(Alert.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void evaluate_shouldCreateCriticalAlertWhenTemperatureExceedsThreshold() {
         Map<String, SensorReading> readings = Map.of(
                 "TEMPERATURE", SensorReading.good(85.0, "°C")
@@ -56,7 +58,8 @@ class AlertServiceTest {
         verify(notificationService, atLeastOnce()).send(anyString());
     }
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void evaluate_shouldCreateCriticalAlertWhenSmokeExceedsThreshold() {
         Map<String, SensorReading> readings = Map.of(
                 "SMOKE_PPM", SensorReading.good(250.0, "ppm")
@@ -70,7 +73,8 @@ class AlertServiceTest {
                 "CRITICAL".equals(a.getLevel()) && a.getMessage().contains("smoke"));
     }
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void evaluate_shouldCreateWarningWhenHumidityExceedsThreshold() {
         Map<String, SensorReading> readings = Map.of(
                 "HUMIDITY", SensorReading.good(95.0, "%")
@@ -84,7 +88,8 @@ class AlertServiceTest {
                 "WARNING".equals(a.getLevel()) && a.getMessage().contains("humidity"));
     }
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void evaluate_shouldCreateNoAlertWhenBelowAllThresholds() {
         Map<String, SensorReading> readings = Map.of(
                 "TEMPERATURE", SensorReading.good(70.0, "°C"),
@@ -97,7 +102,8 @@ class AlertServiceTest {
         verify(notificationService, never()).send(any());
     }
 
-    @Test
+    @SuppressWarnings("null")
+@Test
     void evaluate_shouldCreateWarningWhenMotionDetectedAtElevatedTemperature() {
         Map<String, SensorReading> readings = Map.of(
                 "TEMPERATURE", SensorReading.good(75.0, "°C"),

@@ -28,6 +28,7 @@ public class WebSocketBroadcastPublisher {
     @Value("${ws.broadcast.channel:ws:telemetry}")
     private String channel;
 
+    @SuppressWarnings("null")
     public void publish(UUID organizationId, String rawPayload) {
         try {
             String envelope = organizationId + "|" + rawPayload;

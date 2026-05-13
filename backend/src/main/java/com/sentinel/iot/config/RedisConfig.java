@@ -57,6 +57,7 @@ public class RedisConfig {
         return buildConnectionFactory(host, port, 0);
     }
 
+    @SuppressWarnings("null")
     @Primary
     @Bean("redisTemplate")
     public StringRedisTemplate redisTemplate(
@@ -72,6 +73,7 @@ public class RedisConfig {
         return buildConnectionFactory(authHost, authPort, 1);
     }
 
+    @SuppressWarnings("null")
     @Bean("authRedisTemplate")
     public StringRedisTemplate authRedisTemplate(
             @org.springframework.beans.factory.annotation.Qualifier("authRedisConnectionFactory")
@@ -81,6 +83,7 @@ public class RedisConfig {
 
     // ── Internal ──────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     private LettuceConnectionFactory buildConnectionFactory(String redisHost, int redisPort, int db) {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(redisHost, redisPort);
         config.setDatabase(db);

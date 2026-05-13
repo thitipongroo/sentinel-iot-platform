@@ -80,6 +80,7 @@ class RateLimitFilterTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     private MockHttpServletResponse invoke(String path, String remoteAddr) throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest("GET", path);
         req.setRemoteAddr(remoteAddr);
@@ -88,6 +89,7 @@ class RateLimitFilterTest {
         return res;
     }
 
+    @SuppressWarnings("null")
     private MockHttpServletResponse invokeForwarded(String path, String forwardedIp) throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest("GET", path);
         req.setRemoteAddr("10.0.0.1");

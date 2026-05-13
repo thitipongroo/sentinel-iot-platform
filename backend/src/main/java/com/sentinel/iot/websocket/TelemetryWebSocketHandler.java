@@ -34,6 +34,7 @@ public class TelemetryWebSocketHandler extends TextWebSocketHandler {
 
     private final Set<WebSocketSession> sessions = new CopyOnWriteArraySet<>();
 
+    @SuppressWarnings("null")
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.add(session);
@@ -41,6 +42,7 @@ public class TelemetryWebSocketHandler extends TextWebSocketHandler {
         log.info("WebSocket connected: {} org={} | local={}", session.getId(), orgId, sessions.size());
     }
 
+    @SuppressWarnings("null")
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessions.remove(session);
@@ -51,6 +53,7 @@ public class TelemetryWebSocketHandler extends TextWebSocketHandler {
      * Sends the payload to all WebSocket sessions for the matching tenant on THIS instance.
      * The message format is {@code <orgId>|<rawPayload>} — only the rawPayload is forwarded.
      */
+    @SuppressWarnings("null")
     public void broadcastLocal(String message) {
         if (sessions.isEmpty()) {
             return;

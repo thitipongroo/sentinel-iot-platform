@@ -30,6 +30,7 @@ class RbacRegressionTest extends BaseIntegrationTest {
     @Autowired AlertRepository alertRepository;
 
     // 3.4.1 — OPERATOR cannot create a device
+    @SuppressWarnings("null")
     @Test
     void createDevice_operator_returns403() throws Exception {
         String token = loginAndGetToken("operator", "op123");
@@ -42,6 +43,7 @@ class RbacRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.4.2 — ADMIN can create a device
+    @SuppressWarnings("null")
     @Test
     void createDevice_admin_returns201() throws Exception {
         String token = loginAndGetToken("admin", "admin123");
@@ -54,6 +56,7 @@ class RbacRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.4.3 — OPERATOR cannot PATCH lifecycle
+    @SuppressWarnings("null")
     @Test
     void patchLifecycle_operator_returns403() throws Exception {
         String adminToken    = loginAndGetToken("admin", "admin123");
@@ -68,6 +71,7 @@ class RbacRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.4.4 — OPERATOR cannot PATCH firmware
+    @SuppressWarnings("null")
     @Test
     void patchFirmware_operator_returns403() throws Exception {
         String adminToken    = loginAndGetToken("admin", "admin123");
@@ -140,6 +144,7 @@ class RbacRegressionTest extends BaseIntegrationTest {
     }
 
     // 3.4.10 — Enroll endpoint (no auth) with missing/invalid token → 400
+    @SuppressWarnings("null")
     @Test
     void enrollEndpoint_withInvalidToken_returns400() throws Exception {
         DeviceEnrollRequest req = new DeviceEnrollRequest(UUID.randomUUID(), "not-a-real-token", null);
@@ -152,6 +157,7 @@ class RbacRegressionTest extends BaseIntegrationTest {
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
+    @SuppressWarnings("null")
     private String loginAndGetToken(String username, String password) throws Exception {
         AuthRequest req = new AuthRequest();
         req.setUsername(username);
@@ -165,6 +171,7 @@ class RbacRegressionTest extends BaseIntegrationTest {
                 .get("accessToken").asText();
     }
 
+    @SuppressWarnings("null")
     private String createDevice(String token, String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/devices")
                         .header("Authorization", "Bearer " + token)

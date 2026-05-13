@@ -36,6 +36,7 @@ public class JwtWebSocketHandshakeInterceptor implements HandshakeInterceptor {
     private final JwtService jwtService;
     private final UserDetailsServiceImpl userDetailsService;
 
+    @SuppressWarnings("null")
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
@@ -67,6 +68,7 @@ public class JwtWebSocketHandshakeInterceptor implements HandshakeInterceptor {
         }
     }
 
+    @SuppressWarnings("null")
     @Override
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                 WebSocketHandler wsHandler, Exception exception) {

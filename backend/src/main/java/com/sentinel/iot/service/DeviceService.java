@@ -61,6 +61,7 @@ public class DeviceService {
 
     public Device findById(UUID id) {
         UUID orgId = TenantContext.get();
+        @SuppressWarnings("null")
         Device device = (orgId != null)
                 ? deviceRepository.findByIdAndOrganizationId(id, orgId)
                         .orElseThrow(() -> new NoSuchElementException("Device not found: " + id))

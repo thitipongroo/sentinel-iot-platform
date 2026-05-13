@@ -151,6 +151,7 @@ public class AlertService {
         return alertRepository.findTop50ByOrderByCreatedAtDesc();
     }
 
+    @SuppressWarnings("null")
     public void acknowledge(UUID alertId) {
         alertRepository.findById(alertId).ifPresent(a -> {
             a.setAcknowledged(true);

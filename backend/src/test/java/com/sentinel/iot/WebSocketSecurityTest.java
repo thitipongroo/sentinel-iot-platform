@@ -66,6 +66,7 @@ class WebSocketSecurityTest extends BaseIntegrationTest {
 
     // ── 8.3 Valid token → handshake accepted and orgId stored in attributes ───
 
+    @SuppressWarnings("null")
     @Test
     void handshake_withValidToken_storesOrgIdInAttributes() throws Exception {
         UUID orgId = userRepository.findByUsername("admin")
