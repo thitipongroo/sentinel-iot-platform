@@ -2,7 +2,7 @@
 
 > **สำหรับ Development และ Demo**
 
-ไฟล์นี้รวมทุกอย่างที่จำเป็นสำหรับการสาธิตระบบ ได้แก่ Node.js Simulator ที่จำลอง IoT devices และ Demo Data ที่ seed ข้อมูลตัวอย่างลงฐานข้อมูล
+ข้อมูลที่จำเป็นสำหรับการ Demo ได้แก่ Node.js Simulator ที่จำลอง IoT devices และ Demo Data ที่ seed ข้อมูลตัวอย่างลง Database
 
 ---
 
@@ -12,7 +12,7 @@ Simulator เป็น Node.js process ที่ publish MQTT telemetry ใน�
 
 ### Sensor Profile
 
-Simulator สร้าง 4-sensor payload ทุก 5 วินาที ต่อ device:
+Simulator สร้าง 4-sensor payload ทุก 5 วินาที ต่อ device :
 
 | Sensor        | Normal range | Spike condition        | Spike rate |
 |---------------|--------------|------------------------|------------|
@@ -38,13 +38,13 @@ Simulator สร้าง 4-sensor payload ทุก 5 วินาที ต่
 
 ```bash
 # Linux / macOS / Git Bash (กรณีที่ Windows ไม่ได้ติดตั้ง Make)
-./run.sh up          # core + simulator
-./run.sh up-obs      # core + simulator + Prometheus / Grafana / Jaeger
-./run.sh up-full
+./run.sh up         # core + simulator
+./run.sh up-obs     # core + simulator + Prometheus / Grafana / Jaeger
+./run.sh up-full    # core + simulator + Prometheus / Grafana / Jaeger + rebuild images ทั้งหมด
 # หรือ
-make up          # core + simulator
-make up-obs      # core + simulator + Prometheus / Grafana / Jaeger
-make up-full
+make up             # core + simulator
+make up-obs         # core + simulator + Prometheus / Grafana / Jaeger
+make up-full        # core + simulator + Prometheus / Grafana / Jaeger + rebuild images ทั้งหมด
 
 # Windows PowerShell
 docker compose up -d

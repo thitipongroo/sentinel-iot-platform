@@ -115,7 +115,7 @@ Invalid MQTT payload / unknown device:
 ### Prerequisites
 
 - Docker + Docker Compose v2
-- (Optional) JDK 21 and Node 20 for local dev
+- JDK 21 and Node 20 or Above (for local dev)
 
 ### Clone และตั้งค่า `.env`
 
@@ -176,11 +176,10 @@ docker compose up -d
 | `make logs` | `./run.sh logs` | Tail logs ทุก service |
 | `make ps` | `./run.sh ps` | แสดงสถานะ container |
 
-> **หมายเหตุ:**
+> **หมายเหตุ :**
 >
-> - `make` ใช้ได้บน Linux / macOS และ Git Bash (Windows)
-> - `./run.sh` ใช้ได้บน Linux / macOS / Git Bash — ทางเลือกสำหรับระบบที่ไม่มี `make`
-> - ทั้งสองคำสั่ง generate `JWT_SECRET` ลง `.env` อัตโนมัติหากยังไม่มีค่า
+> - `make` - ใช้ได้บน Linux / macOS และ Git Bash (Windows)
+> - `./run.sh` — กรณีที่ไม่ได้ติดตั้ง `make`
 
 | Service       | URL                                    |
 |---------------|----------------------------------------|
@@ -192,9 +191,9 @@ docker compose up -d
 | Jaeger UI     | <http://localhost:16686>               |
 | MQTT Broker   | `tcp://localhost:1883`                 |
 
-**First-run credentials:**
+**First-Run Credentials :**
 
-1. ตั้งค่าใน `.env` ก่อน start stack ครั้งแรก:
+1. ตั้งค่าใน `.env` ก่อน start stack ครั้งแรก :
 
    ```env
    INIT_ADMIN_PASSWORD=<your-admin-password>
@@ -202,24 +201,20 @@ docker compose up -d
    ```
 
    > **`JWT_SECRET`** — มี 2 วิธี:
-   > - **อัตโนมัติ:** `make <target>` หรือ `./run.sh <command>` จะ generate และบันทึกลง `.env` ให้เองหากยังไม่มีค่า
-   > - **Manual:** รันคำสั่งนี้ใน terminal แล้วนำค่าที่ได้ไปใส่ใน `.env`
+   > - **อัตโนมัติ :** ตอนรันคำสั่ง `make <target>` หรือ `./run.sh <command>` จะ generate และบันทึกลง `.env` ให้เองหากยังไม่มีค่า
+   > - **Manual :** รันคำสั่งนี้ใน terminal แล้วนำค่าที่ได้ไปใส่ใน `.env`
    >
    >   ```bash
    >   openssl rand -base64 48
    >   ```
 
-2. Start หรือ recreate service ที่ต้องการ (กรณีรันไปแล้วโดยที่ค่ายังว่าง):
+2. Start หรือ recreate service ที่ต้องการ (กรณีที่รันไปแล้ว แล้วมีการแก้ไขค่าใน `.env` ที่มีผลต่อการทำงานของ `<service>`) :
 
    ```bash
-   docker compose up -d --force-recreate <service>
+   docker compose up -d --force-recreate `<service>`
    ```
 
-   Backend จะ seed admin/operator account อัตโนมัติเมื่อ startup หาก account ยังไม่มีอยู่
-
 3. Login ที่ <http://localhost:3000> ด้วย `admin` / _(ค่า `INIT_ADMIN_PASSWORD`)_
-
-> **หมาะ:** ถ้าไม่ตั้ง `JWT_SECRET` ก่อน start, backend จะ start ได้แต่ sign token ไม่ได้ — กดปุ่ม Sign In แล้วจะไม่มีอะไรเกิดขึ้น
 
 - Grafana: `admin` / _(value of `GRAFANA_PASSWORD`, default `changeme` — change before any internet-facing deployment)_
 
@@ -227,7 +222,7 @@ docker compose up -d
 
 ## API Reference
 
-All API endpoints are versioned under `/api/v1/`. Responses always include an `API-Version: 1` header. See [`docs/system-design/api.md`](docs/system-design/api.md) for the full reference.
+All API endpoints are versioned under `/api/v1/`. See [`docs/system-design/api.md`](docs/system-design/api.md) for the full reference.
 
 ### Authentication
 
