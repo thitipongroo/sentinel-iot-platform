@@ -400,14 +400,17 @@ See [`docs/system-design/notification.md`](docs/system-design/notification.md).
 
 ## Deployment
 
-| Service    | Platform           | Notes                                   |
-|------------|--------------------|-----------------------------------------|
-| Frontend   | Vercel             | `vercel --prod` from `frontend/`        |
-| Backend    | Railway / Render   | Set env vars, port 8080                 |
-| PostgreSQL | Railway / Supabase | Managed Postgres                        |
-| Redis      | Upstash            | Serverless Redis (free tier works)      |
-| MQTT       | HiveMQ Cloud       | Free tier: 100 connections              |
-| Monitoring | Docker VM (VPS)    | `docker compose up prometheus grafana`  |
+Production runs on AWS (ap-southeast-1) deployed via ArgoCD GitOps. For local development and demo, see [docs/demo/README.md](docs/demo/README.md).
+
+| Service    | Platform                      | Notes                                              |
+|------------|-------------------------------|----------------------------------------------------|
+| Frontend   | EKS                           | 2 replicas, PodDisruptionBudget minAvailable: 1    |
+| Backend    | EKS (KEDA)                    | 3–20 replicas — scales on Kafka consumer lag       |
+| PostgreSQL | RDS (db.t3.medium)            | ap-southeast-1, external to Helm chart             |
+| Redis      | ElastiCache (cache.t3.micro)  | ap-southeast-1, external to Helm chart             |
+| Kafka      | MSK (kafka.t3.small)          | ap-southeast-1, external to Helm chart             |
+| MQTT       | Mosquitto on EKS              | In-cluster (`mosquitto.enabled=true`)              |
+| Deploy     | ArgoCD                        | GitOps — syncs Helm releases to staging + prod     |
 
 ---
 
@@ -417,9 +420,10 @@ See [`docs/system-design/notification.md`](docs/system-design/notification.md).
 |---|---|---|
 | Terraform | Cloud resource provisioning (EKS, RDS, ElastiCache, MSK) | Platform/Infra team |
 | Helm | Application templating + Kubernetes manifests | App team |
-| ArgoCD | GitOps deployment sync — pulls from Git and reconciles Helm releases | Platform/Infra team |
+| ArgoCD | GitOps deployment sync — reconciles Helm releases across staging + prod | Platform/Infra team |
 | Argo Rollouts | Blue/green and canary deployment strategies | App team |
 | KEDA | Kafka-lag-based horizontal pod autoscaling | Platform/Infra team |
+| Velero | Namespace backup + scheduled snapshot to object storage | Platform/Infra team |
 
 Lock all tool versions in `infra/terraform/versions.tf` and `infra/helm/sentinel-iot/Chart.yaml` before promoting to production.
 
@@ -474,7 +478,8 @@ sentinel-iot-platform/
 │       ├── hooks/              # Custom React hooks
 │       └── lib/                # Utility functions
 ├── infra/                      # Cloud infrastructure
-│   ├── helm/sentinel-iot/      # Helm chart — Kubernetes manifests, Argo Rollouts, KEDA
+│   ├── helm/sentinel-iot/      # Helm chart — Kubernetes manifests, Argo Rollouts, KEDA, Velero
+│   ├── argocd/                 # ArgoCD Application + ApplicationSet (staging + prod)
 │   ├── terraform/              # EKS, RDS, ElastiCache, MSK modules
 │   ├── monitoring/             # SLO rules + Grafana SLO dashboard
 │   └── scripts/                # DR restore script

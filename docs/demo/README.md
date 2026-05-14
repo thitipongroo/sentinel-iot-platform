@@ -138,6 +138,22 @@ docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/unseed-d
 
 ---
 
+## Local / Demo Deployment
+
+Stack ทั้งหมดรันผ่าน Docker Compose บนเครื่อง local:
+
+| Service    | Platform       | URL / Port                                         |
+|------------|----------------|----------------------------------------------------|
+| Frontend   | Docker Compose | [localhost:3000](http://localhost:3000)             |
+| Backend    | Docker Compose | [localhost:8080](http://localhost:8080)             |
+| PostgreSQL | Docker Compose | localhost:5432                                     |
+| Redis      | Docker Compose | localhost:6379                                     |
+| Kafka      | Docker Compose | localhost:9092                                     |
+| MQTT       | Docker Compose | localhost:1883 (Mosquitto)                         |
+| Monitoring | Docker Compose | Prometheus :9090 · Grafana :3001 · Jaeger :16686   |
+
+---
+
 ## Development Quick Start
 
 สำหรับ local development ที่ต้องการ simulator รันพร้อมกับ stack ให้ตั้งค่า `COMPOSE_PROFILES=dev` ใน `.env`:
