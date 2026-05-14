@@ -448,38 +448,46 @@ See [`docs/system-design/tradeoffs.md`](docs/system-design/tradeoffs.md) for the
 sentinel-iot-platform/
 ├── backend/                    # Spring Boot application
 │   ├── src/main/java/com/sentinel/iot/
-│   │   ├── config/             # Security, MQTT (+ DLQ), WebSocket, Redis, RequestIdFilter
-│   │   ├── controller/         # REST endpoints (auth, devices, telemetry, alerts)
+│   │   ├── config/             # Security, MQTT (+ DLQ), WebSocket, Redis, RequestIdFilter, RLS
+│   │   ├── controller/         # REST endpoints (auth, devices, telemetry, alerts, users, settings)
+│   │   ├── converter/          # JPA attribute converters (DeviceCapabilities, SensorReadings)
 │   │   ├── dto/                # Request/response DTOs + ReplayQueueMessage
+│   │   ├── kafka/              # KafkaTelemetryProducer, KafkaTelemetryConsumer, TelemetryDlqConsumer
 │   │   ├── model/              # JPA entities (Device, Telemetry, TelemetryHourlyAggregate, ...)
 │   │   ├── repository/         # Spring Data repositories
 │   │   ├── security/           # JWT filter + token service
-│   │   └── service/            # TelemetryService, AlertService, RedisService,
-│   │                           #   ReplayQueueService, TelemetryRetentionService
+│   │   ├── service/            # TelemetryService, AlertService, RedisService,
+│   │   │   │                   #   ReplayQueueService, TelemetryRetentionService
+│   │   │   └── notification/   # Slack, generic webhook, LINE Notify providers
+│   │   └── websocket/          # WebSocket broadcast publisher + subscriber
 │   ├── src/main/resources/
 │   │   ├── application.yml     # All config; env-var overrides for every external dependency
 │   │   ├── logback-spring.xml  # JSON (prod) / human-readable (dev) logging
-│   │   └── db/migration/       # V1 schema, V2 hourly aggs, V3 partitioning, V4 lifecycle
+│   │   └── db/migration/       # V1–V11: schema, partitioning, lifecycle, multi-tenancy,
+│   │                           #   RLS, schema evolution, enrollment tokens, nullable fields
 │   └── src/test/               # Unit + integration tests (BaseIntegrationTest Testcontainers base)
 ├── frontend/                   # Next.js 14 (App Router) + Tailwind CSS
 │   └── src/
-│       ├── app/dashboard/page.jsx          # Protected dashboard (ADMIN sees DeviceManagement)
-│       ├── api/client.js                   # Axios client — auth, devices, telemetry, alerts APIs
-│       └── components/
-│           ├── DeviceList.jsx              # Search filter + lifecycle badge + firmware version
-│           ├── TelemetryChart.jsx          # Live / 1h / 6h / 24h / 7d + hourly min/max bands
-│           ├── AlertList.jsx               # All / Unacknowledged filter tabs
-│           ├── StatsBar.jsx                # 6 tiles including Buffered (replay queue size)
-│           └── DeviceManagement.jsx        # ADMIN-only lifecycle + firmware panel
-├── simulator/                  # Node.js MQTT publisher — สำหรับ dev/demo เท่านั้น (docs/demo/README.md)
-├── monitoring/
-│   ├── prometheus.yml
-│   └── grafana/provisioning/   # Prometheus + Jaeger datasources + pre-built dashboard
+│       ├── app/                # App Router pages — dashboard, devices, alerts, users, settings, login
+│       ├── api/                # Axios client + generated API types
+│       ├── components/         # Shared UI components + ui/ primitives
+│       ├── hooks/              # Custom React hooks
+│       └── lib/                # Utility functions
+├── infra/                      # Cloud infrastructure
+│   ├── helm/sentinel-iot/      # Helm chart — Kubernetes manifests, Argo Rollouts, KEDA
+│   ├── terraform/              # EKS, RDS, ElastiCache, MSK modules
+│   ├── monitoring/             # SLO rules + Grafana SLO dashboard
+│   └── scripts/                # DR restore script
+├── simulator/                  # Node.js MQTT publisher — dev/demo only (docs/demo/README.md)
+├── monitoring/                 # Prometheus config + Grafana provisioning (Docker Compose)
 ├── mosquitto/                  # MQTT broker config
 ├── load-testing/               # k6 scripts — ดูวิธีรันได้ที่ docs/test-plans/load-test-plan.md
 ├── scripts/                    # seed-demo.sh, unseed-demo.sh, gen-mqtt-certs.sh
-├── .github/workflows/ci.yml    # Checkstyle → unit tests → integration tests → Docker build
-└── docker-compose.yml          # Full stack (backend, postgres, redis, mosquitto, jaeger, grafana, prometheus)
+├── deploy/                     # nginx-lb.conf
+├── docs/                       # Documentation — see docs/README.md
+├── .github/workflows/          # ci.yml (main pipeline) + api-contract.yml (contract fuzzing)
+├── run.sh                      # Docker Compose wrapper (alternative to make)
+└── docker-compose.yml          # Full stack (backend, postgres, redis, mosquitto, kafka, jaeger, grafana, prometheus)
 ```
 
 ---
