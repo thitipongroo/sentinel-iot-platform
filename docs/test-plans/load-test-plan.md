@@ -2,7 +2,7 @@
 
 **ขอบเขต:** Backend REST API · Kafka Telemetry Pipeline · Multi-Tenant Concurrent Load  
 **วิธีทดสอบ:** k6 (JavaScript) พร้อม Prometheus remote-write output  
-**สถานะ:** 📋 วางแผนแล้ว — ยังไม่ได้ implement  
+**สถานะ:** 🟡 บางส่วนสำเร็จ — baseline cache read path ผ่านแล้ว, comprehensive scenarios (2.1–2.5) ยังไม่ได้ implement  
 **Environment:** `docker compose --profile full up` (core + observability)  
 **เป้าหมาย:** หา **breaking point**, ทดสอบ system behavior under stress, และตรวจ resource exhaustion
 
@@ -37,6 +37,32 @@
 | `PATCH /api/v1/devices/{id}/lifecycle` | < 150 ms | < 400 ms | < 800 ms | < 0.1% |
 | Kafka telemetry ingestion throughput | ≥ 1,000 msg/sec sustained | — | — | < 0.5% DLQ rate |
 | WebSocket broadcast latency (1 → N) | < 50 ms per message | < 150 ms | < 300 ms | — |
+
+---
+
+## 1. Cache Read Path Baseline (Implemented)
+
+**Script:** [`load-testing/telemetry.js`](../../load-testing/telemetry.js)
+**Executor:** `ramping-arrival-rate` — ควบคุม RPS โดยตรง ไม่ขึ้นกับ latency ของ server
+**Endpoint:** `GET /api/v1/telemetry/{deviceId}/cache` — Redis-backed hot read path
+
+```
+Stages (total 300s):
+  10 → 100 RPS  ramp   30s   (warm-up)
+  100 → 500 RPS ramp   60s
+  500 → 1,000 RPS ramp 60s
+  1,000 RPS     hold  120s   (peak sustained)
+  1,000 → 0     ramp   30s
+```
+
+| Metric | SLO Target |
+|--------|------------|
+| `http_req_duration` p95 | < 200 ms |
+| `http_req_duration` p99 | < 500 ms |
+| `success_rate` | > 95% |
+| `http_req_failed` | < 5% |
+
+ผลลัพธ์: ดู [load-test-report.md](../test-reports/load-test-report.md)
 
 ---
 

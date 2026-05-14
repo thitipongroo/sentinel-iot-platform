@@ -159,3 +159,12 @@ backend/src/test/java/com/sentinel/iot/
 - **Fast feedback** — รันใน milliseconds ไม่ต้องรอ container start
 - **Single responsibility** — แต่ละ test ตรวจสอบ behavior เดียว ไม่ผสมกัน
 - **ReflectionTestUtils** — ใช้ inject `@Value` fields เพื่อหลีกเลี่ยงการโหลด Spring context
+
+---
+
+## วิธีรัน
+
+```bash
+cd backend
+mvn test
+```

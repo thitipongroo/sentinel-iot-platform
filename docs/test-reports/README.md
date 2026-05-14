@@ -17,6 +17,7 @@
 | Backend | Regression Tests | 7 | 55 | ✅ | [backend-regression-test-report.md](backend-regression-test-report.md) |
 | Frontend | Unit Tests | 11 | 76 | ✅ | [frontend-unit-test-report.md](frontend-unit-test-report.md) |
 | Frontend | E2E Tests (Cypress) | 7 | 39 | ✅ | [frontend-e2e-test-report.md](frontend-e2e-test-report.md) |
+| Load | Cache Read Path (k6) | — | — | ✅ | [load-test-report.md](load-test-report.md) |
 | **รวม** | | **46** | **280** | **✅** | |
 
 ---

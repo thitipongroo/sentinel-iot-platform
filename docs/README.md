@@ -36,6 +36,11 @@ docs/
 |------|----------|
 | [api.md](system-design/api.md) | REST API reference — endpoints, request/response schema, authentication headers, error codes |
 | [architecture.md](system-design/architecture.md) | System architecture overview — component diagram, data flow, technology stack, deployment topology |
+| [security.md](system-design/security.md) | Security features — JWT, RBAC, multi-tenant isolation, rate limiting, audit logging, known limitations |
+| [telemetry-retention.md](system-design/telemetry-retention.md) | Telemetry retention policy — 30-day raw retention, hourly aggregates, partition lifecycle |
+| [cicd.md](system-design/cicd.md) | CI/CD pipeline — GitHub Actions stages, security scan, Testcontainers, contract testing |
+| [mqtt-tls.md](system-design/mqtt-tls.md) | MQTT TLS / mTLS setup — certificate generation, env vars, connection testing |
+| [notification.md](system-design/notification.md) | Notification providers — Slack, generic webhook, LINE Notify (deprecated) |
 | [capacity-planning.md](system-design/capacity-planning.md) | Capacity planning — การประมาณ resource ที่ต้องการ, scaling thresholds, hardware sizing |
 | [scaling.md](system-design/scaling.md) | Scaling strategy — horizontal/vertical scaling approach สำหรับแต่ละ component |
 | [sequence-diagrams.md](system-design/sequence-diagrams.md) | Sequence diagrams — flows หลักของระบบ เช่น device enrollment, telemetry ingestion, alert flow |
@@ -57,6 +62,7 @@ docs/
 | [backend-regression-test-report.md](test-reports/backend-regression-test-report.md) | Backend Regression (API contract, RBAC, migration, WebSocket) | 55 | ✅ |
 | [frontend-unit-test-report.md](test-reports/frontend-unit-test-report.md) | Frontend Unit (Jest + React Testing Library) | 76 | ✅ |
 | [frontend-e2e-test-report.md](test-reports/frontend-e2e-test-report.md) | Frontend E2E (Cypress) | 39 | ✅ |
+| [load-test-report.md](test-reports/load-test-report.md) | Load Test — Cache read path baseline (k6) | — | ✅ |
 
 ---
 
@@ -111,5 +117,5 @@ Diagram และ visual asset ที่อ้างอิงจากเอก�
 | [e2e-test-plan.md](test-plans/e2e-test-plan.md) | Full user journeys (Cypress) — device lifecycle, alert, WebSocket | 39 | ✅ Implemented |
 | [frontend-unit-test-plan.md](test-plans/frontend-unit-test-plan.md) | React component unit tests (Jest + React Testing Library) | 76 | ✅ Implemented |
 | [performance-test-plan.md](test-plans/performance-test-plan.md) | Normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast | 16 | 📋 วางแผน |
-| [load-test-plan.md](test-plans/load-test-plan.md) | Ramp-up (0→500 VU), spike, soak (2 hr), Kafka consumer, multi-tenant | 22 | 📋 วางแผน |
+| [load-test-plan.md](test-plans/load-test-plan.md) | Cache read path baseline (implemented) + ramp-up, spike, soak, Kafka consumer, multi-tenant (planned) | 22 | 🟡 บางส่วน |
 | [regression-test-plan.md](test-plans/regression-test-plan.md) | API contract, HTTP status, auth, RBAC, multi-tenant, migration, rate limit, WebSocket | 55 | ✅ Implemented |

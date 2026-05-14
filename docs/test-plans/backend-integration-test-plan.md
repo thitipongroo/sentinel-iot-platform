@@ -196,3 +196,14 @@ backend/src/test/java/com/sentinel/iot/
 - **TenantContext isolation** — tests ที่ใช้ `@WithMockUser` (bypass JwtAuthFilter) ต้อง set TenantContext ด้วยตัวเองใน `@BeforeEach` และ clear ใน `@AfterEach`
 - **Flyway migrations** — database schema และ seed data (V1–V10) ถูก apply อัตโนมัติเมื่อ container start ครั้งแรก
 - **Redis isolation** — test ที่เกี่ยวกับ queue ต้อง delete key ก่อนรันเพื่อป้องกัน state ค้างจาก test ก่อนหน้า
+
+---
+
+## วิธีรัน
+
+Docker ต้องรันอยู่ (Testcontainers จะ start containers อัตโนมัติ)
+
+```bash
+cd backend
+mvn verify
+```

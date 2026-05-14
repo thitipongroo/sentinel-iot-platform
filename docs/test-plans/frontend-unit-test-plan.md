@@ -270,3 +270,13 @@ Priority 4 — ซับซ้อนสุด
 - `jest.config.js` — กำหนด transform สำหรับ JSX, path alias `@/`
 - `jest.setup.js` — import `@testing-library/jest-dom` และ global mock สำหรับ `next/navigation`
 - reset Zustand store state ระหว่างแต่ละ test ด้วย `beforeEach`
+
+---
+
+## วิธีรัน
+
+```bash
+cd frontend
+npm run lint      # ESLint
+npm run build     # Next.js production build (type-check included)
+```

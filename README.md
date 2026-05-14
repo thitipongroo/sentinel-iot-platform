@@ -258,11 +258,6 @@ POST   /api/v1/devices/{id}/enrollment-token          # ADMIN only — one-time 
 POST   /api/v1/devices/enroll                         # Unauthenticated — device bootstrap
 ```
 
-Valid lifecycle transitions: `PROVISIONED → ACTIVE → INACTIVE → DECOMMISSIONED`.  
-`DECOMMISSIONED` is terminal — no further transitions accepted (HTTP 409).
-
-**Device enrollment flow:** Admin calls `POST /devices/{id}/enrollment-token` → receives a single-use 256-bit token → delivers it out-of-band to the physical device → device calls `POST /devices/enroll` with the token → receives MQTT credentials + transitions to `ACTIVE`. The DB stores only the SHA-256 hash; replay or DB breach cannot recover the raw token.
-
 ### Telemetry
 
 ```http
@@ -323,41 +318,7 @@ Motion + elevated temperature (>70°C) also triggers a WARNING alert under the l
 
 ## Failure Scenarios
 
-### Database unavailable
-
-The Resilience4j CircuitBreaker (`telemetryDB`) trips OPEN after **5 failures in a 10-call sliding window** (50% failure rate threshold). While OPEN:
-
-- `TelemetryService.saveFallback()` is invoked instead.
-- The Redis cache is updated — the dashboard continues showing live readings.
-- The raw telemetry is serialized to JSON and pushed to the Redis replay queue (`sentinel:replay:queue`, max 10,000 entries).
-- `ReplayQueueService` runs every 30 seconds. It checks the CB state first: if still OPEN, the drain is skipped entirely (no retry storm). Once the CB enters HALF_OPEN and then CLOSED, the queue drains in batches of 100, persisting to PostgreSQL. Failed entries are pushed to the back of the queue for the next cycle.
-- **Zero telemetry loss** unless the queue overflows (configurable via `TELEMETRY_REPLAY_MAX_QUEUE`).
-
-### Redis unavailable
-
-Redis calls time out after 2 seconds (configurable via `spring.data.redis.timeout`). The timeout bubbles up as a `DataAccessException` and is swallowed at the service layer — PostgreSQL writes continue unaffected. The replay queue is Redis-backed, so offline-recovery buffering also stops during Redis downtime, but direct DB persistence still works.
-
-### MQTT broker disconnection
-
-Spring Integration's `MqttPahoMessageDrivenChannelAdapter` auto-reconnects with a built-in backoff. With QoS 1, the broker retains undelivered messages for connected subscribers and redelivers them on reconnect. In-flight messages that never reached the broker before disconnection are retransmitted by the device (QoS 1 guarantees at-least-once delivery).
-
-### Invalid or malformed MQTT payload
-
-The 5-stage ingestion pipeline in `MqttConsumerService` validates before any DB/cache write:
-
-| Stage | Error code | Condition |
-| --- | --- | --- |
-| JSON parse | `PARSE_ERROR` | Payload is not valid JSON |
-| Field validation | `VALIDATION_ERROR` | `deviceId` null; temp outside [-40,200]; humidity outside [0,100]; smokePpm < 0 |
-| Device resolution | `UNKNOWN_DEVICE` | `deviceId` not found in DB |
-| Lifecycle gate | `LIFECYCLE_REJECTED` | Device is `INACTIVE` or `DECOMMISSIONED` |
-| Processing error | `PROCESSING_ERROR` | Unexpected exception in save/alert/broadcast |
-
-Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-error-code`, `dlq-error-detail`, `dlq-timestamp`). The main ingestion channel is never blocked. `sentinel_mqtt_dlq_total` counter tracks DLQ volume in Prometheus.
-
-### Circuit breaker OPEN during replay
-
-`ReplayQueueService` explicitly checks `cb.getState() == OPEN` before draining. If OPEN, the entire drain cycle is skipped and logged at DEBUG level. This prevents the replay job from amplifying DB pressure during an outage and triggering more CB trips.
+The platform handles DB unavailability (circuit breaker + Redis replay queue), Redis downtime (PostgreSQL writes continue unaffected), MQTT broker disconnection (auto-reconnect, QoS 1 redelivery), malformed payloads (5-stage validation → DLQ routing), and circuit-breaker-safe replay drain (drain skipped while CB is OPEN). See [`docs/system-design/architecture.md`](docs/system-design/architecture.md) for full failure documentation.
 
 ---
 
@@ -365,89 +326,27 @@ Rejected messages are routed to `factory/telemetry/dlq` with DLQ headers (`dlq-e
 
 | Feature | Implementation |
 | --- | --- |
-| Authentication | JWT (15 min access token, stored in JS module-level variable — never localStorage) + opaque refresh token (7 days, DB-persisted as **SHA-256 hash**, rotated on every use, delivered as `HttpOnly; Secure; SameSite=Strict` cookie — never in response body) |
-| Access Token Revocation | `POST /auth/logout` adds the token's JTI to a Redis blocklist on DB 1 (TTL = remaining token lifetime). Every request checks the blocklist — stolen or logged-out tokens are rejected immediately. |
-| Zero-Downtime Key Rotation | Set `JWT_PREVIOUS_SECRET=<old>` + `JWT_SECRET=<new>` and redeploy. Tokens signed with the old key remain valid until they expire (max 15 min); old `JWT_PREVIOUS_SECRET` can be cleared after that. |
-| Refresh Token Reuse Detection | `rotateRefreshToken()` calls `revokeAllByUsername()` when a revoked token is presented — token family invalidation per RFC 6819. |
-| Device Enrollment | One-time 256-bit SecureRandom tokens; only SHA-256 hash stored in DB; single-use; TTL-bound (default 24 h); bound to a specific device ID. Devices bootstrap via `POST /devices/enroll` (unauthenticated — token is the credential) and receive per-device MQTT credentials. |
-| Rate Limiting | Bucket4j — tiered limits per IP: **10 req/min** for auth endpoints (`/api/v1/auth/*`), **100 req/min** for all other API endpoints. X-Forwarded-For trusted only from configured proxy IPs (`rate-limit.trusted-proxies`). In-process buckets — see Known Limitations. |
+| Authentication | JWT (15 min, JS memory only) + HttpOnly refresh token (7 days, SHA-256 hash in DB, rotated on every use) |
+| Revocation | Redis JTI blocklist — revoked tokens rejected immediately on every request |
 | RBAC | `ADMIN` + `OPERATOR` roles; method-level `@PreAuthorize` |
-| CORS | Restricted to `CORS_ALLOWED_ORIGINS` env var (default: `http://localhost:3000`). Headers limited to `Authorization`, `Content-Type`, `X-Request-ID`. |
-| CSRF | Disabled — correct for a stateless JWT API. |
-| Secret Management | `JWT_SECRET` required at runtime — no default, no fallback. **Production upgrade path:** inject via HashiCorp Vault (`spring-cloud-vault`) or AWS Secrets Manager. |
-| Audit Logging | Every auth event, alert acknowledgement, device mutation, and enrollment event persisted to `audit_logs` with username + IP. |
-| Audit Retention | `audit_logs` purged daily at 03:30 (`AUDIT_RETENTION_DAYS`, default 90 days). |
-| MQTT Auth | `allow_anonymous false` enforced. Per-device accounts via `MQTT_DEVICE_CREDENTIALS=sensor-1:pass1,sensor-2:pass2`. |
-| MQTT TLS / mTLS | TLS on `:8883` when certs present. `MQTT_TLS_REQUIRED=true` removes plaintext `:1883`. `MQTT_MTLS_ENABLED=true` requires client certificates. |
-| Multi-tenant Isolation | `organizationId` scoping + PostgreSQL Row Level Security (`V7__row_level_security.sql`) enforced by `TenantRlsAspect` (Spring AOP `@Before` on every `@Transactional` method — issues `SET LOCAL app.org_id` inside the transaction) + tenant-namespaced Redis keys (`device:{orgId}:{deviceId}`) |
-| Secret Scanning | Gitleaks runs on every CI push — secrets committed to git fail the build |
-| Dependency/Container Scan | Trivy scans filesystem (SCA) and backend container image on every CI push — CRITICAL/HIGH CVEs fail the build. Results in GitHub Security tab (SARIF) |
-| Actuator Exposure | `/actuator/health` public; internal details shown only to authenticated users. |
-| Request Correlation | `X-Request-ID` echoed; `requestId`, `method`, `path`, `username`, `durationMs` in MDC per log line |
+| Rate Limiting | Bucket4j — 10 req/min (auth), 100 req/min (API) per IP |
+| Multi-tenant Isolation | `organizationId` scoping + PostgreSQL Row Level Security + tenant-namespaced Redis keys |
+| MQTT Auth | `allow_anonymous false`; per-device credentials; TLS on `:8883`, mTLS opt-in |
+| Secret Scanning | Gitleaks on every CI push; Trivy SCA + container image scan (CRITICAL/HIGH fail build) |
 
-### Known Security Limitations (remaining upgrade path)
-
-| Gap | Current State | Production Fix |
-| --- | --- | --- |
-| Rate limiting is in-process | Each replica has independent bucket — effective limit is `10/100 × N` replicas | Swap `ConcurrentHashMap` for `bucket4j-redis` (`ProxyManager` backed by Redis atomic counters) |
-| No refresh-token device binding | Refresh tokens bound to user only, not to issuing device or IP | Add fingerprint (IP + User-Agent hash) on issuance; reject reuse from different fingerprint |
-| TLS MQTT is opt-in | Plaintext `:1883` active by default in dev | Set `MQTT_TLS_REQUIRED=true` after running `gen-mqtt-certs.sh`; enforce in production via Helm `values-prod.yaml` |
-| mTLS is opt-in | `require_certificate false` unless `MQTT_MTLS_ENABLED=true` | Run `gen-mqtt-certs.sh --with-client-certs`, mount client certs into each service, set `MQTT_MTLS_ENABLED=true` |
+See [`docs/system-design/security.md`](docs/system-design/security.md) for full feature list and known limitations.
 
 ---
 
 ## Observability
 
-### Metrics
-
-Prometheus scrapes `/actuator/prometheus` every 15s.
-
-| Metric                              | Description                                                  |
-|-------------------------------------|--------------------------------------------------------------|
-| `sentinel_telemetry_received_total`  | Total MQTT messages ingested successfully                         |
-| `sentinel_telemetry_dropped_total`   | Messages buffered to replay queue due to DB unavailability        |
-| `sentinel_mqtt_messages_total`       | All MQTT messages received (before validation)                    |
-| `sentinel_mqtt_dlq_total`            | Messages routed to DLQ (invalid payload / unknown device)         |
-| `sentinel_mqtt_load_shed`            | Messages shed at ingestion concurrency limit (Counter)            |
-| `sentinel_mqtt_active_permits`       | Current in-flight MQTT processing count (Gauge)                   |
-| `sentinel_replay_queue_size`         | Current depth of the Redis replay queue (Gauge)                   |
-| `sentinel_replay_success_total`      | Messages successfully replayed from queue to DB                   |
-| `sentinel_replay_failure_total`      | Replay failures (re-queued for next cycle)                        |
-| `sentinel.business.active_devices`  | Devices currently ONLINE (Gauge, refreshed every 30s)             |
-| `sentinel.business.total_devices`   | Total registered devices (Gauge)                                  |
-| `sentinel.business.unack_alerts`    | Unacknowledged alert count (Gauge)                                |
-| `sentinel.business.alert_fired`     | Alerts fired since startup (Counter)                              |
-| `http_server_requests_*`             | Request latency histogram (Spring Boot auto-instrumentation)      |
-| `resilience4j_circuitbreaker_*`      | CB state, call counts, failure rates                              |
-| `jvm_memory_used_bytes`              | JVM heap usage                                                    |
-
-Import `monitoring/grafana/dashboard.json` into Grafana for the pre-built dashboard.
-
-### Distributed Tracing
-
-Every request is traced end-to-end via OpenTelemetry → Jaeger. Custom spans added:
-
-- `telemetry.save` (tagged with `device.id`) — covers the full DB write + Redis cache update + CB overhead
-- `alert.evaluate` (tagged with `device.id`, `device.name`) — covers threshold check + LINE Notify call
-
-The `traceId` and `spanId` are injected into MDC via Micrometer Tracing, so every JSON log line is correlated with its Jaeger trace. Access traces at <http://localhost:16686>.
-
-### Structured Logging
-
-- **Non-prod profile**: human-readable console output including `[requestId]` in the pattern.
-- **Prod profile**: Logstash JSON encoder with fields: `requestId`, `method`, `path`, `username`, `durationMs`, `traceId`, `spanId`. Suitable for ingestion into Elasticsearch / Loki.
+Prometheus scrapes `/actuator/prometheus` every 15s. Custom `sentinel_*` metrics cover MQTT ingestion, DLQ routing, replay queue depth, circuit breaker state, and business counters (active devices, unacknowledged alerts). Every request is traced end-to-end via OpenTelemetry → Jaeger with custom spans on `telemetry.save` and `alert.evaluate`. JSON structured logs include `requestId`, `traceId`, and `spanId` per line. Import `monitoring/grafana/dashboard.json` for the pre-built dashboard. See [`docs/runbooks/`](docs/runbooks/) for operational guidance.
 
 ---
 
 ## Telemetry Retention
 
-Raw telemetry is retained for 30 days (configurable via `TELEMETRY_RETENTION_DAYS`). The retention cron runs at 02:30 daily in three phases:
-
-1. **Aggregate with late-arrival look-back**: `telemetry_hourly_aggregates` is upserted for the window `[today − lateArrivalLookbackDays, today)` (default: 2 days). Using `ON CONFLICT DO UPDATE` makes it idempotent, so late IoT messages are retroactively folded into the correct buckets on the next nightly run.
-2. **Prune**: Raw rows older than the retention window are deleted from the partitioned `telemetry` table.
-3. **Drop old partitions**: Empty monthly child tables (e.g. `telemetry_2025_01`) past the retention window are detached and dropped automatically, keeping the partition catalog from growing unbounded.
-
-The dashboard's historical analytics mode uses the hourly aggregates for 24h and 7d windows, showing shaded min/max bands around the average line.
+Raw telemetry is retained for 30 days (configurable via `TELEMETRY_RETENTION_DAYS`). The retention cron runs at 02:30 daily: aggregates hourly buckets with a 2-day late-arrival look-back, prunes raw rows outside the retention window, and drops empty monthly partition tables. The dashboard uses hourly aggregates for 24h and 7d chart modes. See [`docs/system-design/telemetry-retention.md`](docs/system-design/telemetry-retention.md).
 
 ---
 
@@ -464,98 +363,38 @@ Devices follow a linear state machine: `PROVISIONED → ACTIVE → INACTIVE → 
 
 ## CI/CD
 
-GitHub Actions runs on every push and PR:
-
-1. **Security scan** — Gitleaks (full git history, blocks on any secret found) + Trivy filesystem scan (SCA, SARIF → GitHub Security tab) + Trivy container image scan (CRITICAL/HIGH CVEs fail the build)
-2. **Backend** — Checkstyle → unit tests → integration tests (Testcontainers, real Postgres + Redis + Mosquitto)
-3. **Frontend** — ESLint → Next.js build
-4. **Docker** — `docker compose config` validation (with `JWT_SECRET` placeholder) → parallel image build
-
-All CI steps are hard-fails — no `|| true` overrides. A red build means a real problem.
+GitHub Actions runs on every push and PR: Gitleaks + Trivy scan → Checkstyle + backend tests (Testcontainers) → ESLint + Next.js build → Docker Compose validation + parallel image build. All steps are hard-fails. See [`docs/system-design/cicd.md`](docs/system-design/cicd.md).
 
 ---
 
 ## MQTT TLS / mTLS
 
-By default the broker listens on port **1883 (plain TCP)** — suitable for local development and demo.
-For production deployments where devices communicate over the internet, enable TLS on port **8883**.
-
-### Generate certificates
+By default the broker listens on port **1883 (plain TCP)**. For production, enable TLS on port **8883**:
 
 ```bash
-# TLS only — encrypts traffic, clients verify the server cert
-bash scripts/gen-mqtt-certs.sh mqtt.yourdomain.com
-
-# mTLS — server AND every client must present a certificate
-bash scripts/gen-mqtt-certs.sh mqtt.yourdomain.com --with-client-certs
+bash scripts/gen-mqtt-certs.sh mqtt.yourdomain.com           # TLS only
+bash scripts/gen-mqtt-certs.sh mqtt.yourdomain.com --with-client-certs  # mTLS
 ```
 
-Certificates are written to `mosquitto/certs/`:
-
-| File | Purpose |
-|------|---------|
-| `ca.crt` | CA certificate — distribute to all MQTT clients |
-| `server.crt` / `server.key` | Mosquitto server certificate |
-| `client-backend.crt` / `.key` | Backend service client cert (mTLS only) |
-| `client-device.crt` / `.key` | Default device client cert (mTLS only) |
-
-### Activate TLS
-
-```bash
-docker compose restart mosquitto
-```
-
-### Test the connection
-
-```bash
-# TLS
-mosquitto_pub --cafile mosquitto/certs/ca.crt \
-  -h mqtt.yourdomain.com -p 8883 \
-  -t test -m hello \
-  -u sentinel-device -P <password>
-
-# mTLS
-mosquitto_pub --cafile mosquitto/certs/ca.crt \
-  --cert mosquitto/certs/client-device.crt \
-  --key  mosquitto/certs/client-device.key \
-  -h mqtt.yourdomain.com -p 8883 \
-  -t test -m hello
-```
+Certificates are written to `mosquitto/certs/`. Set `MQTT_TLS_REQUIRED=true` to disable plaintext port 1883; set `MQTT_MTLS_ENABLED=true` to require client certificates. Restart Mosquitto to apply (`docker compose restart mosquitto`).
 
 > Self-signed certificates are suitable for dev and portfolio demonstration only.
-> For production use a proper CA (Let's Encrypt, internal PKI, or AWS ACM PCA).
+
+See [`docs/system-design/mqtt-tls.md`](docs/system-design/mqtt-tls.md) for certificate file reference and connection testing.
 
 ---
 
 ## Notification Setup
 
-The platform supports multiple notification providers. Enable exactly one (or none) per deployment.
+Enable exactly one provider (or none) per deployment:
 
-### Slack (recommended)
+| Provider | Env vars | Notes |
+|---|---|---|
+| Slack (recommended) | `SLACK_WEBHOOK_URL`, `SLACK_NOTIFY_ENABLED=true` | Create webhook at api.slack.com/messaging/webhooks |
+| Generic Webhook | `NOTIFY_WEBHOOK_URL`, `NOTIFY_WEBHOOK_ENABLED=true`, `NOTIFY_WEBHOOK_SECRET` (optional HMAC-SHA256) | PagerDuty, Opsgenie, Teams, etc. |
+| LINE Notify | `LINE_NOTIFY_TOKEN`, `LINE_NOTIFY_ENABLED=true` | **Shut down March 31, 2025 — do not use** |
 
-```bash
-# Create an Incoming Webhook at https://api.slack.com/messaging/webhooks
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-SLACK_NOTIFY_ENABLED=true
-```
-
-### Generic Webhook (PagerDuty, Opsgenie, Teams, etc.)
-
-```bash
-NOTIFY_WEBHOOK_URL=https://your-endpoint/alert
-NOTIFY_WEBHOOK_ENABLED=true
-NOTIFY_WEBHOOK_SECRET=your-hmac-secret   # optional — signs payload with HMAC-SHA256
-```
-
-### LINE Notify (deprecated)
-
-```bash
-# Get token at https://notify-bot.line.me/my/
-LINE_NOTIFY_TOKEN=your_token
-LINE_NOTIFY_ENABLED=true
-```
-
-> **Warning:** LINE Notify was shut down on **March 31, 2025**. Tokens no longer work. Migrate to Slack webhook or the generic webhook provider.
+See [`docs/system-design/notification.md`](docs/system-design/notification.md).
 
 ---
 
@@ -588,67 +427,18 @@ Lock all tool versions in `infra/terraform/versions.tf` and `infra/helm/sentinel
 
 ## Design Tradeoffs
 
-### Why Redis instead of Memcached?
-
-Redis supports hash structures (`HSET/HGET`) which map naturally to multi-field telemetry (temperature + humidity + timestamp). Memcached only stores flat strings, requiring serialization overhead. Redis also provides the `RPUSH/LPOP` List operations used by the replay queue and Pub/Sub — neither of which Memcached supports.
-
-### Why MQTT instead of HTTP polling?
-
-HTTP polling at 5-second intervals from hundreds of devices generates `N × (60/5) = 12N` requests/minute even when nothing changed. MQTT is event-driven: devices push only when they have data. With QoS 1, messages are guaranteed delivered at least once. Broker fan-out also decouples producers from consumers cleanly.
-
-### Why Spring Integration for MQTT instead of a raw Paho client?
-
-Spring Integration's `MqttPahoMessageDrivenChannelAdapter` handles reconnection, channel routing, and error handling declaratively. Raw Paho requires manual reconnect loops and error callbacks. The integration also slots naturally into Spring's `@ServiceActivator` pattern, keeping consumer logic as plain Spring beans.
-
-### Why PostgreSQL instead of a time-series DB (InfluxDB / TimescaleDB)?
-
-For this platform's scale (<10M rows/month), indexed PostgreSQL with declarative range partitioning by month performs excellently. TimescaleDB adds operational overhead and a separate deployment. If the workload grows to 100M+ rows/month, migrating to TimescaleDB is straightforward since it is a PostgreSQL extension sharing the same wire protocol and JDBC driver.
-
-### Why Next.js instead of Vite + React?
-
-Next.js provides file-based routing, server-side API proxying via `next.config.mjs` rewrites (no separate nginx), and native Vercel deployment. The App Router's `'use client'` boundary keeps layout components as Server Components, reducing client bundle size.
-
-### Why WebSocket instead of Server-Sent Events (SSE)?
-
-SSE is one-directional (server → client). WebSocket is bidirectional, enabling future features like in-browser device command sending without architectural rework.
-
-### Why partition telemetry by month rather than use TimescaleDB?
-
-Declarative range partitioning (`PARTITION BY RANGE(timestamp)`) is a native PostgreSQL 10+ feature with no additional dependencies. The monthly child tables (`telemetry_2025_01`, etc.) enable efficient partition pruning on range queries and allow future `ALTER TABLE DETACH PARTITION / DROP TABLE` for old months instead of row-by-row deletion. The tradeoff is that the partition range must be extended manually via new migrations as time passes (see Known Limitations).
-
-### Why a Redis List for the replay queue instead of Kafka?
-
-Kafka would be the right answer at >1M buffered messages or with multiple consumers. At this scale (max 10,000 messages), a Redis List provides the same at-least-once semantics (`RPUSH` / `BLPOP`) with zero additional infrastructure. The `ReplayQueueService` is the only consumer, so competing consumers are not a concern.
-
-### Why is DECOMMISSIONED a terminal lifecycle state?
-
-DECOMMISSIONED signals that a device has been physically removed from service. Allowing re-activation would create ambiguity between "this device was briefly taken offline" (INACTIVE) and "this device no longer exists" (DECOMMISSIONED). Making it terminal in the service layer and the MQTT pipeline ensures that historical telemetry and alerts remain traceable to the device that produced them, without the risk of a re-registered device inadvertently inheriting alerts or firmware records from its predecessor.
-
-### Why does ReplayQueueService call TelemetryRepository directly instead of TelemetryService.save()?
-
-`TelemetryService.save()` is decorated with `@Retry` and `@CircuitBreaker`. Calling it from the replay loop would re-enter the retry/CB machinery — triggering up to 3 retries per message, potentially re-opening the CB during recovery, and inflating `sentinel.telemetry.dropped` counters incorrectly. Calling the repository directly bypasses the resilience layer, which is safe because `ReplayQueueService` already checks the CB state before draining: it only runs when the DB is believed to be healthy.
-
-### Why OTel/Jaeger instead of Zipkin?
-
-Both are CNCF-graduated projects. Jaeger's native OTel support (OTLP ingest on port 4318) means zero custom exporters — the same `opentelemetry-exporter-otlp` dependency works without Zipkin-specific formatting. Jaeger's Badger storage backend works well for single-node development deployments without Cassandra/Elasticsearch. For production, both can be backed by the same storage systems.
+Key decisions: Redis over Memcached (hash structures + Pub/Sub + List for replay queue), MQTT over HTTP polling (event-driven, QoS 1, broker fan-out), Spring Integration over raw Paho (declarative reconnect + error routing), PostgreSQL over TimescaleDB (sufficient at <10M rows/month, same wire protocol for future migration), Next.js over Vite+React (file-based routing, SSR, native Vercel deployment), WebSocket over SSE (bidirectional), Redis List over Kafka for replay queue (zero extra infra at ≤10,000 messages). See [`docs/system-design/tradeoffs.md`](docs/system-design/tradeoffs.md).
 
 ---
 
 ## Known Limitations
 
-1. **Partition range is finite.** The V3 migration pre-creates monthly child tables from `telemetry_2025_01` through `telemetry_2026_12`. Telemetry outside this range lands in `telemetry_default`. New year migrations must be added before the range is exhausted.
+1. **Partition range is finite** — monthly child tables pre-created through 2026-12; add new year migrations before range exhausts.
+2. **Rate limiting is in-process** — each replica has its own Bucket4j bucket; fix with `bucket4j-redis` for shared state.
+3. **Replay queue overflow is silent** — entries dropped at `TELEMETRY_REPLAY_MAX_QUEUE` (default 10,000); set a Prometheus alert on `sentinel_telemetry_dropped_total` for extended outages.
+4. **LINE Notify is shut down** — migrate to `SLACK_NOTIFY_ENABLED` or `NOTIFY_WEBHOOK_ENABLED`.
 
-2. **Rate limiting is in-process.** Bucket4j uses a local ConcurrentHashMap. With multiple backend replicas, each instance has its own bucket — the effective limit becomes `100 × replica_count` per IP. To fix: swap the `BandwidthLimiter` for `bucket4j-redis` which uses Redis atomic counters for shared state.
-
-3. **WebSocket scales horizontally via Redis pub/sub (implemented).** `WebSocketBroadcastPublisher` publishes to the `ws:telemetry` Redis channel; `WebSocketBroadcastSubscriber` (on every replica) delivers to local sessions. Sticky-session routing (`upstream-hash-by: $remote_addr`) ensures WebSocket upgrades land on the same replica each time. Remaining gap: rate limiter is still in-process (see item 2).
-
-4. **Replay queue overflow is silent.** When the queue reaches `TELEMETRY_REPLAY_MAX_QUEUE` (default: 10,000), new entries are dropped. The `sentinel.telemetry.dropped` counter increments, but no alert fires. For extended DB outages, increase `TELEMETRY_REPLAY_MAX_QUEUE` or set up a Prometheus alert rule on that counter.
-
-5. **Hourly aggregation covers a 2-day look-back window.** Late-arriving IoT messages up to 2 days old are retroactively folded into the correct hourly buckets on the next nightly run (`lateArrivalLookbackDays`, configurable). Gaps older than the look-back window will not be backfilled automatically.
-
-6. **LINE Notify is shut down.** LINE Corp shut down LINE Notify on **March 31, 2025**. Tokens no longer function. Migrate to the Slack webhook or generic webhook provider (`SLACK_NOTIFY_ENABLED` / `NOTIFY_WEBHOOK_ENABLED`).
-
-7. **No refresh-token binding to device/IP.** Refresh tokens are bound only to the user, not to the issuing device or IP. A stolen refresh token can be used from any host until it expires (7 days) or is explicitly revoked via logout. Binding to a fingerprint (IP + User-Agent hash) would reduce the blast radius of a token theft.
+See [`docs/system-design/tradeoffs.md`](docs/system-design/tradeoffs.md) for the full list.
 
 ---
 
@@ -686,7 +476,7 @@ sentinel-iot-platform/
 │   ├── prometheus.yml
 │   └── grafana/provisioning/   # Prometheus + Jaeger datasources + pre-built dashboard
 ├── mosquitto/                  # MQTT broker config
-├── load-testing/               # k6 scripts — ดูวิธีรันได้ที่ docs/demo/README.md
+├── load-testing/               # k6 scripts — ดูวิธีรันได้ที่ docs/test-plans/load-test-plan.md
 ├── scripts/                    # seed-demo.sh, unseed-demo.sh, gen-mqtt-certs.sh
 ├── .github/workflows/ci.yml    # Checkstyle → unit tests → integration tests → Docker build
 └── docker-compose.yml          # Full stack (backend, postgres, redis, mosquitto, jaeger, grafana, prometheus)
@@ -704,6 +494,11 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 | --- | --- |
 | [Architecture](docs/system-design/architecture.md) | Component descriptions, data model, deployment topology |
 | [API Reference](docs/system-design/api.md) | All endpoints, request/response examples, role matrix |
+| [Security](docs/system-design/security.md) | JWT, RBAC, multi-tenant isolation, rate limiting, audit logging, known limitations |
+| [Telemetry Retention](docs/system-design/telemetry-retention.md) | 30-day raw retention, hourly aggregates, partition lifecycle |
+| [CI/CD](docs/system-design/cicd.md) | GitHub Actions pipeline — security scan, Testcontainers, contract testing |
+| [MQTT TLS / mTLS](docs/system-design/mqtt-tls.md) | Certificate generation, env vars, connection testing |
+| [Notification Setup](docs/system-design/notification.md) | Slack, generic webhook, LINE Notify (deprecated) |
 | [Sequence Diagrams](docs/system-design/sequence-diagrams.md) | 10 Mermaid diagrams — ingestion, DLQ paths, DB outage/replay, auth, JWT filter, alert (multi-provider), WebSocket, lifecycle, device registration, device enrollment |
 | [Scaling Discussion](docs/system-design/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap, SLO targets vs observed results |
 | [Capacity Planning](docs/system-design/capacity-planning.md) | Device-to-infrastructure matrix, per-layer limits and upgrade triggers, AWS cost estimates, monitoring thresholds |
@@ -732,13 +527,14 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 
 | Document | Contents |
 | --- | --- |
-| [Test Report](docs/test-reports/README.md) | Test execution summary — 225 tests across backend unit/integration/security/E2E and frontend |
+| [Test Report](docs/test-reports/README.md) | Test execution summary — 280 tests across backend unit/integration/security/E2E and frontend |
+| [Load Test Report](docs/test-reports/load-test-report.md) | Cache read path baseline — 1,000 RPS, p95 112 ms, p99 187 ms |
 
 ### Demo & Development (`docs/demo/`)
 
 | Document | Contents |
 | --- | --- |
-| [Demo Guide](docs/demo/README.md) | Node.js Simulator, Demo Data seeding, Running Tests, Load Testing |
+| [Demo Guide](docs/demo/README.md) | Node.js Simulator, Demo Data seeding, Development Quick Start |
 
 ---
 
