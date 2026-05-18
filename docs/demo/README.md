@@ -122,6 +122,74 @@ docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/seed-dem
 docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/unseed-demo.sql
 ```
 
+---
+
+## Industry Device Catalog Seed
+
+Seed ข้อมูลอุปกรณ์ IoT จากอุตสาหกรรมจริง 8 ประเภท พร้อม per-sensor capability thresholds ใน JSONB column
+
+### What Gets Seeded
+
+| อุตสาหกรรม | Org Slug | Admin Username | จำนวน Device |
+|---|---|---|---|
+| Manufacturing / Smart Factory | `manufacturing` | `org-manufacturing-admin` | 8 |
+| Cold Chain & Food Safety | `cold-chain` | `org-cold-chain-admin` | 6 |
+| Data Center & IT Infrastructure | `datacenter` | `org-datacenter-admin` | 6 |
+| Agriculture & Greenhouse | `agriculture` | `org-agriculture-admin` | 6 |
+| Healthcare & Pharmaceuticals | `healthcare` | `org-healthcare-admin` | 5 |
+| Energy & Utilities | `energy` | `org-energy-admin` | 5 |
+| Smart Building & Facilities | `smart-building` | `org-smart-building-admin` | 6 |
+| Logistics & Warehouse | `logistics` | `org-logistics-admin` | 5 |
+
+- **47 devices** รวม 26 sensor types (TEMPERATURE, VIBRATION_G, CO2_PPM, BATTERY_PCT, PH, FLOW_LPM, TILT_DEG ฯลฯ)
+- **~2,256 telemetry rows** — hourly × 48 ชั่วโมง × 47 devices
+- **~32 sample alerts** — ตัวอย่าง alert ทุกอุตสาหกรรม พร้อม realistic message
+- **8 organisations + 8 admin users** (password: `sentinel123`)
+- แต่ละ device มี `capabilities` JSONB ครบ — alert engine ใช้ per-device threshold แทน global env-var
+
+### Sensor Types ที่ครอบคลุม
+
+```text
+TEMPERATURE  HUMIDITY     PRESSURE     SMOKE_PPM    CO2_PPM      CO_PPM
+VOC_INDEX    PM25         PM10         O3_PPB       MOTION       VIBRATION_G
+TILT_DEG     VOLTAGE_V    CURRENT_A    POWER_W      ENERGY_KWH   BATTERY_V
+BATTERY_PCT  SIGNAL_RSSI  LIGHT_LUX    UV_INDEX     SOUND_DB     WATER_LEVEL_PCT
+FLOW_LPM     PH
+```
+
+### Run Industry Seed
+
+**Git Bash / Linux / macOS:**
+
+```bash
+./scripts/seed-industry.sh
+```
+
+**Windows PowerShell:**
+
+```powershell
+docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/seed-industry.sql
+```
+
+> Safe to re-run — ลบ industry devices เก่าออกก่อนแล้วค่อย insert ใหม่
+
+### Remove Industry Seed
+
+```powershell
+docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/unseed-industry.sql
+```
+
+### Login หลัง Seed
+
+```bash
+# ตัวอย่าง — เปลี่ยน org name ตามต้องการ
+curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"org-manufacturing-admin","password":"sentinel123"}'
+```
+
+---
+
 ### What to Check After Seeding
 
 | Service     | URL                                                     | What you see                                            |

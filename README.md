@@ -446,6 +446,133 @@ See [`docs/system-design/tradeoffs.md`](docs/system-design/tradeoffs.md) for the
 
 ---
 
+## Demo Seed Data
+
+### Default demo (500 factory devices)
+
+```bash
+./scripts/seed-demo.sh       # seeds 500 devices + ~1 M telemetry rows
+./scripts/unseed-demo.sh     # removes all sensor-N devices
+```
+
+Login: `admin` / `$INIT_ADMIN_PASSWORD`
+
+---
+
+### Industry Device Catalog (47 devices across 8 industries)
+
+Comprehensive seed covering IoT devices used in real-world industrial deployments. Each device is configured with per-sensor capability thresholds in the `capabilities` JSONB column (alert engine uses these instead of global env-var defaults).
+
+```bash
+./scripts/seed-industry.sh       # seeds 8 orgs + 47 devices + 48 h telemetry + alerts
+docker exec -i sentinel-postgres psql -U sentinel -d sentinel \
+  < scripts/unseed-industry.sql  # removes industry data only
+```
+
+Each industry org gets one admin user (password `sentinel123`):
+
+| Industry | Organisation slug | Admin username | Devices |
+|---|---|---|---|
+| Manufacturing / Smart Factory | `manufacturing` | `org-manufacturing-admin` | 8 |
+| Cold Chain & Food Safety | `cold-chain` | `org-cold-chain-admin` | 6 |
+| Data Center & IT | `datacenter` | `org-datacenter-admin` | 6 |
+| Agriculture & Greenhouse | `agriculture` | `org-agriculture-admin` | 6 |
+| Healthcare & Pharma | `healthcare` | `org-healthcare-admin` | 5 |
+| Energy & Utilities | `energy` | `org-energy-admin` | 5 |
+| Smart Building & Facilities | `smart-building` | `org-smart-building-admin` | 6 |
+| Logistics & Warehouse | `logistics` | `org-logistics-admin` | 5 |
+
+#### Device Catalog
+
+##### 1. Manufacturing / Smart Factory (8 devices)
+
+| Device ID | Description | Key Sensors | Alert Thresholds |
+|---|---|---|---|
+| `mfg-assembly-line-01` | Assembly Line Temperature, Vibration & Fume Monitor | TEMPERATURE · VIBRATION_G · SMOKE_PPM | Temp warn 78°C / crit 85°C · Vib warn 4g / crit 7g · Smoke warn 150 / crit 250 ppm |
+| `mfg-cnc-machine-01` | CNC Machine Health Monitor — Predictive Maintenance | TEMPERATURE · VIBRATION_G · SOUND_DB · CURRENT_A | Temp crit 78°C · Vib crit 6g · Sound crit 105 dB · Current crit 48A |
+| `mfg-air-quality-01` | Factory Floor Multi-Gas Air Quality Station | CO2_PPM · CO_PPM · VOC_INDEX · PM25 | CO₂ crit 2000 ppm · CO crit 35 ppm · VOC crit 350 |
+| `mfg-motor-drive-01` | Motor Drive Electrical Health & Power Monitor | TEMPERATURE · CURRENT_A · VOLTAGE_V · POWER_W | Temp crit 85°C · Current crit 95A · Power crit 48 kW |
+| `mfg-compressor-01` | Industrial Air Compressor — Pressure & Health | TEMPERATURE · PRESSURE · VIBRATION_G · CURRENT_A | Pressure warn 900 / crit 1100 kPa · Temp crit 80°C |
+| `mfg-welding-01` | Welding Bay Fume & Safety Monitor | SMOKE_PPM · CO_PPM · VOC_INDEX | Smoke crit 400 ppm · CO crit 80 ppm |
+| `mfg-conveyor-01` | Conveyor Belt Motion & Mechanical Health | MOTION · VIBRATION_G · TEMPERATURE | Vib warn 2.5g / crit 4g · Temp crit 65°C |
+| `mfg-utility-room-01` | Plant Utility Room Environmental Monitor | TEMPERATURE · HUMIDITY · CO2_PPM | CO₂ crit 1500 ppm · Temp crit 38°C |
+
+##### 2. Cold Chain & Food Safety (6 devices)
+
+| Device ID | Description | Key Sensors | Alert Thresholds |
+|---|---|---|---|
+| `cold-blast-freezer-01` | Industrial Blast Freezer — Deep Freeze (-18°C) | TEMPERATURE · HUMIDITY | Temp warn -15°C / crit -10°C ABOVE |
+| `cold-walkin-fridge-01` | Walk-in Refrigerator +2 to +4°C | TEMPERATURE · HUMIDITY | Temp warn 6°C / crit 8°C |
+| `cold-display-case-01` | Refrigerated Retail Display Case | TEMPERATURE · HUMIDITY | Temp warn 6°C / crit 8°C |
+| `cold-pasteuriser-01` | HTST Pasteurisation Line (72°C/15s) | TEMPERATURE · HUMIDITY · PRESSURE | Temp warn 73°C / crit 72°C BELOW (drop = failure) |
+| `cold-transport-01` | Refrigerated Vehicle Fleet Tracker | TEMPERATURE · HUMIDITY · VIBRATION_G | Temp crit 7°C · Vib crit 7g (road shock) |
+| `cold-wine-cellar-01` | Wine Cellar Precision Climate (12°C / 65%RH) | TEMPERATURE · HUMIDITY · LIGHT_LUX | Temp crit 17°C · Light crit 200 lux (UV damage) |
+
+##### 3. Data Center & IT Infrastructure (6 devices)
+
+| Device ID | Description | Key Sensors | Alert Thresholds |
+|---|---|---|---|
+| `dc-server-rack-01` | Server Rack Thermal — Hot Aisle Containment | TEMPERATURE · HUMIDITY | Temp warn 35°C / crit 40°C |
+| `dc-ups-01` | UPS Battery System — 48V DC Bus | BATTERY_PCT · BATTERY_V · CURRENT_A · TEMPERATURE | Battery crit 10% BELOW · Temp crit 46°C |
+| `dc-pdu-01` | Smart PDU — 3-Phase 30 kW | POWER_W · CURRENT_A · VOLTAGE_V · ENERGY_KWH | Power crit 28.5 kW · Voltage crit 208V BELOW |
+| `dc-leak-sensor-01` | Raised-Floor Water Leak Detector | WATER_LEVEL_PCT · TEMPERATURE | Water warn 1% / crit 5% ABOVE |
+| `dc-crac-unit-01` | Computer Room Air Conditioning (CRAC) | TEMPERATURE · HUMIDITY · PRESSURE | Temp crit 28°C · Humidity crit 65% |
+| `dc-generator-01` | Emergency Diesel Generator | TEMPERATURE · VIBRATION_G · CURRENT_A · VOLTAGE_V | Temp crit 93°C · Voltage crit 205V BELOW |
+
+##### 4. Agriculture & Greenhouse (6 devices)
+
+| Device ID | Description | Key Sensors | Alert Thresholds |
+|---|---|---|---|
+| `agri-greenhouse-01` | Hydroponic Greenhouse Climate Controller | TEMPERATURE · HUMIDITY · CO2_PPM · LIGHT_LUX | CO₂ crit 1950 ppm · Humidity crit 94% |
+| `agri-soil-01` | Smart Soil Multi-Parameter Sensor | TEMPERATURE · HUMIDITY · PH | pH warn 7.5 / crit 8.0 ABOVE |
+| `agri-irrigation-01` | Smart Irrigation Flow & Pressure Monitor | FLOW_LPM · PRESSURE · WATER_LEVEL_PCT | Water level crit 8% BELOW · Pressure crit 580 kPa |
+| `agri-weather-01` | Precision Agriculture Weather Station | TEMPERATURE · HUMIDITY · PRESSURE · UV_INDEX · LIGHT_LUX | Pressure crit 950 hPa BELOW (storm) · UV crit 10 |
+| `agri-silo-01` | Grain Silo Condition Monitor | TEMPERATURE · HUMIDITY · CO2_PPM | Temp crit 35°C (hotspot) · CO₂ crit 3000 ppm |
+| `agri-livestock-01` | Poultry House Environment Controller | TEMPERATURE · HUMIDITY · CO2_PPM · VOC_INDEX | Temp crit 34°C · CO₂ crit 3000 ppm (ammonia proxy) |
+
+##### 5. Healthcare & Pharmaceuticals (5 devices)
+
+| Device ID | Description | Key Sensors | Alert Thresholds |
+|---|---|---|---|
+| `health-vaccine-fridge-01` | WHO-PQS Vaccine Storage (+2 to +8°C) | TEMPERATURE · HUMIDITY | Temp warn 7°C / crit 8°C (cold chain breach) |
+| `health-clean-room-01` | ISO Class 7 Clean Room Monitor | TEMPERATURE · HUMIDITY · PRESSURE · PM25 · PM10 | PM2.5 crit 10 µg/m³ · Temp crit 23°C |
+| `health-autoclave-01` | Steam Autoclave — 134°C Cycle | TEMPERATURE · PRESSURE | Temp crit 138°C · Pressure crit 340 kPa |
+| `health-lab-gas-01` | Laboratory Chemical Fume & Gas Safety | CO_PPM · O3_PPB · VOC_INDEX · CO2_PPM | CO crit 50 ppm · O₃ crit 100 ppb |
+| `health-operating-room-01` | Operating Theatre HVAC & Air Quality | TEMPERATURE · HUMIDITY · PRESSURE · PM25 · CO2_PPM | PM2.5 crit 5 µg/m³ · CO₂ crit 1000 ppm |
+
+##### 6. Energy & Utilities (5 devices)
+
+| Device ID | Description | Key Sensors | Alert Thresholds |
+|---|---|---|---|
+| `energy-solar-inverter-01` | Grid-Tied Solar PV Inverter — 10 kW | TEMPERATURE · VOLTAGE_V · CURRENT_A · POWER_W · ENERGY_KWH | Temp crit 78°C · Voltage crit 995V |
+| `energy-smart-meter-01` | Industrial 3-Phase Smart Energy Meter | POWER_W · CURRENT_A · VOLTAGE_V · ENERGY_KWH | Power crit 59 kW · Current crit 148A |
+| `energy-transformer-01` | Distribution Transformer — 33kV/11kV | TEMPERATURE · CURRENT_A · VIBRATION_G | Temp warn 80°C / crit 90°C · Vib crit 4g |
+| `energy-water-plant-01` | Water Treatment Plant Process Monitor | PH · FLOW_LPM · WATER_LEVEL_PCT · TEMPERATURE | pH crit 9.0 ABOVE · Level crit 8% BELOW |
+| `energy-wind-turbine-01` | Wind Turbine Drivetrain Health — 2 MW | TEMPERATURE · VIBRATION_G · SOUND_DB · CURRENT_A | Vib crit 8g · Sound crit 100 dB |
+
+##### 7. Smart Building & Facilities (6 devices)
+
+| Device ID | Description | Key Sensors | Alert Thresholds |
+|---|---|---|---|
+| `building-hvac-01` | Central HVAC AHU — Demand Control Ventilation | TEMPERATURE · HUMIDITY · CO2_PPM · PRESSURE | CO₂ crit 1500 ppm · Temp crit 28°C |
+| `building-fire-alarm-01` | Addressable Fire Safety — Heat + Smoke + CO | SMOKE_PPM · CO_PPM · TEMPERATURE | Smoke warn 300 / crit 600 ppm · CO crit 100 ppm |
+| `building-occupancy-01` | Smart Occupancy & Comfort Sensor | MOTION · CO2_PPM · LIGHT_LUX · SOUND_DB | CO₂ crit 1800 ppm · Sound crit 90 dB |
+| `building-elevator-01` | Elevator Machine Room — Overheating Prevention | TEMPERATURE · VIBRATION_G · CURRENT_A | Temp warn 40°C / crit 50°C |
+| `building-parking-01` | Basement Car Park Air Quality — CO Management | CO_PPM · CO2_PPM · PM25 | CO warn 25 / crit 50 ppm (EN 50545-1) |
+| `building-water-tank-01` | Roof Water Tank — Level & Legionella Risk | WATER_LEVEL_PCT · TEMPERATURE · PRESSURE | Temp crit 65°C (Legionella zone) · Level crit 10% BELOW |
+
+##### 8. Logistics & Warehouse (5 devices)
+
+| Device ID | Description | Key Sensors | Alert Thresholds |
+|---|---|---|---|
+| `logistics-cold-truck-01` | Cold Chain Refrigerated Transport Monitor | TEMPERATURE · HUMIDITY · VIBRATION_G | Temp warn 3°C / crit 6°C · Vib crit 7g |
+| `logistics-forklift-01` | Electric Forklift Battery & Health Monitor | BATTERY_PCT · BATTERY_V · VIBRATION_G · TEMPERATURE | Battery crit 10% BELOW · Temp crit 65°C |
+| `logistics-warehouse-air-01` | High-Bay Warehouse Air Quality — Forklift CO | CO2_PPM · CO_PPM · VOC_INDEX · TEMPERATURE | CO warn 20 / crit 35 ppm · CO₂ crit 2500 ppm |
+| `logistics-loading-dock-01` | Loading Dock Environmental & Security Monitor | TEMPERATURE · HUMIDITY · CO_PPM · MOTION | CO crit 35 ppm · Humidity crit 92% |
+| `logistics-racking-01` | Automated Storage Racking Structural Integrity | VIBRATION_G · TILT_DEG · TEMPERATURE | Vib crit 2.5g · Tilt warn 3° / crit 5° ABOVE |
+
+---
+
 ## Project Structure
 
 ```text
@@ -487,7 +614,7 @@ sentinel-iot-platform/
 ├── monitoring/                 # Prometheus config + Grafana provisioning (Docker Compose)
 ├── mosquitto/                  # MQTT broker config
 ├── load-testing/               # k6 scripts — ดูวิธีรันได้ที่ docs/test-plans/load-test-plan.md
-├── scripts/                    # seed-demo.sh, unseed-demo.sh, gen-mqtt-certs.sh
+├── scripts/                    # seed-demo.sh, seed-industry.sh, unseed-demo.sh, unseed-industry.sql, gen-mqtt-certs.sh
 ├── deploy/                     # nginx-lb.conf
 ├── docs/                       # Documentation — see docs/README.md
 ├── .github/workflows/          # ci.yml (main pipeline) + api-contract.yml (contract fuzzing)

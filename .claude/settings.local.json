@@ -24,7 +24,8 @@
       "Bash(Get-ChildItem -Path \"d:\\\\workspace\\\\sentinel-iot-platform\" -Force)",
       "Bash(Select-Object Name, FullName, Mode)",
       "Bash(grep -E \"\\\\.\\(tf|yaml|yml|sh\\)$\")",
-      "Bash(Get-ChildItem -Path \"d:\\\\workspace\\\\sentinel-iot-platform\\\\docs\\\\test-plans\\\\\" -File | Select-Object FullName)"
+      "Bash(Get-ChildItem -Path \"d:\\\\workspace\\\\sentinel-iot-platform\\\\docs\\\\test-plans\\\\\" -File | Select-Object FullName)",
+      "Bash(Test-Path \"d:\\\\workspace\\\\sentinel-iot-platform\\\\README.md\")"
     ],
     "additionalDirectories": [
       "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices"
