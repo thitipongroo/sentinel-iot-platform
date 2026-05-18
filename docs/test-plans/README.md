@@ -28,6 +28,6 @@
 
 | ไฟล์ | ขอบเขต | Tests | สถานะ |
 |------|--------|-------|-------|
-| [performance-test-plan.md](performance-test-plan.md) | Normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast | 16 | 📋 วางแผน |
-| [load-test-plan.md](load-test-plan.md) | Ramp-up (0→500 VU), spike, soak (2 hr), Kafka consumer, multi-tenant | 22 | 📋 วางแผน |
+| [performance-test-plan.md](performance-test-plan.md) | Normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast | 16 | ✅ Implemented |
+| [load-test-plan.md](load-test-plan.md) | Ramp-up (0→500 VU), spike, soak (2 hr), Kafka consumer, multi-tenant | 22 | ✅ Implemented |
 | [regression-test-plan.md](regression-test-plan.md) | API contract, HTTP status, auth, RBAC, multi-tenant, migration, rate limit, WebSocket | 55 | ✅ Implemented |
