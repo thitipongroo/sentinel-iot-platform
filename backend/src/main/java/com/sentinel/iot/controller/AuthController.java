@@ -8,6 +8,7 @@ import com.sentinel.iot.repository.AppUserRepository;
 import com.sentinel.iot.service.AuditService;
 import com.sentinel.iot.service.JwtService;
 import com.sentinel.iot.service.UserDetailsServiceImpl;
+import com.sentinel.iot.util.HttpUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -62,7 +63,7 @@ public class AuthController {
         RefreshToken refreshToken = jwtService.generateRefreshToken(req.getUsername());
 
         setRefreshCookie(httpResponse, refreshToken.getRawToken());
-        auditService.log(req.getUsername(), "LOGIN", "/api/v1/auth/login", null, getClientIp(httpRequest));
+        auditService.log(req.getUsername(), "LOGIN", "/api/v1/auth/login", null, HttpUtils.resolveClientIp(httpRequest));
 
         // refreshToken field in body is empty — the token is in the HttpOnly cookie
         return ResponseEntity.ok(new AuthResponse(accessToken, null, role, req.getUsername()));
@@ -110,37 +111,28 @@ public class AuthController {
             }
 
             auditService.log(authentication.getName(), "LOGOUT", "/api/v1/auth/logout", null,
-                    getClientIp(httpRequest));
+                    HttpUtils.resolveClientIp(httpRequest));
         }
         clearRefreshCookie(httpResponse);
         return ResponseEntity.noContent().build();
     }
 
     private void setRefreshCookie(HttpServletResponse response, String rawToken) {
-        @SuppressWarnings("null")
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, rawToken)
-                .httpOnly(true)
-                .secure(true)
-                .sameSite("Strict")
-                .path("/api/v1/auth")
-                .maxAge(REFRESH_COOKIE_MAX_AGE)
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        writeRefreshCookie(response, rawToken, REFRESH_COOKIE_MAX_AGE);
     }
 
     private void clearRefreshCookie(HttpServletResponse response) {
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, "")
+        writeRefreshCookie(response, "", Duration.ZERO);
+    }
+
+    private void writeRefreshCookie(HttpServletResponse response, String token, Duration maxAge) {
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, token)
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Strict")
                 .path("/api/v1/auth")
-                .maxAge(0)
+                .maxAge(maxAge)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        return (forwarded != null) ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
     }
 }

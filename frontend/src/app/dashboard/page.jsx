@@ -68,7 +68,9 @@ export default function DashboardPage() {
       }]
     )
 
-    if (lastMessage.temperature > 80 || lastMessage.smokePpm > 200) {
+    const TEMP_ALERT_THRESHOLD  = 80   // matches alert.temperature-threshold in application.yml
+    const SMOKE_ALERT_THRESHOLD = 200  // matches alert.smoke-threshold in application.yml
+    if (lastMessage.temperature > TEMP_ALERT_THRESHOLD || lastMessage.smokePpm > SMOKE_ALERT_THRESHOLD) {
       qc.invalidateQueries({ queryKey: qk.alerts() })
     }
   }, [lastMessage, selectedDevice, qc])

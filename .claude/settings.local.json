@@ -20,7 +20,10 @@
       "Bash(Get-ChildItem -Path \"d:\\\\workspace\\\\sentinel-iot-platform\" -Name -Directory)",
       "PowerShell(Get-Content \"C:\\\\Users\\\\trku\\\\.claude\\\\projects\\\\d--workspace-sentinel-iot-platform\\\\560cb7aa-974e-49bf-937e-cc4ad4f047c9\\\\tool-results\\\\b08xlizjo.txt\" | Select-String -Pattern '\"level\":\"ERROR\"' | Select-Object -Last 10 | ForEach-Object { $_ | ConvertFrom-Json | Select-Object timestamp, message, stack_trace } | Format-List)",
       "PowerShell(Get-Content \"C:\\\\Users\\\\trku\\\\.claude\\\\projects\\\\d--workspace-sentinel-iot-platform\\\\560cb7aa-974e-49bf-937e-cc4ad4f047c9\\\\tool-results\\\\b08xlizjo.txt\" | ConvertFrom-Json | Where-Object { $_.level -eq \"ERROR\" } | Select-Object -Last 5 | Select-Object timestamp, message, @{N='cause';E={\\($_.stack_trace -split \"`n\"\\)[0..4] -join \" | \"}})",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\workspace\\\\sentinel-iot-platform\" -Force)",
+      "Bash(Select-Object Name, FullName, Mode)",
+      "Bash(grep -E \"\\\\.\\(tf|yaml|yml|sh\\)$\")"
     ],
     "additionalDirectories": [
       "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices"

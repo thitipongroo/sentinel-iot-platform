@@ -61,12 +61,14 @@ public class DeviceService {
 
     public Device findById(UUID id) {
         UUID orgId = TenantContext.get();
-        @SuppressWarnings("null")
-        Device device = (orgId != null)
-                ? deviceRepository.findByIdAndOrganizationId(id, orgId)
-                        .orElseThrow(() -> new NoSuchElementException("Device not found: " + id))
-                : deviceRepository.findById(id)
-                        .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+        Device device;
+        if (orgId != null) {
+            device = deviceRepository.findByIdAndOrganizationId(id, orgId)
+                    .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+        } else {
+            device = deviceRepository.findById(id)
+                    .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
+        }
         String cachedStatus = redisService.getDeviceStatus(id.toString());
         if (cachedStatus != null) {
             device.setStatus(cachedStatus);

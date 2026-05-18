@@ -14,7 +14,8 @@ import {
   ReferenceLine
 } from 'recharts'
 import { format, subHours, subDays } from 'date-fns'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { telemetryApi } from '@/api/client'
 
 const SENSOR_TABS = ['Temperature / Humidity', 'Smoke (ppm)', 'Motion']
@@ -23,9 +24,10 @@ const TIME_WINDOWS = [
   { label: '1h',   value: '1h'  },
   { label: '6h',   value: '6h'  },
   { label: '24h',  value: '24h' },
-  { label: '7d',   value: '7d'  }
+  { label: '7d',   value: '7d'  },
 ]
 
+// Band series are stacked areas used for min/max shading — excluded from tooltip
 const BAND_KEYS = new Set(['tempBandBase', 'tempBandHeight', 'humBandBase', 'humBandHeight'])
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -33,11 +35,16 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <div className="bg-sentinel-800 border border-sentinel-700 rounded-lg p-3 text-xs">
       <p className="text-gray-400 mb-1">{label}</p>
-      {payload.filter(p => p.value != null && !BAND_KEYS.has(p.dataKey)).map(p => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name}: <span className="font-semibold">{typeof p.value === 'number' ? p.value.toFixed(1) : p.value}</span>
-        </p>
-      ))}
+      {payload
+        .filter(p => p.value != null && !BAND_KEYS.has(p.dataKey))
+        .map(p => (
+          <p key={p.name} style={{ color: p.color }}>
+            {p.name}:{' '}
+            <span className="font-semibold">
+              {typeof p.value === 'number' ? p.value.toFixed(1) : p.value}
+            </span>
+          </p>
+        ))}
     </div>
   )
 }
@@ -57,61 +64,60 @@ function toTimeFmt(ts, tw) {
   return format(new Date(ts), tw === '7d' ? 'MM/dd HH:mm' : 'HH:mm')
 }
 
+function transformHourly(data, timeWindow) {
+  return data.map(d => ({
+    time:           toTimeFmt(d.hourBucket, timeWindow),
+    Temperature:    d.tempAvg,
+    tempBandBase:   d.tempMin,
+    tempBandHeight: d.tempMax - d.tempMin,
+    Humidity:       d.humAvg,
+    humBandBase:    d.humMin,
+    humBandHeight:  d.humMax - d.humMin,
+    Smoke:          d.smokeAvg,
+    Motion:         d.motionCount,
+  }))
+}
+
+function transformRaw(data, timeWindow) {
+  return data.map(d => ({
+    time:        toTimeFmt(d.timestamp, timeWindow),
+    Temperature: d.temperature,
+    Humidity:    d.humidity,
+    Smoke:       d.smokePpm ?? 0,
+    Motion:      d.motion ? 1 : 0,
+  }))
+}
+
 export default function TelemetryChart({ data: liveData, device }) {
-  const [activeTab, setActiveTab]     = useState(0)
-  const [timeWindow, setTimeWindow]   = useState('live')
-  const [histData, setHistData]       = useState([])
-  const [loading, setLoading]         = useState(false)
+  const [activeTab, setActiveTab]   = useState(0)
+  const [timeWindow, setTimeWindow] = useState('live')
 
-  useEffect(() => {
-    if (timeWindow === 'live' || !device) { setHistData([]); return }
-    const range = windowRange(timeWindow)
-    if (!range) return
+  const isLive   = timeWindow === 'live'
+  const isHourly = timeWindow === '24h' || timeWindow === '7d'
 
-    setLoading(true)
-    const useHourly = timeWindow === '24h' || timeWindow === '7d'
-    const req = useHourly
-      ? telemetryApi.hourly(device.id, range.from, range.to)
-      : telemetryApi.range(device.id, range.from, range.to)
+  const { data: histData = [], isLoading: loading } = useQuery({
+    queryKey: ['telemetry', device?.id, timeWindow],
+    queryFn:  () => {
+      const range = windowRange(timeWindow)
+      if (!range) return []
+      if (isHourly) {
+        return telemetryApi.hourly(device.id, range.from, range.to)
+          .then(({ data }) => transformHourly(data, timeWindow))
+      }
+      return telemetryApi.range(device.id, range.from, range.to)
+        .then(({ data }) => transformRaw(data, timeWindow))
+    },
+    enabled:   !isLive && !!device,
+    staleTime: 60_000,
+  })
 
-    req
-      .then(({ data }) => {
-        if (useHourly) {
-          setHistData(data.map(d => ({
-            time:           toTimeFmt(d.hourBucket, timeWindow),
-            Temperature:    d.tempAvg,
-            tempBandBase:   d.tempMin,
-            tempBandHeight: d.tempMax - d.tempMin,
-            Humidity:       d.humAvg,
-            humBandBase:    d.humMin,
-            humBandHeight:  d.humMax - d.humMin,
-            Smoke:          d.smokeAvg,
-            Motion:         d.motionCount
-          })))
-        } else {
-          setHistData(data.map(d => ({
-            time:        toTimeFmt(d.timestamp, timeWindow),
-            Temperature: d.temperature,
-            Humidity:    d.humidity,
-            Smoke:       d.smokePpm ?? 0,
-            Motion:      d.motion ? 1 : 0
-          })))
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [timeWindow, device])
-
-  const isHourly  = timeWindow === '24h' || timeWindow === '7d'
-  const isRawHist = timeWindow === '1h'  || timeWindow === '6h'
-
-  const chartData = timeWindow === 'live'
+  const chartData = isLive
     ? liveData.map(d => ({
         time:        format(new Date(d.timestamp), 'HH:mm:ss'),
         Temperature: d.temperature,
         Humidity:    d.humidity,
         Smoke:       d.smokePpm ?? 0,
-        Motion:      d.motion ? 1 : 0
+        Motion:      d.motion ? 1 : 0,
       }))
     : histData
 

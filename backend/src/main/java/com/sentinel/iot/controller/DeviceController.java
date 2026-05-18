@@ -12,6 +12,7 @@ import com.sentinel.iot.security.TenantContext;
 import com.sentinel.iot.service.AuditService;
 import com.sentinel.iot.service.DeviceEnrollmentService;
 import com.sentinel.iot.service.DeviceService;
+import com.sentinel.iot.util.HttpUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,7 +45,7 @@ public class DeviceController {
                                          HttpServletRequest httpRequest) {
         Device created = deviceService.create(req);
         auditService.log(authentication.getName(), "DEVICE_CREATE",
-                "/api/devices", "name=" + req.getName(), resolveIp(httpRequest));
+                "/api/devices", "name=" + req.getName(), HttpUtils.resolveClientIp(httpRequest));
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -71,7 +72,7 @@ public class DeviceController {
         Device updated = deviceService.updateLifecycle(id, req);
         auditService.log(authentication.getName(), "DEVICE_LIFECYCLE_UPDATE",
                 "/api/devices/" + id + "/lifecycle",
-                "status=" + req.getLifecycleStatus(), resolveIp(httpRequest));
+                "status=" + req.getLifecycleStatus(), HttpUtils.resolveClientIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
@@ -85,7 +86,7 @@ public class DeviceController {
         Device updated = deviceService.updateFirmware(id, req);
         auditService.log(authentication.getName(), "DEVICE_FIRMWARE_UPDATE",
                 "/api/devices/" + id + "/firmware",
-                "version=" + req.getFirmwareVersion(), resolveIp(httpRequest));
+                "version=" + req.getFirmwareVersion(), HttpUtils.resolveClientIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
@@ -112,7 +113,7 @@ public class DeviceController {
     public ResponseEntity<Map<String, String>> enroll(
             @RequestBody DeviceEnrollRequest request,
             HttpServletRequest httpRequest) {
-        String remoteIp = resolveIp(httpRequest);
+        String remoteIp = HttpUtils.resolveClientIp(httpRequest);
         String mqttPassword = enrollmentService.enroll(request, remoteIp);
         return ResponseEntity.ok(Map.of(
                 "mqttUsername", "device-" + request.deviceId(),
@@ -145,12 +146,8 @@ public class DeviceController {
         Device updated = deviceService.updateCapabilities(id, req);
         auditService.log(authentication.getName(), "DEVICE_CAPABILITY_UPDATE",
                 "/api/devices/" + id + "/capabilities",
-                "sensors=" + req.capabilities().keySet(), resolveIp(httpRequest));
+                "sensors=" + req.capabilities().keySet(), HttpUtils.resolveClientIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
-    private String resolveIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        return (forwarded != null) ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
-    }
 }
