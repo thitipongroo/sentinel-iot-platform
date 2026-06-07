@@ -81,10 +81,9 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 
 ### Normal Ingestion Path
 
-<!--
-![Sentinel IoT Platform Normal Ingestion Path](screenshots/sentinel-data-flow-normal.png)
--->
+![Sentinel IoT Platform Normal Ingestion Path](../screenshots/sentinel-data-flow-normal-ingresstion.png)
 
+<!--
 ```text
 Device/Simulator
   │── MQTT publish ──▶ Mosquitto
@@ -105,6 +104,7 @@ Device/Simulator
                                                                 └── WebSocketBroadcastPublisher (orgId|payload)
                                                                         └── tenant-filtered WS broadcast ──▶ React UI
 ```
+-->
 
 ### Failure Paths
 
