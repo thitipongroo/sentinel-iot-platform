@@ -79,7 +79,9 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 
 ## Data Flow
 
+<!--
 ### Normal Ingestion Path
+-->
 
 ![Sentinel IoT Platform Normal Ingestion Path](../screenshots/sentinel-data-flow-normal-ingresstion.png)
 
@@ -106,12 +108,13 @@ Device/Simulator
 ```
 -->
 
-### Failure Paths
-
 <!--
-![Sentinel IoT Platform Failure Ingestion Path](screenshots/sentinel-data-flow-failure.png)
+### Failure Paths
 -->
 
+![Sentinel IoT Platform Failure Ingestion Path](../screenshots/sentinel-data-flow-failure-ingression.png)
+
+<!--
 ```text
 Stage ①–④ validation failure or LIFECYCLE_REJECTED:
   MqttConsumerService ──▶ mqttDlqChannel ──▶ factory/telemetry/dlq
@@ -128,6 +131,7 @@ Replay queue drain (every 30 seconds):
     └── LPOP batchSize entries ──▶ TelemetryRepository.save() ──▶ PostgreSQL
           failures ──▶ RPUSH back to tail of queue
 ```
+-->
 
 ---
 
