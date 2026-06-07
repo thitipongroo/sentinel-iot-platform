@@ -79,9 +79,7 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 
 ## Data Flow
 
-<!--
 ### Normal Ingestion Path
--->
 
 ![Sentinel IoT Platform Normal Ingestion Path](../screenshots/sentinel-data-flow-normal-ingresstion.png)
 
@@ -108,9 +106,7 @@ Device/Simulator
 ```
 -->
 
-<!--
 ### Failure Paths
--->
 
 ![Sentinel IoT Platform Failure Ingestion Path](../screenshots/sentinel-data-flow-failure-ingression.png)
 
@@ -388,9 +384,7 @@ Hourly aggregates have no expiry — they are the long-term analytics record. Th
 
 ---
 
-<!--
 ## Deployment Topology
--->
 
 ![Sentinel IoT Platform Deployment Topology Diagram](../screenshots/sentinel-deployment-topology.png)
 
