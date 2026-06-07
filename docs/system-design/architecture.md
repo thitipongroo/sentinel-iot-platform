@@ -388,12 +388,13 @@ Hourly aggregates have no expiry — they are the long-term analytics record. Th
 
 ---
 
-## Deployment Topology
-
 <!--
-![Sentinel IoT Platform Deployment Topology Diagram](screenshots/sentinel-deployment-topology.png)
+## Deployment Topology
 -->
 
+![Sentinel IoT Platform Deployment Topology Diagram](../screenshots/sentinel-deployment-topology.png)
+
+<!--
 ```text
 Internet
     │
@@ -415,3 +416,4 @@ Supabase    Upstash    HiveMQ      Docker VM     Jaeger
 (Postgres)  (Redis)    (MQTT)   (Prometheus    (traces)
                                  + Grafana)
 ```
+-->
