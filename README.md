@@ -15,6 +15,9 @@
 
 ## Architecture Diagram
 
+![Sentinel IoT Platform](/docs/screenshots/sentinel-architecture-diagram.png)
+
+<!--
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────┐
 │                            Sentinel IoT Platform                              │
@@ -45,9 +48,13 @@
 │                                  └─────────────────┘                          │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
+-->
 
 ### Data Flow — Normal Path
 
+![Data Flow - Normal Path](/docs/screenshots/sentinel-data-flow-normal-path.png)
+
+<!--
 ```text
 IoT Device
   │── MQTT publish ──▶ Mosquitto
@@ -61,6 +68,7 @@ IoT Device
                                                           │        └── LINE Notify (if threshold exceeded)
                                                           └── WebSocket broadcast ──▶ React UI
 ```
+-->
 
 ### Data Flow — Failure Paths
 
