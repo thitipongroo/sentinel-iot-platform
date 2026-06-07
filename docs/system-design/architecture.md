@@ -8,7 +8,7 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 
 ## High-Level Diagram
 
-![Sentinel IoT Platform High Level Diagram](screenshots/sentinel-high-level-diagram.png)
+![Sentinel IoT Platform High Level Diagram](../screenshots/sentinel-high-level-diagram.png)
 
 <!--
 ```text
