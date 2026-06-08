@@ -25,7 +25,12 @@
       "Bash(Select-Object Name, FullName, Mode)",
       "Bash(grep -E \"\\\\.\\(tf|yaml|yml|sh\\)$\")",
       "Bash(Get-ChildItem -Path \"d:\\\\workspace\\\\sentinel-iot-platform\\\\docs\\\\test-plans\\\\\" -File | Select-Object FullName)",
-      "Bash(Test-Path \"d:\\\\workspace\\\\sentinel-iot-platform\\\\README.md\")"
+      "Bash(Test-Path \"d:\\\\workspace\\\\sentinel-iot-platform\\\\README.md\")",
+      "Bash(grep -c \"^| \\\\`\" \"d:/workspace/sentinel-iot-platform/README.md\")",
+      "Bash(grep -E \"^\\\\| \\\\`\\(mfg|cold|dc|agri|health|energy|building|logistics|og|mine\\)-\" \"d:/workspace/sentinel-iot-platform/README.md\")",
+      "Bash(grep -E \"^\\\\| \\\\`\\(mfg|cold|dc|agri|health|energy|building|logistics|og|mine|water|chem|marine|fbev|auto|rail|semi|hotel|retail|construct\\)-\" \"d:/workspace/sentinel-iot-platform/README.md\")",
+      "Bash(grep -c \"^| \\\\`\" \"d:\\\\workspace\\\\sentinel-iot-platform\\\\README.md\")",
+      "Bash(python -c ' *)"
     ],
     "additionalDirectories": [
       "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices"
