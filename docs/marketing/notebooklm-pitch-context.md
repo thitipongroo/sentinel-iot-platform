@@ -59,9 +59,9 @@ Sentinel IoT Platform คือ **production-grade industrial IoT monitoring sys
 
 **Screenshots ที่มี:**
 
-- `docs/screenshots/dashboard.png` — Real-time dashboard พร้อม TelemetryChart (Live/1h/6h/24h/7d)
-- `docs/screenshots/alerts.png` — Alert management panel (All / Unacknowledged tabs)
-- `docs/screenshots/grafana.png` — Observability dashboard (Prometheus + Grafana)
+- `dashboard.png` — Real-time dashboard พร้อม TelemetryChart (Live/1h/6h/24h/7d)
+- `alerts.png` — Alert management panel (All / Unacknowledged tabs)
+- `grafana.png` — Observability dashboard (Prometheus + Grafana)
 
 **Features หลักที่มีในระบบจริง:**
 
