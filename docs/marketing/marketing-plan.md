@@ -2,8 +2,9 @@
 
 ## 1. Product Overview
 
-> Sentinel IoT Platform **คือ** production-grade industrial IoT monitoring system
-> รองรับ sensor หลัก :
+### Sentinel IoT Platform **คือ** production-grade industrial IoT monitoring system
+
+**รองรับ sensor หลัก :**
 
 - Temperature
 - Humidity
@@ -12,13 +13,7 @@
 - CO2 PPM
 - sensor แบบ dynamic ผ่าน v2 payload
 
- > มี :
-
-- real-time WebSocket dashboard
-- multi-tenant architecture ระดับ PostgreSQL Row Level Security
-- device lifecycle management
-- firmware tracking
-- alert system (Slack, Webhook, LINE Notify)
+> 400 Devices Across 20 Industries
 
 **Main Features :**
 
