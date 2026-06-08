@@ -126,7 +126,7 @@
 ## 7. Revenue Architecture
 
 ```text
-Base Plan (device tier)
+Base Plan (device tier)      ($522, $1,522, $5,217)
     ├── + Data Retention      ($99–$599/month)
     ├── + Alert Pro/Enterprise ($79–$199/month)
     ├── + Pro/Enterprise API   ($199–$599/month)
