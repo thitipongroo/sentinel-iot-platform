@@ -2,14 +2,6 @@
 
 Comprehensive seed covering IoT devices used in real-world industrial deployments. Each device is configured with per-sensor capability thresholds in the `capabilities` JSONB column (alert engine uses these instead of global env-var defaults).
 
-```bash
-./scripts/seed-industry.sh       # seeds 20 orgs + 400 devices + 48 h telemetry + alerts
-docker exec -i sentinel-postgres psql -U sentinel -d sentinel \
-  < scripts/unseed-industry.sql  # removes industry data only
-```
-
-Each industry org gets one admin user (password `sentinel123`):
-
 | Industry | Organisation slug | Admin username | Devices |
 |---|---|---|---|
 | Manufacturing / Smart Factory | `manufacturing` | `org-manufacturing-admin` | 20 |
@@ -35,7 +27,7 @@ Each industry org gets one admin user (password `sentinel123`):
 
 ## Device Catalog
 
-### 1. Manufacturing / Smart Factory (20 devices)
+### 1. Manufacturing / Smart Factory
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -60,7 +52,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `mfg-compressed-air-01` | Compressed Air System Quality & Dew Point Monitor | PRESSURE · FLOW_LPM · HUMIDITY · TEMPERATURE | Pressure crit 500 kPa BELOW · Humidity crit 40% (dew point proxy) · Temp crit 45°C |
 | `mfg-wastewater-01` | Factory Wastewater Treatment Monitor | PH · WATER_LEVEL_PCT · TEMPERATURE · FLOW_LPM | pH warn 9.0 / crit 10.0 ABOVE · Level crit 85% ABOVE · Flow crit 500 LPM ABOVE |
 
-### 2. Cold Chain & Food Safety (20 devices)
+### 2. Cold Chain & Food Safety
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -85,7 +77,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `cold-blood-plasma-01` | Blood Plasma Ultra-Low Temperature Freezer Monitor | TEMPERATURE · HUMIDITY | Temp warn -28°C / crit -25°C ABOVE · Humidity crit 65% |
 | `cold-vaccine-transport-01` | Vaccine Cold Box & Last-Mile Transport Monitor | TEMPERATURE · HUMIDITY · VIBRATION_G | Temp warn 7°C / crit 8°C ABOVE · Vib crit 5g |
 
-### 3. Data Center & IT Infrastructure (20 devices)
+### 3. Data Center & IT Infrastructure
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -110,7 +102,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `dc-cooling-tower-01` | Data Center Cooling Tower & Legionella Monitor | TEMPERATURE · WATER_LEVEL_PCT · PH · FLOW_LPM | Temp warn 45°C / crit 60°C (Legionella risk) · pH warn 8.5 / crit 9.0 ABOVE |
 | `dc-fuel-storage-01` | Backup Generator Fuel Day Tank Monitor | WATER_LEVEL_PCT · TEMPERATURE · VOC_INDEX · PRESSURE | Level warn 25% / crit 15% BELOW · VOC crit 350 (vapour) · Temp crit 50°C |
 
-### 4. Agriculture & Greenhouse (20 devices)
+### 4. Agriculture & Greenhouse
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -135,7 +127,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `agri-solar-pump-01` | Solar-Powered Irrigation Pump Monitor | VOLTAGE_V · CURRENT_A · FLOW_LPM · WATER_LEVEL_PCT | Voltage crit 30V BELOW · Flow crit 50 LPM BELOW · Level crit 5% BELOW |
 | `agri-fish-hatchery-01` | Fish Hatchery Incubation Water Quality Monitor | TEMPERATURE · PH · DISSOLVED_O2 · WATER_LEVEL_PCT | Temp warn 26°C / crit 30°C · O₂ crit 6 mg/L BELOW · pH warn 7.5 / crit 8.0 ABOVE |
 
-### 5. Healthcare & Pharmaceuticals (20 devices)
+### 5. Healthcare & Pharmaceuticals
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -160,7 +152,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `health-dental-01` | Dental Surgery Compressed Air & Gas Safety Monitor | PRESSURE · CO_PPM · VOC_INDEX · TEMPERATURE | Pressure crit 400 kPa BELOW · CO crit 25 ppm · VOC crit 200 |
 | `health-waste-01` | Clinical Waste Refrigerated Storage Monitor | TEMPERATURE · HUMIDITY · CO_PPM · VOC_INDEX | Temp crit 8°C ABOVE · CO crit 25 ppm · VOC crit 300 |
 
-### 6. Energy & Utilities (20 devices)
+### 6. Energy & Utilities
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -185,7 +177,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `energy-solar-farm-01` | Utility-Scale Solar Farm Array Performance Monitor | TEMPERATURE · VOLTAGE_V · CURRENT_A · POWER_W | Temp crit 75°C (module) · Power warn 50 kW BELOW · Voltage crit 1500V ABOVE |
 | `energy-biomass-01` | Biomass / Biogas Power Plant Combustion Monitor | TEMPERATURE · CO_PPM · CH4_PPM · FLOW_LPM | Temp crit 900°C (combustion) · CO crit 100 ppm · CH₄ crit 20% LEL |
 
-### 7. Smart Building & Facilities (20 devices)
+### 7. Smart Building & Facilities
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -210,7 +202,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `building-transformer-01` | Building HV/MV Transformer & Switchroom Monitor | TEMPERATURE · HUMIDITY · CURRENT_A · VOLTAGE_V | Temp warn 55°C / crit 65°C · Humidity crit 75% · Current crit 400A |
 | `building-waste-room-01` | Waste Collection & Compactor Room Monitor | TEMPERATURE · CO_PPM · VOC_INDEX · MOTION | Temp crit 38°C · CO crit 25 ppm · VOC crit 350 |
 
-### 8. Logistics & Warehouse (20 devices)
+### 8. Logistics & Warehouse
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -235,7 +227,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `logistics-uld-01` | Aviation ULD / Air Cargo Container Monitor | TEMPERATURE · HUMIDITY · VIBRATION_G · PRESSURE | Temp warn 15°C / crit 25°C · Vib crit 5g · Pressure crit 75 kPa BELOW |
 | `logistics-parcel-locker-01` | Smart Parcel Locker & Last-Mile Hub Monitor | TEMPERATURE · HUMIDITY · MOTION · CURRENT_A | Temp warn 35°C / crit 45°C · Humidity crit 80% · Current crit 20A |
 
-### 9. Oil & Gas (20 devices)
+### 9. Oil & Gas
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -260,7 +252,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `og-lifeboat-station-01` | Offshore Lifeboat Station & Muster Area Monitor | CO_PPM · CO2_PPM · TEMPERATURE · O2_PCT | CO crit 25 ppm · O₂ crit 19.5% BELOW · CO₂ crit 2000 ppm |
 | `og-hvac-platform-01` | Offshore Platform HVAC & Gas Ingress Monitor | CO_PPM · H2S_PPM · VOC_INDEX · TEMPERATURE | CO crit 25 ppm · H₂S crit 1 ppm · VOC crit 400 |
 
-### 10. Mining (20 devices)
+### 10. Mining
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -285,7 +277,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `mine-emergency-monitor-01` | Mine Emergency Gas & Safety System Monitor | CO_PPM · CH4_PPM · O2_PCT · VIBRATION_G | CO crit 35 ppm · CH₄ crit 10,000 ppm · O₂ crit 19.5% BELOW |
 | `mine-surface-water-01` | Open Cut Mine Pit Wall Water Management Monitor | WATER_LEVEL_PCT · PRESSURE · TILT_DEG · VIBRATION_G | Level warn 70% / crit 85% ABOVE · Tilt warn 2° / crit 3° ABOVE (slope failure risk) |
 
-### 11. Water & Wastewater Treatment (20 devices)
+### 11. Water & Wastewater Treatment
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -310,7 +302,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `water-effluent-01` | Final Effluent Quality & Discharge Monitor | PH · TEMPERATURE · DISSOLVED_O2 · FLOW_LPM | pH warn 9.0 / crit 10.0 ABOVE · O₂ crit 5 mg/L BELOW · Temp crit 35°C (thermal discharge limit) |
 | `water-sludge-dryer-01` | Sludge Dewatering & Thermal Dryer Monitor | TEMPERATURE · HUMIDITY · VIBRATION_G · CURRENT_A | Temp crit 200°C · Humidity crit 90% · Vib crit 5g · Current crit 150A |
 
-### 12. Chemical & Petrochemical (20 devices)
+### 12. Chemical & Petrochemical
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -335,7 +327,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `chem-transformer-01` | Chemical Plant Substation & Transformer Monitor | TEMPERATURE · CURRENT_A · HUMIDITY · VOLTAGE_V | Temp warn 70°C / crit 85°C · Humidity crit 80% · Current crit 500A |
 | `chem-cooling-tower-01` | Chemical Plant Cooling Tower Monitor | TEMPERATURE · FLOW_LPM · VIBRATION_G · WATER_LEVEL_PCT | Temp crit 45°C (outlet) · Flow crit 200 LPM BELOW · Level crit 20% BELOW · Vib crit 4g |
 
-### 13. Marine & Port (20 devices)
+### 13. Marine & Port
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -360,7 +352,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `marine-dry-dock-01` | Dry Dock Dewatering & Structural Monitor | WATER_LEVEL_PCT · PRESSURE · VIBRATION_G · CURRENT_A | Level crit 20% ABOVE (flooding risk) · Vib crit 4g · Current crit 100A |
 | `marine-bow-thruster-01` | Vessel Bow & Stern Thruster Monitor | VIBRATION_G · TEMPERATURE · CURRENT_A · SOUND_DB | Vib warn 4g / crit 8g · Temp crit 90°C (motor) · Current crit 500A · Sound crit 120 dB |
 
-### 14. Food & Beverage Processing (20 devices)
+### 14. Food & Beverage Processing
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -385,7 +377,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `fbev-dry-goods-store-01` | Dry Goods & Ingredient Warehouse Monitor | TEMPERATURE · HUMIDITY · CO2_PPM · MOTION | Temp crit 28°C · Humidity warn 70% / crit 80% ABOVE · CO₂ crit 3000 ppm |
 | `fbev-can-seamer-01` | Can Seaming & Metal Packaging Line Monitor | VIBRATION_G · CURRENT_A · TEMPERATURE · SOUND_DB | Vib warn 3g / crit 6g · Current crit 30A · Sound crit 95 dB · Temp crit 80°C |
 
-### 15. Automotive Manufacturing (20 devices)
+### 15. Automotive Manufacturing
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -410,7 +402,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `auto-torque-station-01` | Torque Nutrunner & Assembly Verification Monitor | VIBRATION_G · CURRENT_A · TEMPERATURE · SOUND_DB | Vib warn 3g / crit 6g · Current crit 25A · Sound crit 100 dB |
 | `auto-hydraulic-press-01` | Stamping & Press Shop Hydraulic Press Monitor | PRESSURE · VIBRATION_G · TEMPERATURE · CURRENT_A | Pressure crit 25000 kPa · Vib warn 5g / crit 10g · Temp crit 80°C · Current crit 200A |
 
-### 16. Railway & Transit (20 devices)
+### 16. Railway & Transit
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -435,7 +427,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `rail-wheel-lathe-01` | Wheel Lathe & Axle Shop Monitor | VIBRATION_G · SOUND_DB · TEMPERATURE · CURRENT_A | Vib warn 4g / crit 7g · Sound crit 110 dB · Current crit 200A |
 | `rail-catenary-01` | Overhead Catenary & Pantograph Wear Monitor | VOLTAGE_V · CURRENT_A · VIBRATION_G · TEMPERATURE | Voltage warn 24000V / crit 27500V ABOVE · Current crit 1000A · Vib crit 5g |
 
-### 17. Semiconductor Fab (20 devices)
+### 17. Semiconductor Fab
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -460,7 +452,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `semi-ion-implant-01` | Ion Implanter Process & Vacuum Monitor | PRESSURE · TEMPERATURE · CURRENT_A · VIBRATION_G | Pressure crit 0.1 kPa ABOVE (vacuum loss) · Temp crit 70°C (magnet) · Current crit 50A |
 | `semi-smif-pod-01` | Wafer SMIF Pod & Front-Opening Unified Pod (FOUP) Monitor | TEMPERATURE · HUMIDITY · VIBRATION_G · PRESSURE | Temp warn 22°C / crit 24°C · Humidity crit 40% · Vib crit 0.5g · Pressure crit ±5 Pa |
 
-### 18. Hospitality & Hotels (20 devices)
+### 18. Hospitality & Hotels
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -485,7 +477,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `hotel-rooftop-hvac-01` | Hotel Rooftop HVAC Condensing Unit Monitor | TEMPERATURE · CURRENT_A · VIBRATION_G · PRESSURE | Temp crit 60°C (refrigerant) · Current crit 80A · Vib crit 4g · Pressure crit 1800 kPa |
 | `hotel-grease-trap-01` | Hotel Restaurant Grease Trap & Fat Separator Monitor | WATER_LEVEL_PCT · TEMPERATURE · FLOW_LPM | Level warn 70% / crit 85% ABOVE · Temp crit 60°C (effluent limit) |
 
-### 19. Retail & Supermarket (20 devices)
+### 19. Retail & Supermarket
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|
@@ -510,7 +502,7 @@ Each industry org gets one admin user (password `sentinel123`):
 | `retail-generator-01` | Retail Store Emergency Generator Monitor | TEMPERATURE · VIBRATION_G · CURRENT_A · WATER_LEVEL_PCT | Temp crit 90°C · Vib crit 5g · Level crit 20% BELOW (fuel) |
 | `retail-atm-01` | ATM & Cash Office Climate Monitor | TEMPERATURE · HUMIDITY · MOTION | Temp warn 25°C / crit 30°C · Humidity crit 65% · Motion crit (unauthorized access) |
 
-### 20. Construction & Infrastructure (20 devices)
+### 20. Construction & Infrastructure
 
 | Device ID | Description | Key Sensors | Alert Thresholds |
 |---|---|---|---|

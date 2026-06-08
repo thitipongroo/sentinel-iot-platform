@@ -97,13 +97,19 @@ Seed ข้อมูลตัวอย่างลงฐานข้อมูล
 **Git Bash / Linux / macOS:**
 
 ```bash
-./scripts/seed-demo.sh
+./scripts/seed-industry.sh  # seeds 20 orgs + 400 devices + 48 h telemetry + alerts
 ```
+
+Each industry org gets one admin user (password `sentinel123`):
 
 **Windows PowerShell:**
 
 ```powershell
 docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/seed-demo.sql
+```
+
+```powershell
+docker exec -i sentinel-postgres psql -U sentinel -d sentinel < scripts/unseed-industry.sql  # removes industry data only
 ```
 
 > Safe to re-run — ลบ seed devices เก่าออกก่อนแล้วค่อย insert ใหม่
