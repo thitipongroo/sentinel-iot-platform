@@ -26,6 +26,8 @@
 - Observability: Prometheus + Grafana + Jaeger (OpenTelemetry)
 - Capacity รองรับตั้งแต่ 50 ถึง 100,000+ devices
 
+**Screenshots :**
+
 ![Dashboard](../screenshots/dashboard.png)
 
 ![Alerts](../screenshots/alerts.png)
