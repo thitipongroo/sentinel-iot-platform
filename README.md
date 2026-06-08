@@ -126,6 +126,61 @@ Invalid MQTT payload / unknown device:
 
 ---
 
+## Project Structure
+
+![Project Structure](/docs/screenshots/sentinel-project-structure.png)
+
+<!--
+```text
+sentinel-iot-platform/
+├── backend/                    # Spring Boot application
+│   ├── src/main/java/com/sentinel/iot/
+│   │   ├── config/             # Security, MQTT (+ DLQ), WebSocket, Redis, RequestIdFilter, RLS
+│   │   ├── controller/         # REST endpoints (auth, devices, telemetry, alerts, users, settings)
+│   │   ├── converter/          # JPA attribute converters (DeviceCapabilities, SensorReadings)
+│   │   ├── dto/                # Request/response DTOs + ReplayQueueMessage
+│   │   ├── kafka/              # KafkaTelemetryProducer, KafkaTelemetryConsumer, TelemetryDlqConsumer
+│   │   ├── model/              # JPA entities (Device, Telemetry, TelemetryHourlyAggregate, ...)
+│   │   ├── repository/         # Spring Data repositories
+│   │   ├── security/           # JWT filter + token service
+│   │   ├── service/            # TelemetryService, AlertService, RedisService,
+│   │   │   │                   #   ReplayQueueService, TelemetryRetentionService
+│   │   │   └── notification/   # Slack, generic webhook, LINE Notify providers
+│   │   └── websocket/          # WebSocket broadcast publisher + subscriber
+│   ├── src/main/resources/
+│   │   ├── application.yml     # All config; env-var overrides for every external dependency
+│   │   ├── logback-spring.xml  # JSON (prod) / human-readable (dev) logging
+│   │   └── db/migration/       # V1–V11: schema, partitioning, lifecycle, multi-tenancy,
+│   │                           #   RLS, schema evolution, enrollment tokens, nullable fields
+│   └── src/test/               # Unit + integration tests (BaseIntegrationTest Testcontainers base)
+├── frontend/                   # Next.js 14 (App Router) + Tailwind CSS
+│   └── src/
+│       ├── app/                # App Router pages — dashboard, devices, alerts, users, settings, login
+│       ├── api/                # Axios client + generated API types
+│       ├── components/         # Shared UI components + ui/ primitives
+│       ├── hooks/              # Custom React hooks
+│       └── lib/                # Utility functions
+├── infra/                      # Cloud infrastructure
+│   ├── helm/sentinel-iot/      # Helm chart — Kubernetes manifests, Argo Rollouts, KEDA, Velero
+│   ├── argocd/                 # ArgoCD Application + ApplicationSet (staging + prod)
+│   ├── terraform/              # EKS, RDS, ElastiCache, MSK modules
+│   ├── monitoring/             # SLO rules + Grafana SLO dashboard
+│   └── scripts/                # DR restore script
+├── simulator/                  # Node.js MQTT publisher — dev/demo only (docs/demo/README.md)
+├── monitoring/                 # Prometheus config + Grafana provisioning (Docker Compose)
+├── mosquitto/                  # MQTT broker config
+├── load-testing/               # k6 scripts — ดูวิธีรันได้ที่ docs/test-plans/load-test-plan.md
+├── scripts/                    # seed-demo.sh, seed-industry.sh, unseed-demo.sh, unseed-industry.sql, gen-mqtt-certs.sh
+├── deploy/                     # nginx-lb.conf
+├── docs/                       # Documentation — see docs/README.md
+├── .github/workflows/          # ci.yml (main pipeline) + api-contract.yml (contract fuzzing)
+├── run.sh                      # Docker Compose wrapper (alternative to make)
+└── docker-compose.yml          # Full stack (backend, postgres, redis, mosquitto, kafka, jaeger, grafana, prometheus)
+```
+-->
+
+---
+
 ## Quick Start
 
 ### Prerequisites
@@ -586,61 +641,6 @@ Each industry org gets one admin user (password `sentinel123`):
 | `logistics-warehouse-air-01` | High-Bay Warehouse Air Quality — Forklift CO | CO2_PPM · CO_PPM · VOC_INDEX · TEMPERATURE | CO warn 20 / crit 35 ppm · CO₂ crit 2500 ppm |
 | `logistics-loading-dock-01` | Loading Dock Environmental & Security Monitor | TEMPERATURE · HUMIDITY · CO_PPM · MOTION | CO crit 35 ppm · Humidity crit 92% |
 | `logistics-racking-01` | Automated Storage Racking Structural Integrity | VIBRATION_G · TILT_DEG · TEMPERATURE | Vib crit 2.5g · Tilt warn 3° / crit 5° ABOVE |
-
----
-
-## Project Structure
-
-![Project Structure](/docs/screenshots/sentinel-project-structure.png)
-
-<!--
-```text
-sentinel-iot-platform/
-├── backend/                    # Spring Boot application
-│   ├── src/main/java/com/sentinel/iot/
-│   │   ├── config/             # Security, MQTT (+ DLQ), WebSocket, Redis, RequestIdFilter, RLS
-│   │   ├── controller/         # REST endpoints (auth, devices, telemetry, alerts, users, settings)
-│   │   ├── converter/          # JPA attribute converters (DeviceCapabilities, SensorReadings)
-│   │   ├── dto/                # Request/response DTOs + ReplayQueueMessage
-│   │   ├── kafka/              # KafkaTelemetryProducer, KafkaTelemetryConsumer, TelemetryDlqConsumer
-│   │   ├── model/              # JPA entities (Device, Telemetry, TelemetryHourlyAggregate, ...)
-│   │   ├── repository/         # Spring Data repositories
-│   │   ├── security/           # JWT filter + token service
-│   │   ├── service/            # TelemetryService, AlertService, RedisService,
-│   │   │   │                   #   ReplayQueueService, TelemetryRetentionService
-│   │   │   └── notification/   # Slack, generic webhook, LINE Notify providers
-│   │   └── websocket/          # WebSocket broadcast publisher + subscriber
-│   ├── src/main/resources/
-│   │   ├── application.yml     # All config; env-var overrides for every external dependency
-│   │   ├── logback-spring.xml  # JSON (prod) / human-readable (dev) logging
-│   │   └── db/migration/       # V1–V11: schema, partitioning, lifecycle, multi-tenancy,
-│   │                           #   RLS, schema evolution, enrollment tokens, nullable fields
-│   └── src/test/               # Unit + integration tests (BaseIntegrationTest Testcontainers base)
-├── frontend/                   # Next.js 14 (App Router) + Tailwind CSS
-│   └── src/
-│       ├── app/                # App Router pages — dashboard, devices, alerts, users, settings, login
-│       ├── api/                # Axios client + generated API types
-│       ├── components/         # Shared UI components + ui/ primitives
-│       ├── hooks/              # Custom React hooks
-│       └── lib/                # Utility functions
-├── infra/                      # Cloud infrastructure
-│   ├── helm/sentinel-iot/      # Helm chart — Kubernetes manifests, Argo Rollouts, KEDA, Velero
-│   ├── argocd/                 # ArgoCD Application + ApplicationSet (staging + prod)
-│   ├── terraform/              # EKS, RDS, ElastiCache, MSK modules
-│   ├── monitoring/             # SLO rules + Grafana SLO dashboard
-│   └── scripts/                # DR restore script
-├── simulator/                  # Node.js MQTT publisher — dev/demo only (docs/demo/README.md)
-├── monitoring/                 # Prometheus config + Grafana provisioning (Docker Compose)
-├── mosquitto/                  # MQTT broker config
-├── load-testing/               # k6 scripts — ดูวิธีรันได้ที่ docs/test-plans/load-test-plan.md
-├── scripts/                    # seed-demo.sh, seed-industry.sh, unseed-demo.sh, unseed-industry.sql, gen-mqtt-certs.sh
-├── deploy/                     # nginx-lb.conf
-├── docs/                       # Documentation — see docs/README.md
-├── .github/workflows/          # ci.yml (main pipeline) + api-contract.yml (contract fuzzing)
-├── run.sh                      # Docker Compose wrapper (alternative to make)
-└── docker-compose.yml          # Full stack (backend, postgres, redis, mosquitto, kafka, jaeger, grafana, prometheus)
-```
--->
 
 ---
 
