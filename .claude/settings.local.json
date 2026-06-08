@@ -30,10 +30,29 @@
       "Bash(grep -E \"^\\\\| \\\\`\\(mfg|cold|dc|agri|health|energy|building|logistics|og|mine\\)-\" \"d:/workspace/sentinel-iot-platform/README.md\")",
       "Bash(grep -E \"^\\\\| \\\\`\\(mfg|cold|dc|agri|health|energy|building|logistics|og|mine|water|chem|marine|fbev|auto|rail|semi|hotel|retail|construct\\)-\" \"d:/workspace/sentinel-iot-platform/README.md\")",
       "Bash(grep -c \"^| \\\\`\" \"d:\\\\workspace\\\\sentinel-iot-platform\\\\README.md\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "WebSearch",
+      "WebFetch(domain:aws.amazon.com)",
+      "WebFetch(domain:azure.microsoft.com)",
+      "WebFetch(domain:www.losant.com)",
+      "WebFetch(domain:www.particle.io)",
+      "WebFetch(domain:www.biz4intellia.com)",
+      "WebFetch(domain:umbrellacost.com)",
+      "WebFetch(domain:www.macrotrends.net)",
+      "WebFetch(domain:livmo.com)",
+      "WebFetch(domain:www.sec.gov)",
+      "WebFetch(domain:investors.twilio.com)",
+      "WebFetch(domain:www.cloudzero.com)",
+      "WebFetch(domain:www.gsquaredcfo.com)",
+      "WebFetch(domain:cfoproanalytics.com)",
+      "WebFetch(domain:investors.datadoghq.com)",
+      "WebFetch(domain:saasdb.app)",
+      "WebFetch(domain:businessquant.com)",
+      "Bash(mkdir -p \"d:/workspace/sentinel-iot-platform/docs/marketing\")"
     ],
     "additionalDirectories": [
-      "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices"
+      "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices",
+      "d:\\workspace\\sentinel-iot-platform\\docs"
     ]
   }
 }
