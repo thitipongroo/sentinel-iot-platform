@@ -72,6 +72,9 @@ IoT Device
 
 ### Data Flow — Failure Paths
 
+![Data Flow - Failure Paths](/docs/screenshots/sentinel-data-flow-failure-path.png)
+
+<!--
 ```text
 DB unavailable (circuit breaker OPEN):
   TelemetryService.saveFallback()
@@ -84,11 +87,15 @@ Invalid MQTT payload / unknown device:
      └── mqttDlqChannel ──▶ factory/telemetry/dlq
            headers: dlq-error-code, dlq-error-detail, dlq-timestamp
 ```
+-->
 
 ---
 
 ## Tech Stack
 
+![Tech Stack](/docs/screenshots/sentinel-tech-stack.png)
+
+<!--
 | Layer           | Technology                                                                  |
 |-----------------|-----------------------------------------------------------------------------|
 | Backend         | Spring Boot 3.2, Java 21                                                    |
@@ -115,6 +122,7 @@ Invalid MQTT payload / unknown device:
 | Deployment      | Argo Rollouts (blue/green + canary), KEDA (Kafka-lag autoscaling)           |
 | Backup/DR       | Velero (namespace backup) + pg_dump CronJob + DR restore script             |
 | Notify          | Multi-provider: LINE Notify (deprecated), Slack webhook, generic webhook    |
+-->
 
 ---
 
@@ -583,6 +591,9 @@ Each industry org gets one admin user (password `sentinel123`):
 
 ## Project Structure
 
+![Project Structure](/docs/screenshots/sentinel-project-structure.png)
+
+<!--
 ```text
 sentinel-iot-platform/
 ├── backend/                    # Spring Boot application
@@ -629,6 +640,7 @@ sentinel-iot-platform/
 ├── run.sh                      # Docker Compose wrapper (alternative to make)
 └── docker-compose.yml          # Full stack (backend, postgres, redis, mosquitto, kafka, jaeger, grafana, prometheus)
 ```
+-->
 
 ---
 

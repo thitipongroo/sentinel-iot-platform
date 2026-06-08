@@ -8,7 +8,7 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 
 ## High-Level Diagram
 
-![Sentinel IoT Platform High Level Diagram](../screenshots/sentinel-high-level-diagram.png)
+![Sentinel High Level Diagram](../screenshots/sentinel-high-level-diagram.png)
 
 <!--
 ```text
@@ -81,11 +81,11 @@ Sentinel IoT Platform is a production-grade industrial monitoring system built a
 
 ### Normal Ingestion Path
 
-![Sentinel IoT Platform Normal Ingestion Path](../screenshots/sentinel-data-flow-normal-ingresstion.png)
+![Sentinel Data Flow Normal Ingestion Path](../screenshots/sentinel-data-flow-normal-ingestion-path.png)
 
 <!--
 ```text
-Device/Simulator
+Device
   │── MQTT publish ──▶ Mosquitto
                           │── Spring Integration channel ──▶ MqttConsumerService
                                                                 │── ① JSON parse
@@ -108,7 +108,7 @@ Device/Simulator
 
 ### Failure Paths
 
-![Sentinel IoT Platform Failure Ingestion Path](../screenshots/sentinel-data-flow-failure-ingression.png)
+![Sentinel Failure Ingestion Path](../screenshots/sentinel-data-flow-failure-ingestion-path.png)
 
 <!--
 ```text
