@@ -38,10 +38,10 @@
 
 | ลำดับ | กลุ่มลูกค้า | Sensor ที่ใช้หลัก | เหตุผลที่ยอมจ่าย |
 |---|---|---|---|
-| #1 | Food & Pharma Cold Chain | Temperature, Humidity | Regulatory compliance (FDA FSMA, EU) — ของเสียหาย 1 ครั้ง = $100K–$1M+ |
-| #2 | Food Manufacturing | Temperature, Humidity, Smoke | กฎหมายบังคับเก็บ log ข้อมูลหลายปี |
-| #3 | Building Management | CO2, Smoke, Temperature | HVAC optimization ประหยัดพลังงาน $10K–$50K/ปี/อาคาร |
-| #4 | Industrial Manufacturing | Temperature, Motion, Smoke | Predictive maintenance, fire safety compliance |
+| 1 | Food & Pharma Cold Chain | Temperature, Humidity | Regulatory compliance (FDA FSMA, EU) — ของเสียหาย 1 ครั้ง = $100K–$1M+ |
+| 2 | Food Manufacturing | Temperature, Humidity, Smoke | กฎหมายบังคับเก็บ log ข้อมูลหลายปี |
+| 3 | Building Management | CO2, Smoke, Temperature | HVAC optimization ประหยัดพลังงาน $10K–$50K/ปี/อาคาร |
+| 4 | Industrial Manufacturing | Temperature, Motion, Smoke | Predictive maintenance, fire safety compliance |
 
 ---
 
@@ -90,7 +90,7 @@
 
 ### Base Plan (SaaS Subscription)
 
-สูตร: `ราคาขาย = COGS ÷ (1 - 0.77)`
+`ราคาขาย = COGS ÷ (1 - 0.77)`
 
 | Tier | Devices | COGS/month | ราคาขาย/month |
 |---|---|---|---|
@@ -126,8 +126,8 @@
 ## 7. Revenue Architecture
 
 ```text
-Base Plan (device tier)      ($522, $1,522, $5,217)
-    ├── + Data Retention      ($99–$599/month)
+Base Plan (device tier)
+    ├── + Data Retention       ($99–$599/month)
     ├── + Alert Pro/Enterprise ($79–$199/month)
     ├── + Pro/Enterprise API   ($199–$599/month)
     ├── + Enterprise Pack      ($499/month)
