@@ -13,8 +13,6 @@
 - CO2 PPM
 - sensor แบบ dynamic ผ่าน v2 payload
 
-> 400 Devices Across 20 Industries
-
 **Main Features :**
 
 - Real-time WebSocket dashboard (Live / 1h / 6h / 24h / 7d)
