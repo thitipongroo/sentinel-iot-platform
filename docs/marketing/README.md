@@ -2,35 +2,7 @@
 
 ## 1. Product Overview
 
-### Sentinel IoT Platform **คือ** production-grade industrial IoT monitoring system
-
-**รองรับ sensor หลัก :**
-
-- Temperature
-- Humidity
-- Motion
-- Smoke PPM
-- CO2 PPM
-- sensor แบบ dynamic ผ่าน v2 payload
-
-**Main Features :**
-
-- Real-time WebSocket dashboard (Live / 1h / 6h / 24h / 7d)
-- Multi-tenant architecture ระดับ PostgreSQL Row Level Security (org isolation)
-- Alert system: Slack, Webhook (HMAC-SHA256), LINE Notify
-- Device lifecycle management (PROVISIONED → ACTIVE → INACTIVE → DECOMMISSIONED)
-- Firmware version tracking และ device enrollment tokens (single-use, expiring)
-- Hourly aggregates เก็บถาวร, raw data retention 30 วัน default
-- Observability: Prometheus + Grafana + Jaeger (OpenTelemetry)
-- Capacity รองรับตั้งแต่ 50 ถึง 100,000+ devices
-
-**Screenshots :**
-
-![Dashboard](../screenshots/dashboard.png)
-
-![Alerts](../screenshots/alerts.png)
-
-![Grafana](../screenshots/grafana.png)
+Sentinel IoT Platform คือ production-grade industrial IoT monitoring system รองรับ sensor หลัก: Temperature, Humidity, Motion, Smoke PPM, CO2 PPM และ sensor แบบ dynamic ผ่าน v2 payload มี real-time WebSocket dashboard, multi-tenant architecture ระดับ PostgreSQL Row Level Security, device lifecycle management, firmware tracking, และ alert system (Slack, Webhook, LINE Notify)
 
 ---
 
