@@ -87,9 +87,21 @@ init:
     password: ${INIT_OPERATOR_PASSWORD:}
 
 notification:
-  line:
-    token: ${LINE_NOTIFY_TOKEN:}
-    enabled: ${LINE_NOTIFY_ENABLED:false}
+  dedup:
+    enabled: ${NOTIFY_DEDUP_ENABLED:true}
+    cooldown-minutes: ${NOTIFY_DEDUP_COOLDOWN_MINUTES:5}
+  line-messaging:
+    channel-token: ${LINE_MESSAGING_CHANNEL_TOKEN:}
+    to: ${LINE_MESSAGING_TO:}
+    enabled: ${LINE_MESSAGING_ENABLED:false}
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    chat-id: ${TELEGRAM_CHAT_ID:}
+    enabled: ${TELEGRAM_ENABLED:false}
+  apprise:
+    url: ${APPRISE_URL:}
+    tag: ${APPRISE_TAG:}
+    enabled: ${APPRISE_ENABLED:false}
   slack:
     webhook-url: ${SLACK_WEBHOOK_URL:}
     enabled: ${SLACK_NOTIFY_ENABLED:false}

@@ -126,11 +126,29 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.backend.secretName }}
                   key: MQTT_PASS
-            - name: LINE_NOTIFY_TOKEN
+            - name: LINE_MESSAGING_CHANNEL_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.backend.secretName }}
-                  key: LINE_NOTIFY_TOKEN
+                  key: LINE_MESSAGING_CHANNEL_TOKEN
+                  optional: true
+            - name: LINE_MESSAGING_TO
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretName }}
+                  key: LINE_MESSAGING_TO
+                  optional: true
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretName }}
+                  key: TELEGRAM_BOT_TOKEN
+                  optional: true
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretName }}
+                  key: TELEGRAM_CHAT_ID
                   optional: true
           startupProbe:
             httpGet:

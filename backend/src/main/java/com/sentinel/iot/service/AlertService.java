@@ -4,6 +4,7 @@ import com.sentinel.iot.model.Alert;
 import com.sentinel.iot.model.SensorCapability;
 import com.sentinel.iot.model.SensorReading;
 import com.sentinel.iot.repository.AlertRepository;
+import com.sentinel.iot.service.notification.AlertDeduplicator;
 import io.micrometer.tracing.annotation.NewSpan;
 import io.micrometer.tracing.annotation.SpanTag;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class AlertService {
     private final AlertRepository alertRepository;
     private final NotificationService notificationService;
     private final BusinessMetricsService businessMetricsService;
+    private final AlertDeduplicator alertDeduplicator;
 
     // ── Global fallback thresholds (used when a device has no capability config) ─
     @Value("${alert.temperature-threshold}")
@@ -89,11 +91,11 @@ public class AlertService {
             if (cap.isCritical(value)) {
                 String msg = buildMessage(deviceName, key, value, reading.unit(), "CRITICAL", cap.critThreshold(), cap.thresholdDirection());
                 createAlert(deviceId, "CRITICAL", msg, organizationId);
-                notificationService.send(msg);
+                if (alertDeduplicator.shouldSend(deviceId, key, "CRITICAL")) notificationService.send(msg);
             } else if (cap.isWarning(value)) {
                 String msg = buildMessage(deviceName, key, value, reading.unit(), "WARNING", cap.warnThreshold(), cap.thresholdDirection());
                 createAlert(deviceId, "WARNING", msg, organizationId);
-                notificationService.send(msg);
+                if (alertDeduplicator.shouldSend(deviceId, key, "WARNING")) notificationService.send(msg);
             }
         }
     }
@@ -114,21 +116,21 @@ public class AlertService {
             String msg = String.format("[%s] CRITICAL: temperature %.1f°C exceeds %.1f°C threshold",
                     deviceName, temperature, temperatureThreshold);
             createAlert(deviceId, "CRITICAL", msg, organizationId);
-            notificationService.send(msg);
+            if (alertDeduplicator.shouldSend(deviceId, "TEMPERATURE", "CRITICAL")) notificationService.send(msg);
         }
 
         if (smokePpm != null && smokePpm > smokeThreshold) {
             String msg = String.format("[%s] CRITICAL: smoke detected at %.1f ppm (threshold %.1f ppm)",
                     deviceName, smokePpm, smokeThreshold);
             createAlert(deviceId, "CRITICAL", msg, organizationId);
-            notificationService.send(msg);
+            if (alertDeduplicator.shouldSend(deviceId, "SMOKE_PPM", "CRITICAL")) notificationService.send(msg);
         }
 
         if (humidity != null && humidity > humidityThreshold) {
             String msg = String.format("[%s] WARNING: humidity %.1f%% exceeds %.1f%% threshold",
                     deviceName, humidity, humidityThreshold);
             createAlert(deviceId, "WARNING", msg, organizationId);
-            notificationService.send(msg);
+            if (alertDeduplicator.shouldSend(deviceId, "HUMIDITY", "WARNING")) notificationService.send(msg);
         }
 
         if (Boolean.TRUE.equals(motion) && temperature != null && temperature > 70) {

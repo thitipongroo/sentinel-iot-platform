@@ -7,7 +7,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Production-grade Industrial IoT Monitoring Platform** — real-time sensor data ingestion via MQTT, threshold alerting, LINE Notify integration, WebSocket dashboard, and full observability stack.
+**Production-grade Industrial IoT Monitoring Platform** — real-time sensor data ingestion via MQTT, threshold alerting, multi-channel notifications (LINE Messaging API, Telegram, Apprise, Slack), WebSocket dashboard, and full observability stack.
 
 > Cache read path sustains **1,000 req/s** (60,000+ ops/min) — observed p95 **112 ms**, p99 **187 ms** under k6 load test (SLO targets: p95 < 200 ms, p99 < 500 ms) — MacBook Pro M3, 16 GB RAM, Docker Compose.
 
@@ -43,7 +43,7 @@
 │  └──────────────┘                         │ OTLP traces                       │
 │                                  ┌────────▼────────┐                          │
 │  ┌──────────────┐                │ Jaeger (OTel)   │                          │
-│  │ LINE Notify  │◀── webhook ─── │ Distributed     │                          │
+│  │ Notification │◀── webhook ─── │ Distributed     │                          │
 │  └──────────────┘                │ Tracing         │                          │
 │                                  └─────────────────┘                          │
 └───────────────────────────────────────────────────────────────────────────────┘
@@ -65,7 +65,7 @@ IoT Device
                                                           │        │── PostgreSQL (retry + CB)
                                                           │        └── Redis cache (setLatestTelemetry)
                                                           │── AlertService.evaluate()
-                                                          │        └── LINE Notify (if threshold exceeded)
+                                                          │        └── Notification providers (if threshold exceeded, with deduplication)
                                                           └── WebSocket broadcast ──▶ React UI
 ```
 -->
@@ -121,7 +121,7 @@ Invalid MQTT payload / unknown device:
 | Infra (cloud)   | Kubernetes (EKS) via Helm + ArgoCD + Terraform (EKS/RDS/ElastiCache/MSK)    |
 | Deployment      | Argo Rollouts (blue/green + canary), KEDA (Kafka-lag autoscaling)           |
 | Backup/DR       | Velero (namespace backup) + pg_dump CronJob + DR restore script             |
-| Notify          | Multi-provider: LINE Notify (deprecated), Slack webhook, generic webhook    |
+| Notify          | Multi-provider: LINE Messaging API, Telegram, Apprise (self-hosted), Slack webhook, generic webhook — with per-device deduplication |
 -->
 
 ---
@@ -145,7 +145,7 @@ sentinel-iot-platform/
 │   │   ├── security/           # JWT filter + token service
 │   │   ├── service/            # TelemetryService, AlertService, RedisService,
 │   │   │   │                   #   ReplayQueueService, TelemetryRetentionService
-│   │   │   └── notification/   # Slack, generic webhook, LINE Notify providers
+│   │   │   └── notification/   # LINE Messaging API, Telegram, Apprise, Slack, generic webhook providers + AlertDeduplicator
 │   │   └── websocket/          # WebSocket broadcast publisher + subscriber
 │   ├── src/main/resources/
 │   │   ├── application.yml     # All config; env-var overrides for every external dependency
@@ -380,7 +380,7 @@ The `?token=<accessToken>` query parameter is required — the handshake is reje
 | Variable              | Default | Description                                           |
 |-----------------------|---------|-------------------------------------------------------|
 | `TEMP_THRESHOLD`      | `80`    | °C — triggers CRITICAL alert                          |
-| `SMOKE_THRESHOLD`     | `200`   | ppm — triggers CRITICAL alert + LINE Notify           |
+| `SMOKE_THRESHOLD`     | `200`   | ppm — triggers CRITICAL alert + notification          |
 | `HUMIDITY_THRESHOLD`  | `90`    | % — triggers WARNING alert                            |
 
 Motion + elevated temperature (>70°C) also triggers a WARNING alert under the legacy engine.
@@ -457,13 +457,15 @@ See [`docs/system-design/mqtt-tls.md`](docs/system-design/mqtt-tls.md) for certi
 
 ## Notification Setup
 
-Enable exactly one provider (or none) per deployment:
+Multiple providers can be enabled simultaneously. Repeated alerts are deduplicated per device/sensor within a configurable cooldown (default 5 minutes).
 
 | Provider | Env vars | Notes |
 |---|---|---|
-| Slack (recommended) | `SLACK_WEBHOOK_URL`, `SLACK_NOTIFY_ENABLED=true` | Create webhook at api.slack.com/messaging/webhooks |
+| LINE Messaging API | `LINE_MESSAGING_CHANNEL_TOKEN`, `LINE_MESSAGING_TO`, `LINE_MESSAGING_ENABLED=true` | Free tier: 200 msg/month (per-recipient). Replaces LINE Notify (shut down March 2025) |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED=true` | Free, no monthly quota, 30 msg/sec |
+| Apprise (self-hosted) | `APPRISE_URL`, `APPRISE_ENABLED=true` | 130+ services via single endpoint — docker run caronc/apprise |
+| Slack | `SLACK_WEBHOOK_URL`, `SLACK_NOTIFY_ENABLED=true` | Create webhook at api.slack.com/messaging/webhooks |
 | Generic Webhook | `NOTIFY_WEBHOOK_URL`, `NOTIFY_WEBHOOK_ENABLED=true`, `NOTIFY_WEBHOOK_SECRET` (optional HMAC-SHA256) | PagerDuty, Opsgenie, Teams, etc. |
-| LINE Notify | `LINE_NOTIFY_TOKEN`, `LINE_NOTIFY_ENABLED=true` | **Shut down March 31, 2025 — do not use** |
 
 See [`docs/system-design/notification.md`](docs/system-design/notification.md).
 
@@ -511,7 +513,7 @@ Key decisions: Redis over Memcached (hash structures + Pub/Sub + List for replay
 1. **Partition range is finite** — monthly child tables pre-created through 2026-12; add new year migrations before range exhausts.
 2. **Rate limiting is in-process** — each replica has its own Bucket4j bucket; fix with `bucket4j-redis` for shared state.
 3. **Replay queue overflow is silent** — entries dropped at `TELEMETRY_REPLAY_MAX_QUEUE` (default 10,000); set a Prometheus alert on `sentinel_telemetry_dropped_total` for extended outages.
-4. **LINE Notify is shut down** — migrate to `SLACK_NOTIFY_ENABLED` or `NOTIFY_WEBHOOK_ENABLED`.
+4. **Alert deduplication uses Redis DB 0** — `AlertDeduplicator` uses `SET NX PX` so all replicas share the same cooldown state. If Redis is unavailable, dedup is skipped (fail-open) so notifications still reach operators — the Kafka consumer treats Redis as best-effort and has no error handling around `alertService.evaluate()`.
 
 See [`docs/system-design/tradeoffs.md`](docs/system-design/tradeoffs.md) for the full list.
 
@@ -556,7 +558,7 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 | [Telemetry Retention](docs/system-design/telemetry-retention.md) | 30-day raw retention, hourly aggregates, partition lifecycle |
 | [CI/CD](docs/system-design/cicd.md) | GitHub Actions pipeline — security scan, Testcontainers, contract testing |
 | [MQTT TLS / mTLS](docs/system-design/mqtt-tls.md) | Certificate generation, env vars, connection testing |
-| [Notification Setup](docs/system-design/notification.md) | Slack, generic webhook, LINE Notify (deprecated) |
+| [Notification Setup](docs/system-design/notification.md) | LINE Messaging API, Telegram, Apprise, Slack, generic webhook — with deduplication |
 | [Sequence Diagrams](docs/system-design/sequence-diagrams.md) | 10 Mermaid diagrams — ingestion, DLQ paths, DB outage/replay, auth, JWT filter, alert (multi-provider), WebSocket, lifecycle, device registration, device enrollment |
 | [Scaling Discussion](docs/system-design/scaling.md) | Bottleneck map, Kafka, TimescaleDB, Redis Cluster, WebSocket fan-out, scaling roadmap, SLO targets vs observed results |
 | [Capacity Planning](docs/system-design/capacity-planning.md) | Device-to-infrastructure matrix, per-layer limits and upgrade triggers, AWS cost estimates, monitoring thresholds |

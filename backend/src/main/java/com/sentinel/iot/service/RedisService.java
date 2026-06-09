@@ -16,9 +16,10 @@ import java.util.Map;
  * Redis key schema (tenant-namespaced):
  *
  * <pre>
- *   device:status:{orgId}:{deviceId}      String  TTL=10m  Online/Offline
- *   device:telemetry:{orgId}:{deviceId}   Hash    TTL=10m  Latest readings
- *   sentinel:replay:queue                 List    No TTL   Offline buffer (org-agnostic)
+ *   device:status:{orgId}:{deviceId}              String  TTL=10m        Online/Offline
+ *   device:telemetry:{orgId}:{deviceId}           Hash    TTL=10m        Latest readings
+ *   sentinel:replay:queue                         List    No TTL         Offline buffer (org-agnostic)
+ *   alert:dedup:{deviceId}:{sensorKey}:{severity} String  TTL=cooldown   Distributed notification dedup (see AlertDeduplicator)
  * </pre>
  *
  * The orgId prefix ensures that cache keys from different tenants never collide,
