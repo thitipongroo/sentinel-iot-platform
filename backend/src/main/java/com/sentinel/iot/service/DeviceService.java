@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -66,7 +67,7 @@ public class DeviceService {
             device = deviceRepository.findByIdAndOrganizationId(id, orgId)
                     .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
         } else {
-            device = deviceRepository.findById(id)
+            device = deviceRepository.findById(Objects.requireNonNull(id))
                     .orElseThrow(() -> new NoSuchElementException("Device not found: " + id));
         }
         String cachedStatus = redisService.getDeviceStatus(id.toString());

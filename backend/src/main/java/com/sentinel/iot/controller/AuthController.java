@@ -26,6 +26,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -126,12 +127,12 @@ public class AuthController {
     }
 
     private void writeRefreshCookie(HttpServletResponse response, String token, Duration maxAge) {
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, token)
+        ResponseCookie cookie = ResponseCookie.from(Objects.requireNonNull(REFRESH_COOKIE_NAME), Objects.requireNonNull(token))
                 .httpOnly(true)
                 .secure(true)
                 .sameSite("Strict")
                 .path("/api/v1/auth")
-                .maxAge(maxAge)
+                .maxAge(Objects.requireNonNull(maxAge))
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
