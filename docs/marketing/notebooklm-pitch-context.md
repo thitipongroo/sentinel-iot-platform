@@ -150,7 +150,7 @@ Base Plan Medium:   $1,522/month
 
 **Selling Price (Target Gross Margin 77%):**
 
-สูตร: `ราคาขาย = COGS ÷ (1 - 0.77)`
+`ราคาขาย = COGS ÷ (1 - 0.77)`
 
 | Tier | COGS/month | ราคาขาย/month | Gross Margin |
 |---|---|---|---|
@@ -218,6 +218,14 @@ Base Plan Medium:   $1,522/month
 - Blue/Green deployment (Argo Rollouts) สำหรับ zero-downtime
 - Kubernetes-native autoscaling (KEDA + HPA)
 
+**Technology Stack:**
+
+- Backend: Spring Boot 3.2, Java 21, Spring Integration (MQTT), Apache Kafka, Resilience4j
+- Frontend: Next.js 14 (App Router), React Query, Zustand, TanStack Virtual
+- Infrastructure: PostgreSQL 16 (partitioned by month), Redis 7, Eclipse Mosquitto MQTT, Kafka with Avro + Schema Registry
+- Deployment: Docker Compose (dev) → Kubernetes + Helm (prod), Argo Rollouts (Blue/Green), KEDA autoscaling, CloudNativePG
+- Security: JWT + Refresh Token rotation, Redis JTI blocklist, PostgreSQL Row Level Security, mTLS (opt-in), HMAC-SHA256 webhook signing
+
 ---
 
 ## SECTION 9: GROSS MARGIN & FINANCIALS
@@ -247,16 +255,28 @@ Base Plan Medium:   $1,522/month
 
 ---
 
-## SECTION 10: TECHNOLOGY STACK
+## SECTION 10: VISION & THE ASK
 
-**Backend:** Spring Boot 3.2, Java 21, Spring Integration (MQTT), Apache Kafka, Resilience4j
+**Vision:**
 
-**Frontend:** Next.js 14 (App Router), React Query, Zustand, TanStack Virtual
+เป็น IoT monitoring platform มาตรฐานสำหรับทุกอุตสาหกรรมที่ต้องการ compliance และ safety — ตั้งแต่ Food & Pharma Cold Chain ไปจนถึง Smart Building และ Industrial Manufacturing ทั่วโลก
 
-**Infrastructure:** PostgreSQL 16 (partitioned by month), Redis 7, Eclipse Mosquitto MQTT, Kafka with Avro + Schema Registry
+### Funding Ask: $500,000 Pre-Seed
 
-**Deployment:** Docker Compose (dev) → Kubernetes + Helm (prod), Argo Rollouts (Blue/Green), KEDA autoscaling, CloudNativePG
+| วัตถุประสงค์ | จำนวนเงิน | สัดส่วน |
+|---|---|---|
+| Go-to-Market — Food & Pharma Cold Chain (sales, marketing, first customers) | $200,000 | 40% |
+| Product & Infrastructure — Production Kubernetes deployment, SSO, Alert escalation rules | $150,000 | 30% |
+| Operations & Runway — 18-month runway จนถึง break-even | $150,000 | 30% |
 
-**Observability:** Prometheus + Grafana, Jaeger (OpenTelemetry), Structured logging (Logstash JSON)
+**Revenue Target:**
 
-**Security:** JWT + Refresh Token rotation, Redis JTI blocklist, PostgreSQL Row Level Security, mTLS (opt-in), HMAC-SHA256 webhook signing
+- Break-even: ~7 Medium-tier customers ($1,522/month each = $10,654/month)
+- Target Year 1: 10 Medium customers = $27,470/month ($15,220 base + $12,250 add-ons)
+- Platform readiness: ~90% complete — Kubernetes deployment + GTM เท่านั้นที่ต้องการ
+
+**Why Now:**
+
+- Platform พร้อมแล้ว: 107 tests, 100% pass rate, 1,003 req/s load tested
+- ตลาดพร้อมแล้ว: FDA FSMA compliance enforcement เพิ่มขึ้นทุกปี
+- Infrastructure cost ต่ำ: COGS เริ่มต้นที่ $120/month สำหรับ 200 devices → break-even เร็ว
