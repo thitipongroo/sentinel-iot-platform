@@ -3,11 +3,15 @@ package com.sentinel.iot;
 import com.sentinel.iot.service.notification.AppriseNotificationProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
@@ -33,28 +37,33 @@ class AppriseNotificationProviderTest {
         ReflectionTestUtils.setField(provider, "enabled", enabled);
     }
 
-    @Test
-    void isEnabled_falseWhenBaseUrlBlank() {
-        configure("", "", true);
-        assertThat(provider.isEnabled()).isFalse();
+    // ---- isEnabled (parameterized) -----------------------------------------
+
+    record IsEnabledCase(String baseUrl, boolean enabled, boolean expected) {}
+
+    static Stream<IsEnabledCase> isEnabledCases() {
+        return Stream.of(
+            new IsEnabledCase("",                   true,  false),  // blank url
+            new IsEnabledCase("http://apprise:8000", false, false),  // flag off
+            new IsEnabledCase("http://apprise:8000", true,  true)    // fully configured
+        );
     }
 
-    @Test
-    void isEnabled_falseWhenEnabledFlagFalse() {
-        configure("http://apprise:8000", "", false);
-        assertThat(provider.isEnabled()).isFalse();
+    @ParameterizedTest(name = "url=\"{0}\", enabled={1} → {2}")
+    @MethodSource("isEnabledCases")
+    void isEnabled_returnsExpectedResult(IsEnabledCase c) {
+        configure(c.baseUrl(), "", c.enabled());
+        assertThat(provider.isEnabled()).isEqualTo(c.expected());
     }
 
-    @Test
-    void isEnabled_trueWhenUrlSetAndEnabled() {
-        configure("http://apprise:8000", "", true);
-        assertThat(provider.isEnabled()).isTrue();
-    }
+    // ---- providerName -------------------------------------------------------
 
     @Test
     void providerName_returnsApprise() {
         assertThat(provider.providerName()).isEqualTo("apprise");
     }
+
+    // ---- send ---------------------------------------------------------------
 
     @SuppressWarnings("null")
     @Test

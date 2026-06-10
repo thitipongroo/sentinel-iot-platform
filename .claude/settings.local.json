@@ -54,7 +54,9 @@
       "Bash(Get-ChildItem \"d:\\\\workspace\\\\sentinel-iot-platform\\\\frontend\" -Filter \"cypress.config*\" -Recurse -ErrorAction SilentlyContinue)",
       "Bash(Select-Object FullName)",
       "Bash(Remove-Item -Recurse -Force \"d:\\\\workspace\\\\sentinel-iot-platform\\\\load-testing\\\\scenarios\" \"d:\\\\workspace\\\\sentinel-iot-platform\\\\load-testing\\\\common\")",
-      "Bash(grep -o '[^/]*$')"
+      "Bash(grep -o '[^/]*$')",
+      "Bash(git -C d:/workspace/sentinel-iot-platform diff --stat HEAD)",
+      "Bash(git -C d:/workspace/sentinel-iot-platform status --short)"
     ],
     "additionalDirectories": [
       "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices",

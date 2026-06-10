@@ -1,9 +1,10 @@
 # Sentinel IoT — Customer Discovery Kit
-## สำหรับ: Cold Outreach → 15–20 Conversations ใน 6 สัปดาห์
+
+## สำหรับ: Cold Outreach → 15 – 20 Conversations ใน 6 สัปดาห์
 
 ---
 
-## ส่วนที่ 1: โครงสร้าง 15–20 คนแรกที่ควรคุย
+## ส่วนที่ 1: โครงสร้าง 15 – 20 คนแรกที่ควรคุย
 
 ### หลักการเลือก (ไม่ใช่แค่ "คนในอุตสาหกรรม")
 
@@ -19,19 +20,22 @@
 **ทำไมต้องเริ่มที่นี่:**
 ความเสียหาย 1 ครั้ง = $100K–$1M+ และ FDA FSMA 2026 กดดันให้ต้องมีระบบ
 
-**ตำแหน่งที่ต้องหา:**
+**ตำแหน่งที่ต้องหา :**
+
 - QA Manager / Quality Assurance Director
 - Cold Chain Manager / Logistics Manager
 - Operations Director
 - Plant Manager (โรงงานแช่แข็ง, ห้องเย็น)
 
-**บริษัทประเภทที่ควร target (ไทย):**
+**บริษัทประเภทที่ควร target (ไทย) :**
+
 - ผู้ส่งออกอาหารแช่แข็ง เช่น ไก่, กุ้ง, อาหารทะเล
 - ห้องเย็นเอกชน (cold storage) ที่รับฝากสินค้า
 - ผู้ผลิตนม, ไอศกรีม, อาหารพร้อมรับประทาน
 - distributor ยาและวัคซีน
 
-**บริษัทประเภทที่ควร target (International):**
+**บริษัทประเภทที่ควร target (International) :**
+
 - Singapore: pharmaceutical distributor, food importer
 - Malaysia: halal food manufacturer, cold chain logistics
 - Vietnam: seafood exporter (Pangasius, shrimp)
@@ -42,16 +46,18 @@
 
 #### กลุ่ม B: Pharma / Healthcare (5 คน) — Priority #2
 
-**ทำไมต้องเริ่มที่นี่:**
+**ทำไมต้องเริ่มที่นี่ :**
 วัคซีนและยาบางชนิดต้องการ 2–8°C ตลอดเวลา และ regulatory requirement เข้มงวดที่สุด
 
-**ตำแหน่งที่ต้องหา:**
+**ตำแหน่งที่ต้องหา :**
+
 - Regulatory Affairs Manager
 - Warehouse & Logistics Manager (pharma)
 - Supply Chain Director
 - Hospital Pharmacist (โรงพยาบาลเอกชน)
 
-**บริษัทประเภทที่ควร target:**
+**บริษัทประเภทที่ควร target :**
+
 - Pharma distributor (ไม่ใช่ manufacturer — distributor เจ็บปวดกับ cold chain มากกว่า)
 - โรงพยาบาลเอกชนที่มีคลังยาขนาดใหญ่
 - ผู้นำเข้าวัคซีนและ biologics
@@ -65,12 +71,14 @@
 **ทำไมใส่ไว้:**
 เพื่อทดสอบว่า pain point ข้ามอุตสาหกรรมหรือเปล่า ห้ามทิ้งทั้งหมดไว้ใน Food/Pharma
 
-**ตำแหน่งที่ต้องหา:**
+**ตำแหน่งที่ต้องหา :**
+
 - Facility Manager / Building Manager
 - Maintenance Engineer
 - EHS (Environment, Health & Safety) Manager
 
-**บริษัทประเภทที่ควร target:**
+**บริษัทประเภทที่ควร target :**
+
 - อาคารสำนักงานขนาดใหญ่ (มี BMS แต่ไม่มี real-time alert)
 - โรงงานผลิต (automotive, electronics)
 - Data center ขนาดเล็ก-กลาง
@@ -83,7 +91,7 @@
 
 Search formula สำหรับแต่ละกลุ่ม:
 
-```
+```text
 กลุ่ม A (Food):
 "QA Manager" OR "Cold Chain Manager" OR "Operations Director"
 + "food" OR "frozen" OR "cold storage"
@@ -118,7 +126,7 @@ Search formula สำหรับแต่ละกลุ่ม:
 
 **ใช้เมื่อ:** ยังไม่ได้ connect กัน
 
-```
+```text
 สวัสดีครับคุณ [ชื่อ]
 
 ผมกำลังศึกษาปัญหาด้าน temperature monitoring ในอุตสาหกรรม [food/pharma]
@@ -134,7 +142,7 @@ Search formula สำหรับแต่ละกลุ่ม:
 
 **ใช้เมื่อ:** connect แล้ว ส่ง message แรก
 
-```
+```text
 สวัสดีครับคุณ [ชื่อ]
 
 ขอบคุณที่ accept ครับ
@@ -160,7 +168,7 @@ Search formula สำหรับแต่ละกลุ่ม:
 
 **Subject line:** `Quick question about temperature monitoring at [Company Name]`
 
-```
+```text
 Hi [First Name],
 
 I'm a founder building an IoT monitoring platform for
@@ -188,7 +196,7 @@ Best,
 
 **LinkedIn / Email:**
 
-```
+```text
 สวัสดีครับคุณ [ชื่อ] / Hi [Name],
 
 ส่ง follow-up สั้นๆ ครับ / Just a quick follow-up.
@@ -246,32 +254,32 @@ Best,
 
 > **กฎ Mom Test:** อย่าถามว่า "คุณอยากได้ feature อะไร?" แต่ถามว่า "เกิดอะไรขึ้นจริงๆ ครั้งล่าสุด?"
 
-**คำถามหลัก 5 ข้อ (เลือก 3–4 ข้อตามบริบท):**
+**คำถามหลัก 5 ข้อ (เลือก 3–4 ข้อตามบริบท) :**
 
-**ข้อ 1 — เปิดด้วย story**
+-**ข้อ 1 — เปิดด้วย story**
 > "ช่วยเล่าให้ฟังหน่อยได้ไหมครับ ครั้งล่าสุดที่มีปัญหาด้านอุณหภูมิหรือ sensor ในงานของคุณ เกิดอะไรขึ้นบ้างครับ?"
 
-*(ฟัง อย่าขัด จด detail ทุกอย่าง)*
+- *(ฟัง อย่าขัด จด detail ทุกอย่าง)*
 
-**ข้อ 2 — ความถี่และความเจ็บปวด**
+-**ข้อ 2 — ความถี่และความเจ็บปวด**
 > "เหตุการณ์แบบนั้นเกิดบ่อยแค่ไหนครับ? และเมื่อเกิดขึ้น ผลกระทบต่อธุรกิจเป็นยังไงบ้างครับ?"
 
-**ข้อ 3 — วิธีแก้ปัจจุบัน**
+-**ข้อ 3 — วิธีแก้ปัจจุบัน**
 > "ตอนนี้คุณ monitor อุณหภูมิ/environment ยังไงอยู่ครับ? manual หรือมีระบบอะไรอยู่บ้าง?"
 
-**ข้อ 4 — ความเจ็บปวดของวิธีปัจจุบัน**
+-**ข้อ 4 — ความเจ็บปวดของวิธีปัจจุบัน**
 > "วิธีที่ทำอยู่ตอนนี้ มีส่วนไหนที่คุณรู้สึกว่ายังไม่ดีพอ หรืออยากให้มันดีกว่านี้ไหมครับ?"
 
-**ข้อ 5 — Compliance และ audit (สำคัญมากสำหรับ Food/Pharma)**
+-**ข้อ 5 — Compliance และ audit (สำคัญมากสำหรับ Food/Pharma)**
 > "เรื่อง audit trail และการเก็บ log ตาม regulation ปัจจุบันทีมคุณทำยังไงอยู่ครับ? มีความยากลำบากตรงนี้ไหม?"
 
 ---
 
-**คำถาม Bonus ถ้าเวลาเหลือ:**
+**คำถาม Bonus ถ้าเวลาเหลือ :**
 
 > "ถ้าปัญหานี้หายไปพรุ่งนี้ คุณคิดว่าจะประหยัดเวลาหรือเงินได้ประมาณเท่าไหร่ครับ?"
 
-*(นี่คือ willingness to pay signal ที่ดีที่สุด)*
+-*(นี่คือ willingness to pay signal ที่ดีที่สุด)*
 
 ---
 
@@ -279,7 +287,7 @@ Best,
 
 > "ถ้าบริษัทอื่นในอุตสาหกรรมเดียวกัน มาถามคุณว่าควรใช้เครื่องมืออะไร คุณจะแนะนำอะไรครับ?"
 
-*(ฟังว่าเขารู้จักคู่แข่งไหม และทำไมถึงเลือกหรือไม่เลือก)*
+-*(ฟังว่าเขารู้จักคู่แข่งไหม และทำไมถึงเลือกหรือไม่เลือก)*
 
 ---
 
@@ -289,7 +297,7 @@ Best,
 >
 > มีคนอื่นในวงการที่คุณคิดว่าน่าจะมี perspective ที่น่าสนใจบ้างไหมครับ? ถ้ายินดีแนะนำให้รู้จักผมก็ดีใจมากเลยครับ"
 
-*(Referral คือวิธีที่เร็วที่สุดในการหาคนถัดไป)*
+-*(Referral คือวิธีที่เร็วที่สุดในการหาคนถัดไป)*
 
 ---
 
@@ -331,4 +339,4 @@ Best,
 
 ---
 
-*เอกสารนี้ใช้คู่กับ: sentinel-investor-pitch.pptx และ sentinel-pitch-updated.md*
+>เอกสารนี้ใช้คู่กับ: sentinel-investor-pitch.pptx และ sentinel-pitch.md*

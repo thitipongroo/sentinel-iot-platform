@@ -3,11 +3,15 @@ package com.sentinel.iot;
 import com.sentinel.iot.service.notification.LineMessagingProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
@@ -35,34 +39,34 @@ class LineMessagingProviderTest {
         ReflectionTestUtils.setField(provider, "enabled", enabled);
     }
 
-    @Test
-    void isEnabled_falseWhenTokenBlank() {
-        configure("", "Uxxxxxxxx", true);
-        assertThat(provider.isEnabled()).isFalse();
+    // ---- isEnabled (parameterized) -----------------------------------------
+
+    record IsEnabledCase(String token, String to, boolean enabled, boolean expected) {}
+
+    static Stream<IsEnabledCase> isEnabledCases() {
+        return Stream.of(
+            new IsEnabledCase("",         "Uxxxxxxxx",  true,  false),  // blank token
+            new IsEnabledCase("token123", "",           true,  false),  // blank to
+            new IsEnabledCase("token123", "Uxxxxxxxx",  false, false),  // flag off
+            new IsEnabledCase("token123", "Uxxxxxxxx",  true,  true)    // fully configured
+        );
     }
 
-    @Test
-    void isEnabled_falseWhenToBlank() {
-        configure("token123", "", true);
-        assertThat(provider.isEnabled()).isFalse();
+    @ParameterizedTest(name = "token=\"{0}\", to=\"{1}\", enabled={2} → {3}")
+    @MethodSource("isEnabledCases")
+    void isEnabled_returnsExpectedResult(IsEnabledCase c) {
+        configure(c.token(), c.to(), c.enabled());
+        assertThat(provider.isEnabled()).isEqualTo(c.expected());
     }
 
-    @Test
-    void isEnabled_falseWhenEnabledFlagFalse() {
-        configure("token123", "Uxxxxxxxx", false);
-        assertThat(provider.isEnabled()).isFalse();
-    }
-
-    @Test
-    void isEnabled_trueWhenFullyConfigured() {
-        configure("token123", "Uxxxxxxxx", true);
-        assertThat(provider.isEnabled()).isTrue();
-    }
+    // ---- providerName -------------------------------------------------------
 
     @Test
     void providerName_returnsLineMessaging() {
         assertThat(provider.providerName()).isEqualTo("line-messaging");
     }
+
+    // ---- send ---------------------------------------------------------------
 
     @SuppressWarnings("null")
     @Test
@@ -81,7 +85,6 @@ class LineMessagingProviderTest {
     @Test
     void send_doesNothingWhenDisabled() {
         configure("", "", false);
-        // isEnabled() returns false → send() returns immediately without HTTP call
         provider.send("Test message");
         mockServer.verify();
     }

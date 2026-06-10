@@ -3,11 +3,15 @@ package com.sentinel.iot;
 import com.sentinel.iot.service.notification.TelegramNotificationProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
@@ -33,34 +37,34 @@ class TelegramNotificationProviderTest {
         ReflectionTestUtils.setField(provider, "enabled", enabled);
     }
 
-    @Test
-    void isEnabled_falseWhenBotTokenBlank() {
-        configure("", "-100123456", true);
-        assertThat(provider.isEnabled()).isFalse();
+    // ---- isEnabled (parameterized) -----------------------------------------
+
+    record IsEnabledCase(String botToken, String chatId, boolean enabled, boolean expected) {}
+
+    static Stream<IsEnabledCase> isEnabledCases() {
+        return Stream.of(
+            new IsEnabledCase("",            "-100123456",   true,  false),  // blank token
+            new IsEnabledCase("bot:token123", "",            true,  false),  // blank chatId
+            new IsEnabledCase("bot:token123", "-100123456",  false, false),  // flag off
+            new IsEnabledCase("bot:token123", "-100123456",  true,  true)    // fully configured
+        );
     }
 
-    @Test
-    void isEnabled_falseWhenChatIdBlank() {
-        configure("bot:token123", "", true);
-        assertThat(provider.isEnabled()).isFalse();
+    @ParameterizedTest(name = "token=\"{0}\", chatId=\"{1}\", enabled={2} → {3}")
+    @MethodSource("isEnabledCases")
+    void isEnabled_returnsExpectedResult(IsEnabledCase c) {
+        configure(c.botToken(), c.chatId(), c.enabled());
+        assertThat(provider.isEnabled()).isEqualTo(c.expected());
     }
 
-    @Test
-    void isEnabled_falseWhenEnabledFlagFalse() {
-        configure("bot:token123", "-100123456", false);
-        assertThat(provider.isEnabled()).isFalse();
-    }
-
-    @Test
-    void isEnabled_trueWhenFullyConfigured() {
-        configure("bot:token123", "-100123456", true);
-        assertThat(provider.isEnabled()).isTrue();
-    }
+    // ---- providerName -------------------------------------------------------
 
     @Test
     void providerName_returnsTelegram() {
         assertThat(provider.providerName()).isEqualTo("telegram");
     }
+
+    // ---- send ---------------------------------------------------------------
 
     @SuppressWarnings("null")
     @Test
