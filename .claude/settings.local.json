@@ -65,7 +65,12 @@
       "Bash(sed -i 's|k6 run performance/|k6 run tests/performance-testing/|g' \"d:/workspace/sentinel-iot-platform/tests/performance-testing/README.md\")",
       "Bash(sed -i 's|\\\\./k6 run performance/|./k6 run tests/performance-testing/|g' \"d:/workspace/sentinel-iot-platform/tests/performance-testing/README.md\")",
       "Bash(sed -i \"s|'load-testing/results.json'|'tests/load-testing/results.json'|g\" \"d:/workspace/sentinel-iot-platform/tests/load-testing/telemetry.js\")",
-      "Bash(git -C \"d:/workspace/sentinel-iot-platform\" status --short)"
+      "Bash(git -C \"d:/workspace/sentinel-iot-platform\" status --short)",
+      "Bash(sed 's|.*com/sentinel/iot/||')",
+      "Read(//tmp/**)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(xargs basename -a)",
+      "Bash(xargs grep -l \"TelemetryService\\\\|TelemetryController\\\\|AlertController\\\\|UserController\\\\|SettingsController\\\\|JwtAuthFilter\\\\|JwtWebSocketHandshake\\\\|DeviceCapabilitiesConverter\\\\|SensorReadingsConverter\\\\|KafkaTelemetryProducer\")"
     ],
     "additionalDirectories": [
       "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices",

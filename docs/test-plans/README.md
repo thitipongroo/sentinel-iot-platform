@@ -8,8 +8,8 @@
 
 | ไฟล์ | ขอบเขต | Tests | สถานะ |
 |------|--------|-------|-------|
-| [backend-unit-test-plan.md](backend-unit-test-plan.md) | Service, Repository, Filter unit tests | 28 | ✅ Implemented |
-| [backend-integration-test-plan.md](backend-integration-test-plan.md) | Spring MVC + Testcontainers integration tests | 75 | ✅ Implemented |
+| [backend-unit-test-plan.md](backend-unit-test-plan.md) | Service, Repository, Filter, Converter unit tests | 53 | ✅ Implemented |
+| [backend-integration-test-plan.md](backend-integration-test-plan.md) | Spring MVC + Testcontainers integration tests | 92 | ✅ Implemented |
 | [backend-concurrency-test-plan.md](backend-concurrency-test-plan.md) | Thread safety, TenantContext isolation, rate limiter concurrency | 3 | ✅ Implemented |
 | [security-test-plan.md](security-test-plan.md) | JWT auth, RBAC, multi-tenant isolation, rate limit, WebSocket, error handling | 45 | ✅ Implemented |
 | contract/ — SentinelApiConsumerContractTest | Consumer-driven contract tests (Pact) — auth login (200/401), device list (200), device not found (404), unauthenticated (403) | 5 | ✅ Implemented |

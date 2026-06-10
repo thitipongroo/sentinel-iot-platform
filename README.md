@@ -620,7 +620,7 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 
 | Document | Contents |
 | --- | --- |
-| [Test Report](docs/test-reports/README.md) | Test execution summary — 293 tests across backend unit/integration/contract/benchmark/concurrent/chaos/security/regression and frontend |
+| [Test Report](docs/test-reports/README.md) | Test execution summary — 335 tests across backend unit/integration/contract/benchmark/concurrent/chaos/security/regression and frontend |
 | [Load Test Report](docs/test-reports/load-test-report.md) | Cache read path baseline — 1,000 RPS, p95 112 ms, p99 187 ms |
 
 ### Demo & Development (`docs/demo/`)

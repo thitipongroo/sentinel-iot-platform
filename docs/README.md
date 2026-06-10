@@ -51,13 +51,13 @@ docs/
 
 ## test-reports/
 
-ผลการรัน test suite แยกตามประเภท — รวม 293 tests | 0 failures
+ผลการรัน test suite แยกตามประเภท — รวม 335 tests | 0 failures
 
 | ไฟล์ | ประเภท | Tests | ผล |
 |------|--------|-------|-----|
-| [README.md](test-reports/README.md) | **Summary** — ภาพรวมทั้งระบบ + links | 293 | ✅ |
-| [backend-unit-test-report.md](test-reports/backend-unit-test-report.md) | Backend Unit (JUnit 5 + Mockito) | 28 | ✅ |
-| [backend-integration-test-report.md](test-reports/backend-integration-test-report.md) | Backend Integration (Testcontainers) | 34 | ✅ |
+| [README.md](test-reports/README.md) | **Summary** — ภาพรวมทั้งระบบ + links | 335 | ✅ |
+| [backend-unit-test-report.md](test-reports/backend-unit-test-report.md) | Backend Unit (JUnit 5 + Mockito) | 53 | ✅ |
+| [backend-integration-test-report.md](test-reports/backend-integration-test-report.md) | Backend Integration (Testcontainers) | 51 | ✅ |
 | [backend-concurrency-test-report.md](test-reports/backend-concurrency-test-report.md) | Backend Concurrency (WebSocket thread safety) | 3 | ✅ |
 | [backend-security-test-report.md](test-reports/backend-security-test-report.md) | Backend Security (JWT, RBAC, multi-tenant, rate limit) | 45 | ✅ |
 | [backend-regression-test-report.md](test-reports/backend-regression-test-report.md) | Backend Regression (API contract, RBAC, migration, WebSocket) | 55 | ✅ |
