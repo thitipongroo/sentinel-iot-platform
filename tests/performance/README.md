@@ -1,4 +1,4 @@
-# performance/ — k6 Load & Performance Tests
+# tests/performance/ — k6 Performance Tests
 
 k6 test suite covering all 38 test cases from the performance and load test plans.
 
@@ -41,41 +41,41 @@ Run shorter/cheaper scenarios first; reserve soak for pre-release.
 
 ```bash
 # 1. Ramp-up — find the breaking point first
-k6 run performance/scenarios/ramp-up.js \
+k6 run tests/performance/scenarios/ramp-up.js \
   --out prometheus=http://localhost:9090/api/v1/write
 
 # 2. Spike — verify recovery behaviour
-k6 run performance/scenarios/spike.js \
+k6 run tests/performance/scenarios/spike.js \
   --out prometheus=http://localhost:9090/api/v1/write
 
 # 3. Normal load — SLO verification per endpoint
-k6 run performance/scenarios/normal-load.js \
+k6 run tests/performance/scenarios/normal-load.js \
   --out prometheus=http://localhost:9090/api/v1/write
 
 # 4. WebSocket — 100 clients (1.4.1)
-k6 run performance/scenarios/websocket.js \
+k6 run tests/performance/scenarios/websocket.js \
   -e WS_CLIENTS=100 -e DURATION=5m \
   --out prometheus=http://localhost:9090/api/v1/write
 
 # 4b. WebSocket — 500 clients (1.4.2)
-k6 run performance/scenarios/websocket.js \
+k6 run tests/performance/scenarios/websocket.js \
   -e WS_CLIENTS=500 -e DURATION=5m \
   --out prometheus=http://localhost:9090/api/v1/write
 
 # 5. Kafka pipeline (requires xk6 binary)
-./k6 run performance/scenarios/kafka-load.js \
+./k6 run tests/performance/scenarios/kafka-load.js \
   -e RATE=500 \
   --out prometheus=http://localhost:9090/api/v1/write
 
 # 6. Multi-tenant isolation under load
-k6 run performance/scenarios/multi-tenant.js \
+k6 run tests/performance/scenarios/multi-tenant.js \
   --out prometheus=http://localhost:9090/api/v1/write
 
 # 7. Soak — only before major release (2 hours)
-k6 run performance/scenarios/soak.js \
+k6 run tests/performance/scenarios/soak.js \
   --out prometheus=http://localhost:9090/api/v1/write
 # Quick smoke (30 min):
-k6 run performance/scenarios/soak.js -e SOAK_DURATION=20m
+k6 run tests/performance/scenarios/soak.js -e SOAK_DURATION=20m
 ```
 
 ## Environment variables
@@ -96,10 +96,10 @@ k6 run performance/scenarios/soak.js -e SOAK_DURATION=20m
 
 ## Results
 
-JSON summaries are written to `performance/results/` (git-ignored). Import into Grafana or inspect with:
+JSON summaries are written to `tests/performance/results/` (git-ignored). Import into Grafana or inspect with:
 
 ```bash
-cat performance/results/ramp-up.json | jq '.metrics["http_req_duration{endpoint:devices-list}"].values'
+cat tests/performance/results/ramp-up.json | jq '.metrics["http_req_duration{endpoint:devices-list}"].values'
 ```
 
 ## SLO reference

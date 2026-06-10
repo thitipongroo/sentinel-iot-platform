@@ -2,7 +2,7 @@
 
 **ขอบเขต:** Backend REST API · Kafka Telemetry Pipeline · Multi-Tenant Concurrent Load  
 **วิธีทดสอบ:** k6 (JavaScript) พร้อม Prometheus remote-write output  
-**สถานะ:** ✅ Implemented — `load-testing/telemetry.js` (baseline), `performance/scenarios/ramp-up.js` (2.1), `spike.js` (2.2), `soak.js` (2.3), `kafka-load.js` (2.4), `multi-tenant.js` (2.5)  
+**สถานะ:** ✅ Implemented — `tests/load/telemetry.js` (baseline), `tests/performance/scenarios/ramp-up.js` (2.1), `spike.js` (2.2), `soak.js` (2.3), `kafka-load.js` (2.4), `multi-tenant.js` (2.5)  
 **Environment:** `docker compose --profile full up` (core + observability)  
 **เป้าหมาย:** หา **breaking point**, ทดสอบ system behavior under stress, และตรวจ resource exhaustion
 
@@ -42,7 +42,7 @@
 
 ## 1. Cache Read Path Baseline (Implemented)
 
-**Script:** [`load-testing/telemetry.js`](../../load-testing/telemetry.js)
+**Script:** [`tests/load/telemetry.js`](../../tests/load/telemetry.js)
 **Executor:** `ramping-arrival-rate` — ควบคุม RPS โดยตรง ไม่ขึ้นกับ latency ของ server
 **Endpoint:** `GET /api/v1/telemetry/{deviceId}/cache` — Redis-backed hot read path
 

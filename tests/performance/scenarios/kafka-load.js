@@ -19,13 +19,13 @@
  *   Docs:  https://github.com/grafana/xk6-mqtt
  *
  * Run (target 500 msg/sec):
- *   ./k6 run performance/scenarios/kafka-load.js -e RATE=500
+ *   ./k6 run tests/performance/scenarios/kafka-load.js -e RATE=500
  *
  * Run (target 1,000 msg/sec, test 1.2.2 / 2.4.1):
- *   ./k6 run performance/scenarios/kafka-load.js -e RATE=2000
+ *   ./k6 run tests/performance/scenarios/kafka-load.js -e RATE=2000
  *
  * Run (with 5 % malformed messages, test 1.2.3 / 2.4.4):
- *   ./k6 run performance/scenarios/kafka-load.js -e DLQ_TEST=true
+ *   ./k6 run tests/performance/scenarios/kafka-load.js -e DLQ_TEST=true
  *
  * Post-run checks (manual — k6 cannot query Kafka directly):
  *   Consumer lag:  kafka-consumer-groups.sh --bootstrap-server localhost:9092 \

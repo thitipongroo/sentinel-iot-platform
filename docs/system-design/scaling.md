@@ -14,7 +14,7 @@ The single-node Docker Compose stack sustains:
 | Redis reads | — | < 1 ms | In-memory, single node |
 | Replay queue drain | — | 100 msg / 30 s | Bounded at 10,000 messages max |
 
-> **SLO targets** are the pass/fail thresholds in `load-testing/telemetry.js` and `infra/monitoring/slo-rules.yaml`.
+> **SLO targets** are the pass/fail thresholds in `tests/load/telemetry.js` and `infra/monitoring/slo-rules.yaml`.
 > **Observed baseline** values are from a single k6 run on a local Docker Compose node — not a guaranteed production SLO.
 
 This is sufficient for a factory with up to ~200 devices publishing every 5 seconds (≈ 40 events/sec sustained, with headroom for bursts).

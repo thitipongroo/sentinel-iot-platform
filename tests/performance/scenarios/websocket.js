@@ -16,10 +16,10 @@
  *   2. Backend must be up with WebSocket endpoint at /ws/telemetry.
  *
  * Run (100 clients — 1.4.1):
- *   k6 run performance/scenarios/websocket.js -e WS_CLIENTS=100 -e DURATION=5m
+ *   k6 run tests/performance/scenarios/websocket.js -e WS_CLIENTS=100 -e DURATION=5m
  *
  * Run (500 clients — 1.4.2):
- *   k6 run performance/scenarios/websocket.js -e WS_CLIENTS=500 -e DURATION=5m
+ *   k6 run tests/performance/scenarios/websocket.js -e WS_CLIENTS=500 -e DURATION=5m
  *
  * Environment variables:
  *   WS_URL      default ws://localhost:8080/ws/telemetry

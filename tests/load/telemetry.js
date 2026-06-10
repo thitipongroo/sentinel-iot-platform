@@ -97,6 +97,6 @@ export function handleSummary(data) {
   console.log('======================================\n')
 
   return {
-    'load-testing/results.json': JSON.stringify(data, null, 2)
+    'tests/load/results.json': JSON.stringify(data, null, 2)
   }
 }

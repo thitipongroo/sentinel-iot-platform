@@ -4,7 +4,7 @@
 **สถานะ:** ✅ ผ่านทุก SLO threshold
 **Scope:** `GET /api/v1/telemetry/{deviceId}/cache` — Redis-backed hot read path
 **Environment:** MacBook Pro M3, 16 GB RAM — Docker Compose (single node)
-**Script:** [`load-testing/telemetry.js`](../../load-testing/telemetry.js)
+**Script:** [`tests/load/telemetry.js`](../../tests/load/telemetry.js)
 
 ---
 

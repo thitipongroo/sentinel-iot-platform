@@ -20,7 +20,7 @@
  *   resilience4j.circuitbreaker    — GET /actuator/health
  *
  * Run:
- *   k6 run performance/scenarios/ramp-up.js \
+ *   k6 run tests/performance/scenarios/ramp-up.js \
  *     --out prometheus=http://localhost:9090/api/v1/write
  */
 

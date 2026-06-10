@@ -15,7 +15,7 @@
  *   2.2.4  Circuit breaker under spike       → must NOT trip if DB is healthy
  *
  * Run:
- *   k6 run performance/scenarios/spike.js \
+ *   k6 run tests/performance/scenarios/spike.js \
  *     --out prometheus=http://localhost:9090/api/v1/write
  */
 

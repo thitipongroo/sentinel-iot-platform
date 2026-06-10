@@ -114,7 +114,7 @@ Invalid MQTT payload / unknown device:
 | Observability   | Prometheus + Grafana + OTel/Micrometer + Jaeger                             |
 | SLO             | Multi-window burn-rate rules + Grafana SLO dashboard                        |
 | Logging         | Logstash-logback-encoder (JSON) + MDC request correlation                   |
-| Testing         | JUnit 5, Testcontainers, schemathesis (contract fuzzing)                    |
+| Testing         | JUnit 5 · Mockito · Testcontainers · ArchUnit · Pact (contract) · JMH (benchmark) · Pitest (mutation) · schemathesis |
 | Load Test       | k6                                                                          |
 | CI/CD           | GitHub Actions (ci.yml + api-contract.yml)                                  |
 | Infra (local)   | Docker Compose                                                              |
@@ -156,7 +156,7 @@ sentinel-iot-platform/
 │   │   └── db/migration/       # V1–V11: schema, partitioning, lifecycle, multi-tenancy,
 │   │                           #   RLS, schema evolution, enrollment tokens, nullable fields,
 │   │                           #   device name uniqueness (V10), platform settings (V11)
-│   └── src/test/               # Unit + integration tests (BaseIntegrationTest Testcontainers base)
+│   └── src/test/               # Unit · Integration · Contract (Pact) · Benchmark (JMH) · Concurrent · Chaos (Toxiproxy) · Architecture (ArchUnit) · Regression
 ├── frontend/                   # Next.js 14 (App Router) + Tailwind CSS
 │   └── src/
 │       ├── app/                # App Router pages — dashboard, devices, devices/[id], alerts, users, settings, login, forgot-password
@@ -173,7 +173,7 @@ sentinel-iot-platform/
 ├── simulator/                  # Node.js MQTT publisher — dev/demo only (docs/demo/README.md)
 ├── monitoring/                 # Prometheus config + Grafana provisioning (Docker Compose)
 ├── mosquitto/                  # MQTT broker config
-├── load-testing/               # k6 scripts — ดูวิธีรันได้ที่ docs/test-plans/load-test-plan.md
+├── tests/                      # k6 system-level tests (load/, performance/)
 ├── scripts/                    # seed-demo.sh, seed-industry.sh, unseed-demo.sh, unseed-industry.sql, gen-mqtt-certs.sh
 ├── deploy/                     # nginx-lb.conf
 ├── docs/                       # Documentation — see docs/README.md
@@ -620,7 +620,7 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 
 | Document | Contents |
 | --- | --- |
-| [Test Report](docs/test-reports/README.md) | Test execution summary — 280 tests across backend unit/integration/security/E2E and frontend |
+| [Test Report](docs/test-reports/README.md) | Test execution summary — 293 tests across backend unit/integration/contract/benchmark/concurrent/chaos/security/regression and frontend |
 | [Load Test Report](docs/test-reports/load-test-report.md) | Cache read path baseline — 1,000 RPS, p95 112 ms, p99 187 ms |
 
 ### Demo & Development (`docs/demo/`)

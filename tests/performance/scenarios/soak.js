@@ -16,11 +16,11 @@
  *   2.3.6  JWT revocation list growth → Redis DB-1 memory not unbounded
  *
  * Run (full 2-hour soak):
- *   k6 run performance/scenarios/soak.js \
+ *   k6 run tests/performance/scenarios/soak.js \
  *     --out prometheus=http://localhost:9090/api/v1/write
  *
  * Run (quick smoke: 10 min warm-up + 20 min soak):
- *   k6 run performance/scenarios/soak.js -e SOAK_DURATION=20m
+ *   k6 run tests/performance/scenarios/soak.js -e SOAK_DURATION=20m
  *
  * Grafana snapshots: save at t=0, t=30 min, t=60 min, t=120 min
  *   jvm_memory_used_bytes{area="heap"}

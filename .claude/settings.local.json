@@ -57,7 +57,15 @@
       "Bash(grep -o '[^/]*$')",
       "Bash(git -C d:/workspace/sentinel-iot-platform diff --stat HEAD)",
       "Bash(git -C d:/workspace/sentinel-iot-platform status --short)",
-      "Bash(Format-Table -AutoSize)"
+      "Bash(Format-Table -AutoSize)",
+      "Bash(New-Item -ItemType Directory -Force \"d:\\\\workspace\\\\sentinel-iot-platform\\\\backend\\\\src\\\\test\\\\java\\\\com\\\\sentinel\\\\iot\\\\benchmark\")",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType Directory -Force \"d:\\\\workspace\\\\sentinel-iot-platform\\\\backend\\\\src\\\\test\\\\java\\\\com\\\\sentinel\\\\iot\\\\concurrent\")",
+      "Bash(Write-Output \"created\")",
+      "Bash(sed -i 's|k6 run performance/|k6 run tests/performance-testing/|g' \"d:/workspace/sentinel-iot-platform/tests/performance-testing/README.md\")",
+      "Bash(sed -i 's|\\\\./k6 run performance/|./k6 run tests/performance-testing/|g' \"d:/workspace/sentinel-iot-platform/tests/performance-testing/README.md\")",
+      "Bash(sed -i \"s|'load-testing/results.json'|'tests/load-testing/results.json'|g\" \"d:/workspace/sentinel-iot-platform/tests/load-testing/telemetry.js\")",
+      "Bash(git -C \"d:/workspace/sentinel-iot-platform\" status --short)"
     ],
     "additionalDirectories": [
       "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices",

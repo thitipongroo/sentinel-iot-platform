@@ -12,6 +12,10 @@
 | [backend-integration-test-plan.md](backend-integration-test-plan.md) | Spring MVC + Testcontainers integration tests | 75 | ✅ Implemented |
 | [backend-concurrency-test-plan.md](backend-concurrency-test-plan.md) | Thread safety, TenantContext isolation, rate limiter concurrency | 3 | ✅ Implemented |
 | [security-test-plan.md](security-test-plan.md) | JWT auth, RBAC, multi-tenant isolation, rate limit, WebSocket, error handling | 45 | ✅ Implemented |
+| contract/ — SentinelApiConsumerContractTest | Consumer-driven contract tests (Pact) — auth login (200/401), device list (200), device not found (404), unauthenticated (403) | 5 | ✅ Implemented |
+| benchmark/ — PerformanceGateTest + JwtPerformanceBenchmark | JMH microbenchmark gate — JWT generateAccessToken, extractUsername, extractOrgId ต้อง < 1 ms | 1 | ✅ Implemented |
+| concurrent/ — ConcurrentLoadTest | In-process concurrent request safety — 50 concurrent GET, 20 concurrent login, 30 reads + 10 writes | 3 | ✅ Implemented |
+| chaos/ — ResilienceUnderChaosTest | Fault injection via Toxiproxy — baseline, 500 ms latency, 6 s latency (→ 5xx), recovery | 4 | ✅ Implemented |
 
 ---
 

@@ -14,7 +14,7 @@
  *   1.3.2  GET /devices               → Redis DB-1 (JWT blocklist) measured via P99 auth overhead
  *
  * Run:
- *   k6 run performance/scenarios/normal-load.js \
+ *   k6 run tests/performance/scenarios/normal-load.js \
  *     --out prometheus=http://localhost:9090/api/v1/write
  *
  * Environment variables (optional):

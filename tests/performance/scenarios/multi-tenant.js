@@ -24,11 +24,11 @@
  *     ORG_A_USER, ORG_A_PASS, ... ORG_E_USER, ORG_E_PASS
  *
  * Run:
- *   k6 run performance/scenarios/multi-tenant.js \
+ *   k6 run tests/performance/scenarios/multi-tenant.js \
  *     --out prometheus=http://localhost:9090/api/v1/write
  *
  * Run (quick validation — 5 min):
- *   k6 run performance/scenarios/multi-tenant.js -e DURATION=5m
+ *   k6 run tests/performance/scenarios/multi-tenant.js -e DURATION=5m
  */
 
 import http from 'k6/http'

@@ -51,16 +51,20 @@ docs/
 
 ## test-reports/
 
-ผลการรัน test suite แยกตามประเภท — รวม 280 tests | 0 failures
+ผลการรัน test suite แยกตามประเภท — รวม 293 tests | 0 failures
 
 | ไฟล์ | ประเภท | Tests | ผล |
 |------|--------|-------|-----|
-| [README.md](test-reports/README.md) | **Summary** — ภาพรวมทั้งระบบ + links | 280 | ✅ |
+| [README.md](test-reports/README.md) | **Summary** — ภาพรวมทั้งระบบ + links | 293 | ✅ |
 | [backend-unit-test-report.md](test-reports/backend-unit-test-report.md) | Backend Unit (JUnit 5 + Mockito) | 28 | ✅ |
 | [backend-integration-test-report.md](test-reports/backend-integration-test-report.md) | Backend Integration (Testcontainers) | 34 | ✅ |
 | [backend-concurrency-test-report.md](test-reports/backend-concurrency-test-report.md) | Backend Concurrency (WebSocket thread safety) | 3 | ✅ |
 | [backend-security-test-report.md](test-reports/backend-security-test-report.md) | Backend Security (JWT, RBAC, multi-tenant, rate limit) | 45 | ✅ |
 | [backend-regression-test-report.md](test-reports/backend-regression-test-report.md) | Backend Regression (API contract, RBAC, migration, WebSocket) | 55 | ✅ |
+| — | Backend Contract (Pact consumer — auth, device endpoints) | 5 | ✅ |
+| — | Backend Benchmark Gate (JMH — JWT hot paths < 1 ms) | 1 | ✅ |
+| — | Backend Concurrent Load (in-process MockMvc concurrency) | 3 | ✅ |
+| — | Backend Chaos Engineering (Toxiproxy fault injection) | 4 | ✅ |
 | [frontend-unit-test-report.md](test-reports/frontend-unit-test-report.md) | Frontend Unit (Jest + React Testing Library) | 76 | ✅ |
 | [frontend-e2e-test-report.md](test-reports/frontend-e2e-test-report.md) | Frontend E2E (Cypress) | 39 | ✅ |
 | [load-test-report.md](test-reports/load-test-report.md) | Load Test — Cache read path baseline (k6) | — | ✅ |
@@ -107,7 +111,7 @@ Diagram และ visual asset ที่อ้างอิงจากเอก�
 
 ## test-plans/
 
-แผนการทดสอบแยกตาม layer และประเภท ยังไม่ได้ implement เว้นแต่ระบุไว้
+แผนการทดสอบแยกตาม layer และประเภท
 
 | ไฟล์ | ขอบเขต | Test Cases | สถานะ |
 |------|--------|-----------|-------|
@@ -120,3 +124,7 @@ Diagram และ visual asset ที่อ้างอิงจากเอก�
 | [performance-test-plan.md](test-plans/performance-test-plan.md) | Normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast | 16 | ✅ Implemented |
 | [load-test-plan.md](test-plans/load-test-plan.md) | Cache read path baseline + ramp-up, spike, soak, Kafka consumer, multi-tenant | 22 | ✅ Implemented |
 | [regression-test-plan.md](test-plans/regression-test-plan.md) | API contract, HTTP status, auth, RBAC, multi-tenant, migration, rate limit, WebSocket | 55 | ✅ Implemented |
+| — | Contract tests (Pact) — auth login (200/401), device list/not-found/unauthenticated | 5 | ✅ Implemented |
+| — | Benchmark gate (JMH) — JWT generateAccessToken, extractUsername, extractOrgId < 1 ms | 1 | ✅ Implemented |
+| — | Concurrent load — 50 concurrent GET, 20 concurrent login, mixed 30+10 | 3 | ✅ Implemented |
+| — | Chaos engineering (Toxiproxy) — baseline, moderate latency, severe latency, recovery | 4 | ✅ Implemented |
