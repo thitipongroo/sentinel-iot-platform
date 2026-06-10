@@ -3,6 +3,9 @@ package com.sentinel.iot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinel.iot.service.SchemaCompatibilityService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -18,8 +21,11 @@ import java.nio.charset.Charset;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
+@Tag("unit")
+@DisplayName("SchemaCompatibilityService")
 @ExtendWith(MockitoExtension.class)
 class SchemaCompatibilityServiceTest {
 
@@ -34,39 +40,51 @@ class SchemaCompatibilityServiceTest {
         service = new SchemaCompatibilityService(resourceLoader, new ObjectMapper());
     }
 
-    // ── disabled (no-op) ──────────────────────────────────────────────────────
+    // ── Disabled mode (default) ───────────────────────────────────────────────
 
-    @Test
-    void run_disabled_isNoOp() throws Exception {
-        // schema-registry.enabled defaults to false after construction — no resource loading
-        service.run(appArgs);
+    @Nested
+    @DisplayName("Disabled mode (schema-registry.enabled = false)")
+    class DisabledMode {
 
-        verifyNoInteractions(resourceLoader);
+        @Test
+        @DisplayName("run() is a no-op and never touches the ResourceLoader when disabled by default")
+        void run_disabled_isNoOp() throws Exception {
+            service.run(appArgs);
+
+            verifyNoInteractions(resourceLoader);
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("run() is a no-op even when enabled is explicitly set to false")
+        void run_disabled_withExplicitFalse_isNoOp() throws Exception {
+            ReflectionTestUtils.setField(service, "enabled", false);
+
+            service.run(appArgs);
+
+            verifyNoInteractions(resourceLoader);
+        }
     }
 
-    // ── enabled: fail-open on unreadable resource ─────────────────────────────
+    // ── Enabled mode ──────────────────────────────────────────────────────────
 
-    @SuppressWarnings("null")
-    @Test
-    void run_enabled_resourceLoadFails_doesNotThrow() throws Exception {
-        ReflectionTestUtils.setField(service, "enabled", true);
-        when(resourceLoader.getResource(anyString())).thenReturn(resource);
-        when(resource.getContentAsString(any(Charset.class)))
-                .thenThrow(new IOException("classpath resource not found"));
+    @Nested
+    @DisplayName("Enabled mode (schema-registry.enabled = true)")
+    class EnabledMode {
 
-        // Registry is unreachable / resource missing → warn and continue, never abort startup
-        assertThatNoException().isThrownBy(() -> service.run(appArgs));
-    }
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("fails open and does not throw when the schema resource cannot be read at startup")
+        void run_enabled_resourceLoadFails_doesNotThrow() throws Exception {
+            ReflectionTestUtils.setField(service, "enabled", true);
+            when(resourceLoader.getResource(anyString())).thenReturn(resource);
+            when(resource.getContentAsString(any(Charset.class)))
+                    .thenThrow(new IOException("classpath resource not found"));
 
-    // ── disabled does not interact with ObjectMapper ──────────────────────────
-
-    @SuppressWarnings("null")
-    @Test
-    void run_disabled_withExplicitFalse_isNoOp() throws Exception {
-        ReflectionTestUtils.setField(service, "enabled", false);
-
-        service.run(appArgs);
-
-        verifyNoInteractions(resourceLoader);
+            // Registry unreachable / resource missing → warn and continue, never abort startup
+            assertThatNoException()
+                    .as("schema compatibility check must be fail-open at startup")
+                    .isThrownBy(() -> service.run(appArgs));
+        }
     }
 }

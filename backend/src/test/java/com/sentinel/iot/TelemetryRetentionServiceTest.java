@@ -7,6 +7,9 @@ import com.sentinel.iot.service.TelemetryRetentionService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -22,12 +25,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@Tag("unit")
+@DisplayName("TelemetryRetentionService")
 @ExtendWith(MockitoExtension.class)
 class TelemetryRetentionServiceTest {
 
-    @Mock TelemetryRepository telemetryRepository;
-    @Mock TelemetryHourlyAggregateRepository hourlyAggregateRepository;
-    @Mock EntityManager entityManager;
+    @Mock TelemetryRepository                  telemetryRepository;
+    @Mock TelemetryHourlyAggregateRepository   hourlyAggregateRepository;
+    @Mock EntityManager                        entityManager;
 
     TelemetryRetentionService service;
 
@@ -35,135 +40,163 @@ class TelemetryRetentionServiceTest {
     @BeforeEach
     void setUp() {
         service = new TelemetryRetentionService(telemetryRepository, hourlyAggregateRepository);
-        ReflectionTestUtils.setField(service, "entityManager",          entityManager);
-        ReflectionTestUtils.setField(service, "retentionDays",          30);
+        ReflectionTestUtils.setField(service, "entityManager",           entityManager);
+        ReflectionTestUtils.setField(service, "retentionDays",           30);
         ReflectionTestUtils.setField(service, "lateArrivalLookbackDays", 2);
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
+    // ── Phase 1: hourly aggregation ───────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Phase 1 — hourly aggregation")
+    class Aggregation {
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("calls aggregateHourly with a from-window in the past and a to-window in the present")
+        void runRetention_callsAggregateHourly_withLookbackWindow() {
+            stubPartitionList(List.of());
+            when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(5);
+
+            service.runRetention();
+
+            verify(hourlyAggregateRepository).aggregateHourly(
+                    argThat(from -> from.isBefore(Instant.now())),
+                    argThat(to   -> to.isBefore(Instant.now().plusSeconds(5))));
+        }
+    }
+
+    // ── Phase 2: raw telemetry purge ──────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Phase 2 — raw telemetry purge")
+    class Purge {
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("calls deleteByTimestampBefore with a cutoff approximately retentionDays ago")
+        void runRetention_callsDeleteByTimestampBefore_withRetentionCutoff() {
+            stubPartitionList(List.of());
+            when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
+            when(telemetryRepository.deleteByTimestampBefore(any())).thenReturn(10);
+
+            Instant before = Instant.now();
+            service.runRetention();
+            Instant after  = Instant.now();
+
+            verify(telemetryRepository).deleteByTimestampBefore(argThat(cutoff ->
+                    cutoff.isAfter(before.minus(31, ChronoUnit.DAYS)) &&
+                    cutoff.isBefore(after.minus(29, ChronoUnit.DAYS))));
+        }
+    }
+
+    // ── Phase 3: partition management ────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Phase 3 — partition management")
+    class PartitionManagement {
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("skips the DROP phase entirely when no child partitions exist")
+        void runRetention_noPartitions_skipsDropPhase() {
+            stubPartitionList(List.of());
+            when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
+
+            service.runRetention();
+
+            // Only the pg_inherits list query — no COUNT / DETACH / DROP
+            verify(entityManager, times(1)).createNativeQuery(anyString());
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("skips COUNT and DROP for a partition whose name does not match the date pattern")
+        void runRetention_skipsPartitionWithUnrecognisedName() {
+            stubPartitionList(List.of("telemetry_not_a_date"));
+            when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
+
+            service.runRetention();
+
+            // Only the pg_inherits list query — no COUNT or DROP for unrecognised name
+            verify(entityManager, times(1)).createNativeQuery(anyString());
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("DETACHes and DROPs an empty partition that is outside the retention window")
+        void runRetention_dropsEmptyExpiredPartition() {
+            String partition = "telemetry_2020_01"; // well outside 30-day retention window
+
+            stubPartitionList(List.of(partition));
+
+            Query countQuery  = mock(Query.class);
+            Query detachQuery = mock(Query.class);
+            Query dropQuery   = mock(Query.class);
+            when(countQuery.getSingleResult()).thenReturn(0L);
+            when(entityManager.createNativeQuery(contains("COUNT"))).thenReturn(countQuery);
+            when(entityManager.createNativeQuery(contains("DETACH"))).thenReturn(detachQuery);
+            when(entityManager.createNativeQuery(contains("DROP TABLE"))).thenReturn(dropQuery);
+            when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
+
+            service.runRetention();
+
+            verify(detachQuery).executeUpdate();
+            verify(dropQuery).executeUpdate();
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("leaves a non-empty expired partition in place (rows may still be referenced)")
+        void runRetention_skipsNonEmptyExpiredPartition() {
+            String partition = "telemetry_2020_01";
+
+            stubPartitionList(List.of(partition));
+
+            Query countQuery = mock(Query.class);
+            when(countQuery.getSingleResult()).thenReturn(5L); // still has rows
+            when(entityManager.createNativeQuery(contains("COUNT"))).thenReturn(countQuery);
+            when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
+
+            service.runRetention();
+
+            verify(entityManager, never()).createNativeQuery(contains("DETACH"));
+            verify(entityManager, never()).createNativeQuery(contains("DROP TABLE"));
+        }
+    }
+
+    // ── Query interface ───────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Query interface")
+    class QueryInterface {
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("getHourlyAggregates delegates directly to the repository with the supplied range")
+        void getHourlyAggregates_delegatesToRepository() {
+            UUID deviceId = UUID.randomUUID();
+            Instant from  = Instant.now().minus(24, ChronoUnit.HOURS);
+            Instant to    = Instant.now();
+            TelemetryHourlyAggregate agg = new TelemetryHourlyAggregate();
+            when(hourlyAggregateRepository
+                    .findByDeviceIdAndHourBucketBetweenOrderByHourBucketAsc(deviceId, from, to))
+                    .thenReturn(List.of(agg));
+
+            List<TelemetryHourlyAggregate> result = service.getHourlyAggregates(deviceId, from, to);
+
+            assertThat(result)
+                    .as("result must contain the repository-returned aggregate")
+                    .containsExactly(agg);
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     @SuppressWarnings("null")
-    private Query stubPartitionList(List<String> partitions) {
+    private void stubPartitionList(List<String> partitions) {
         Query listQuery = mock(Query.class);
         when(listQuery.getResultList()).thenReturn(partitions);
         when(entityManager.createNativeQuery(contains("pg_inherits"))).thenReturn(listQuery);
-        return listQuery;
-    }
-
-    // ── phase 1: aggregation ─────────────────────────────────────────────────
-
-    @SuppressWarnings("null")
-    @Test
-    void runRetention_callsAggregateHourly_withLookbackWindow() {
-        stubPartitionList(List.of());
-        when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(5);
-
-        service.runRetention();
-
-        verify(hourlyAggregateRepository).aggregateHourly(
-                argThat(from -> from.isBefore(Instant.now())),
-                argThat(to   -> to.isBefore(Instant.now().plusSeconds(5))));
-    }
-
-    // ── phase 2: purge ───────────────────────────────────────────────────────
-
-    @SuppressWarnings("null")
-    @Test
-    void runRetention_callsDeleteByTimestampBefore_withRetentionCutoff() {
-        stubPartitionList(List.of());
-        when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
-        when(telemetryRepository.deleteByTimestampBefore(any())).thenReturn(10);
-
-        Instant before = Instant.now();
-        service.runRetention();
-        Instant after  = Instant.now();
-
-        // Cutoff should be ~30 days ago
-        verify(telemetryRepository).deleteByTimestampBefore(argThat(cutoff ->
-                cutoff.isAfter(before.minus(31, ChronoUnit.DAYS)) &&
-                cutoff.isBefore(after.minus(29, ChronoUnit.DAYS))));
-    }
-
-    // ── phase 3: partition management ────────────────────────────────────────
-
-    @SuppressWarnings("null")
-    @Test
-    void runRetention_noPartitions_skipsDropPhase() {
-        stubPartitionList(List.of());
-        when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
-
-        service.runRetention();
-
-        // Only the pg_inherits list query — no COUNT/DETACH/DROP
-        verify(entityManager, times(1)).createNativeQuery(anyString());
-    }
-
-    @SuppressWarnings("null")
-    @Test
-    void runRetention_skipsPartitionWithUnrecognisedName() {
-        stubPartitionList(List.of("telemetry_not_a_date"));
-        when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
-
-        service.runRetention();
-
-        // Only the pg_inherits list query — no COUNT or DROP for unrecognised partition name
-        verify(entityManager, times(1)).createNativeQuery(anyString());
-    }
-
-    @SuppressWarnings("null")
-    @Test
-    void runRetention_dropsEmptyExpiredPartition() {
-        String partition = "telemetry_2020_01"; // well outside 30-day retention window
-
-        stubPartitionList(List.of(partition));
-
-        Query countQuery  = mock(Query.class);
-        Query detachQuery = mock(Query.class);
-        Query dropQuery   = mock(Query.class);
-        when(countQuery.getSingleResult()).thenReturn(0L);
-        when(entityManager.createNativeQuery(contains("COUNT"))).thenReturn(countQuery);
-        when(entityManager.createNativeQuery(contains("DETACH"))).thenReturn(detachQuery);
-        when(entityManager.createNativeQuery(contains("DROP TABLE"))).thenReturn(dropQuery);
-        when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
-
-        service.runRetention();
-
-        verify(detachQuery).executeUpdate();
-        verify(dropQuery).executeUpdate();
-    }
-
-    @SuppressWarnings("null")
-    @Test
-    void runRetention_skipsNonEmptyExpiredPartition() {
-        String partition = "telemetry_2020_01";
-
-        stubPartitionList(List.of(partition));
-
-        Query countQuery = mock(Query.class);
-        when(countQuery.getSingleResult()).thenReturn(5L); // still has rows
-        when(entityManager.createNativeQuery(contains("COUNT"))).thenReturn(countQuery);
-        when(hourlyAggregateRepository.aggregateHourly(any(), any())).thenReturn(0);
-
-        service.runRetention();
-
-        verify(entityManager, never()).createNativeQuery(contains("DETACH"));
-        verify(entityManager, never()).createNativeQuery(contains("DROP TABLE"));
-    }
-
-    // ── getHourlyAggregates ──────────────────────────────────────────────────
-
-    @SuppressWarnings("null")
-    @Test
-    void getHourlyAggregates_delegatesToRepository() {
-        UUID deviceId = UUID.randomUUID();
-        Instant from  = Instant.now().minus(24, ChronoUnit.HOURS);
-        Instant to    = Instant.now();
-        TelemetryHourlyAggregate agg = new TelemetryHourlyAggregate();
-        when(hourlyAggregateRepository.findByDeviceIdAndHourBucketBetweenOrderByHourBucketAsc(deviceId, from, to))
-                .thenReturn(List.of(agg));
-
-        List<TelemetryHourlyAggregate> result = service.getHourlyAggregates(deviceId, from, to);
-
-        assertThat(result).containsExactly(agg);
     }
 }

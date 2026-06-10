@@ -6,6 +6,9 @@ import jakarta.persistence.EntityManager;
 import org.hibernate.Session;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,6 +23,8 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+@Tag("unit")
+@DisplayName("TenantRlsAspect")
 @ExtendWith(MockitoExtension.class)
 class TenantRlsAspectTest {
 
@@ -45,44 +50,55 @@ class TenantRlsAspectTest {
         TransactionSynchronizationManager.setActualTransactionActive(false);
     }
 
-    // ── early-return conditions ───────────────────────────────────────────────
+    // ── Early-return conditions ───────────────────────────────────────────────
 
-    @Test
-    void applyTenantRlsContext_noTenantContext_doesNothing() {
-        // TenantContext not set → orgId is null → early return before touching EntityManager
-        aspect.applyTenantRlsContext();
+    @Nested
+    @DisplayName("Early-return conditions (no SQL executed)")
+    class EarlyReturnConditions {
 
-        verifyNoInteractions(entityManager);
+        @Test
+        @DisplayName("does nothing when no tenant context is set (orgId is null)")
+        void applyTenantRlsContext_noTenantContext_doesNothing() {
+            aspect.applyTenantRlsContext();
+
+            verifyNoInteractions(entityManager);
+        }
+
+        @Test
+        @DisplayName("does nothing when no active transaction is present")
+        void applyTenantRlsContext_noActiveTransaction_doesNothing() {
+            TenantContext.set(orgId);
+
+            aspect.applyTenantRlsContext();
+
+            verifyNoInteractions(entityManager);
+        }
     }
 
-    @Test
-    void applyTenantRlsContext_noActiveTransaction_doesNothing() {
-        TenantContext.set(orgId);
-        // TransactionSynchronizationManager.isActualTransactionActive() = false (default)
+    // ── Happy path ────────────────────────────────────────────────────────────
 
-        aspect.applyTenantRlsContext();
+    @Nested
+    @DisplayName("Happy path")
+    class HappyPath {
 
-        verifyNoInteractions(entityManager);
-    }
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("executes SET LOCAL app.org_id when tenant context and transaction are both active")
+        void applyTenantRlsContext_withTenantAndTransaction_executesSetLocalSql() throws Exception {
+            TenantContext.set(orgId);
+            TransactionSynchronizationManager.setActualTransactionActive(true);
 
-    // ── happy path ────────────────────────────────────────────────────────────
+            when(entityManager.unwrap(Session.class)).thenReturn(session);
+            when(connection.createStatement()).thenReturn(statement);
+            doAnswer(inv -> {
+                org.hibernate.jdbc.Work work = inv.getArgument(0);
+                work.execute(connection);
+                return null;
+            }).when(session).doWork(any());
 
-    @SuppressWarnings("null")
-    @Test
-    void applyTenantRlsContext_withTenantAndTransaction_executesSetLocalSql() throws Exception {
-        TenantContext.set(orgId);
-        TransactionSynchronizationManager.setActualTransactionActive(true);
+            aspect.applyTenantRlsContext();
 
-        when(entityManager.unwrap(Session.class)).thenReturn(session);
-        when(connection.createStatement()).thenReturn(statement);
-        doAnswer(inv -> {
-            org.hibernate.jdbc.Work work = inv.getArgument(0);
-            work.execute(connection);
-            return null;
-        }).when(session).doWork(any());
-
-        aspect.applyTenantRlsContext();
-
-        verify(statement).execute("SET LOCAL app.org_id = '" + orgId + "'");
+            verify(statement).execute("SET LOCAL app.org_id = '" + orgId + "'");
+        }
     }
 }

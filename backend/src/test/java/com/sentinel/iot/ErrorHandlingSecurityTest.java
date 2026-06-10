@@ -1,12 +1,9 @@
 package com.sentinel.iot;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sentinel.iot.dto.AuthRequest;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -15,106 +12,102 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * หมวดที่ 9 — Error Handling & Information Disclosure (4 tests)
  *
- * ทดสอบ: user enumeration prevention (same status for unknown user vs wrong password),
- *        no stack trace in error responses,
+ * ทดสอบ: user enumeration prevention, no stack trace in error responses,
  *        nonexistent endpoint returns 404 without leaking internal paths,
- *        Swagger UI is accessible in all profiles (documents gap — should be disabled in prod).
+ *        Swagger UI is accessible in all profiles (documented gap).
  */
+@DisplayName("Error Handling Security — information disclosure prevention")
 class ErrorHandlingSecurityTest extends BaseIntegrationTest {
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+    // ── User enumeration prevention ───────────────────────────────────────────
 
-    // ── 9.1 Login failure returns identical status for unknown user and wrong password ──
+    @Nested
+    @DisplayName("User enumeration prevention")
+    class UserEnumeration {
 
-    @SuppressWarnings("null")
-@Test
-    void loginFailure_sameStatusForUnknownUserAndWrongPassword() throws Exception {
-        // Spring DaoAuthenticationProvider hides UsernameNotFoundException as
-        // BadCredentialsException by default — both paths return the same HTTP status
-        MvcResult unknownUser = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(authRequest("nonexistent-xyz", "anypassword"))))
-                .andReturn();
-
-        MvcResult wrongPassword = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(authRequest("admin", "wrong-password-xyz"))))
-                .andReturn();
-
-        assertThat(unknownUser.getResponse().getStatus())
-                .isEqualTo(wrongPassword.getResponse().getStatus());
-    }
-
-    // ── 9.2 Validation error response does not expose a stack trace ───────────
-
-    @Test
-    void validationError_doesNotExposeStackTrace() throws Exception {
-        String adminToken = loginAndGetToken("admin", "admin123");
-
-        // Submitting an empty name triggers @NotBlank — GlobalExceptionHandler returns ProblemDetail
         @SuppressWarnings("null")
-        MvcResult result = mockMvc.perform(post("/api/v1/devices")
-                        .header("Authorization", "Bearer " + adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"\"}"))
-                .andExpect(status().isBadRequest())
-                .andReturn();
+        @Test
+        @DisplayName("unknown username and wrong password return identical HTTP status (no enumeration)")
+        void loginFailure_sameStatusForUnknownUserAndWrongPassword() throws Exception {
+            // Spring DaoAuthenticationProvider hides UsernameNotFoundException as
+            // BadCredentialsException — both paths return the same HTTP status
+            var unknownUser = mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    authRequest("nonexistent-xyz", "anypassword"))))
+                    .andReturn();
 
-        String body = result.getResponse().getContentAsString();
-        assertThat(body).doesNotContain("at com.", "stackTrace", "StackTrace");
+            var wrongPassword = mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    authRequest("admin", "wrong-password-xyz"))))
+                    .andReturn();
+
+            assertThat(unknownUser.getResponse().getStatus())
+                    .as("unknown user and wrong password must return the same status")
+                    .isEqualTo(wrongPassword.getResponse().getStatus());
+        }
     }
 
-    // ── 9.3 Nonexistent endpoint returns 404 without leaking internal paths ───
+    // ── Information disclosure prevention ─────────────────────────────────────
 
-    @Test
-    void nonexistentEndpoint_returns404WithoutInternalPaths() throws Exception {
-        String adminToken = loginAndGetToken("admin", "admin123");
+    @Nested
+    @DisplayName("Information disclosure prevention")
+    class InformationDisclosure {
 
-        MvcResult result = mockMvc.perform(get("/api/v1/nonexistent-endpoint-xyz")
-                        .header("Authorization", "Bearer " + adminToken))
-                .andReturn();
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("validation error response body does not contain a stack trace")
+        void validationError_doesNotExposeStackTrace() throws Exception {
+            String adminToken = loginAndGetToken("admin", "admin123");
 
-        assertThat(result.getResponse().getStatus()).isEqualTo(404);
-        String body = result.getResponse().getContentAsString();
-        assertThat(body).doesNotContain("at com.sentinel", "stackTrace");
+            var result = mockMvc.perform(post("/api/v1/devices")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andReturn();
+
+            assertThat(result.getResponse().getContentAsString())
+                    .as("error response must not contain stack trace fragments")
+                    .doesNotContain("at com.", "stackTrace", "StackTrace");
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("nonexistent endpoint returns 404 without leaking internal class paths")
+        void nonexistentEndpoint_returns404WithoutInternalPaths() throws Exception {
+            String adminToken = loginAndGetToken("admin", "admin123");
+
+            var result = mockMvc.perform(get("/api/v1/nonexistent-endpoint-xyz")
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andReturn();
+
+            assertThat(result.getResponse().getStatus()).as("status must be 404").isEqualTo(404);
+            assertThat(result.getResponse().getContentAsString())
+                    .as("404 body must not contain internal paths or stack traces")
+                    .doesNotContain("at com.sentinel", "stackTrace");
+        }
     }
 
-    // ── 9.4 Swagger UI is reachable in all Spring profiles (documented gap) ───
-    //
-    // SECURITY GAP: OpenApiConfig has no @Profile annotation and SecurityConfig
-    // always permits /swagger-ui/**, /swagger, /api-docs/**.  Production deployments
-    // should disable Swagger by activating a "prod" profile that excludes OpenApiConfig
-    // and adds a security rule rejecting those paths.
+    // ── Documented gaps ───────────────────────────────────────────────────────
 
-    @Test
-    void swaggerUi_isAccessibleWithoutAuth_documentedGap() throws Exception {
-        mockMvc.perform(get("/swagger"))
-                .andExpect(result ->
-                        assertThat(result.getResponse().getStatus())
-                                .as("Swagger must be accessible (no auth required) — documents gap: " +
-                                    "it should be disabled when spring.profiles.active=prod")
-                                .isLessThan(400));
-    }
+    @Nested
+    @DisplayName("Documented security gaps")
+    class DocumentedGaps {
 
-    // ── helpers ───────────────────────────────────────────────────────────────
-
-    @SuppressWarnings("null")
-private String loginAndGetToken(String username, String password) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(authRequest(username, password))))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        return objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("accessToken").asText();
-    }
-
-    private AuthRequest authRequest(String username, String password) {
-        AuthRequest req = new AuthRequest();
-        req.setUsername(username);
-        req.setPassword(password);
-        return req;
+        // SECURITY GAP: OpenApiConfig has no @Profile annotation and SecurityConfig always
+        // permits /swagger-ui/**, /swagger, /api-docs/**. Production deployments should
+        // disable Swagger by activating a "prod" profile that excludes OpenApiConfig.
+        @Test
+        @DisplayName("Swagger UI is accessible without authentication (documented gap — disable in prod)")
+        void swaggerUi_isAccessibleWithoutAuth_documentedGap() throws Exception {
+            mockMvc.perform(get("/swagger"))
+                    .andExpect(result ->
+                            assertThat(result.getResponse().getStatus())
+                                    .as("Swagger must be accessible — documents gap: " +
+                                        "disable with spring.profiles.active=prod")
+                                    .isLessThan(400));
+        }
     }
 }

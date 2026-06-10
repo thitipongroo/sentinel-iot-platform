@@ -1,14 +1,12 @@
 package com.sentinel.iot.regression;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinel.iot.BaseIntegrationTest;
-import com.sentinel.iot.dto.AuthRequest;
 import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,114 +16,132 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 3.3 Authentication & Token Regression (6 tests)
  */
+@DisplayName("AuthRegressionTest — authentication and token lifecycle")
 class AuthRegressionTest extends BaseIntegrationTest {
 
     private static final String REFRESH_COOKIE = "sentinel_refresh_token";
 
-    @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+    // ── Token validity ────────────────────────────────────────────────────────
 
-    // 3.3.1 — Access token is valid immediately after login (before expiry)
-    @Test
-    void accessToken_isValidBeforeExpiry() throws Exception {
-        String token = loginAndGetToken("admin", "admin123");
+    @Nested
+    @DisplayName("Token validity")
+    class TokenValidity {
 
-        mockMvc.perform(get("/api/v1/devices")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk());
+        @Test
+        @DisplayName("freshly-issued access token is accepted by protected endpoints")
+        void accessToken_isValidBeforeExpiry() throws Exception {
+            String token = loginAndGetToken("admin", "admin123");
+
+            mockMvc.perform(get("/api/v1/devices")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk());
+        }
     }
 
-    // 3.3.2 — Refresh token rotation: new token issued, old token becomes invalid
-    @Test
-    void refreshTokenRotation_oldTokenIsRevoked() throws Exception {
+    // ── Token rotation ────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Token rotation")
+    class TokenRotation {
+
+        @Test
+        @DisplayName("after first rotation, re-using the original refresh token is rejected")
+        void refreshTokenRotation_oldTokenIsRevoked() throws Exception {
+            @SuppressWarnings("null")
+            MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(authRequest("operator", "op123"))))
+                    .andExpect(status().isOk())
+                    .andReturn();
+
+            Cookie firstRefreshCookie = loginResult.getResponse().getCookie(REFRESH_COOKIE);
+            assertThat(firstRefreshCookie).isNotNull();
+
+            mockMvc.perform(post("/api/v1/auth/refresh")
+                            .cookie(firstRefreshCookie))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.accessToken").isNotEmpty());
+
+            mockMvc.perform(post("/api/v1/auth/refresh")
+                            .cookie(firstRefreshCookie))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    // ── Cookie security ───────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Cookie security flags")
+    class CookieSecurity {
+
         @SuppressWarnings("null")
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(authRequest("operator", "op123"))))
-                .andExpect(status().isOk())
-                .andReturn();
+        @Test
+        @DisplayName("Set-Cookie header carries HttpOnly and SameSite=Strict flags")
+        void loginResponse_cookieFlagsUnchanged() throws Exception {
+            MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(authRequest("admin", "admin123"))))
+                    .andExpect(status().isOk())
+                    .andReturn();
 
-        Cookie firstRefreshCookie = loginResult.getResponse().getCookie(REFRESH_COOKIE);
-        assertThat(firstRefreshCookie).isNotNull();
-
-        // First rotation — succeeds and issues a new cookie
-        mockMvc.perform(post("/api/v1/auth/refresh")
-                        .cookie(firstRefreshCookie))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty());
-
-        // Second use of the same (now-revoked) refresh token — must be rejected
-        mockMvc.perform(post("/api/v1/auth/refresh")
-                        .cookie(firstRefreshCookie))
-                .andExpect(status().isBadRequest());
+            String setCookie = result.getResponse().getHeader("Set-Cookie");
+            assertThat(setCookie).isNotNull();
+            assertThat(setCookie).containsIgnoringCase("HttpOnly");
+            assertThat(setCookie).containsIgnoringCase("SameSite=Strict");
+        }
     }
 
-    // 3.3.3 — Set-Cookie header retains HttpOnly, Secure, SameSite=Strict flags
-    @SuppressWarnings("null")
-    @Test
-    void loginResponse_cookieFlagsUnchanged() throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(authRequest("admin", "admin123"))))
-                .andExpect(status().isOk())
-                .andReturn();
+    // ── Session revocation ────────────────────────────────────────────────────
 
-        String setCookie = result.getResponse().getHeader("Set-Cookie");
-        assertThat(setCookie).isNotNull();
-        assertThat(setCookie).containsIgnoringCase("HttpOnly");
-        assertThat(setCookie).containsIgnoringCase("SameSite=Strict");
+    @Nested
+    @DisplayName("Session revocation")
+    class SessionRevocation {
+
+        @Test
+        @DisplayName("logout revokes the JTI — subsequent requests with that token return 403")
+        void logout_revokesAccessToken() throws Exception {
+            String token = loginAndGetToken("admin", "admin123");
+
+            mockMvc.perform(get("/api/v1/devices")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(post("/api/v1/auth/logout")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isNoContent());
+
+            mockMvc.perform(get("/api/v1/devices")
+                            .header("Authorization", "Bearer " + token))
+                    .andExpect(status().isForbidden());
+        }
     }
 
-    // 3.3.4 — Logout revokes the access token's JTI; subsequent use returns 403
-    @Test
-    void logout_revokesAccessToken() throws Exception {
-        String token = loginAndGetToken("admin", "admin123");
+    // ── Response contract ─────────────────────────────────────────────────────
 
-        // Confirm token works before logout
-        mockMvc.perform(get("/api/v1/devices")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk());
+    @Nested
+    @DisplayName("Login response contract")
+    class ResponseContract {
 
-        // Logout — revokes the JTI in Redis
-        mockMvc.perform(post("/api/v1/auth/logout")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNoContent());
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("login response body never contains a refreshToken field")
+        void loginResponseBody_hasNoRefreshTokenField() throws Exception {
+            JsonNode body = loginBody("admin", "admin123");
+            assertThat(body.has("refreshToken")).isFalse();
+        }
 
-        // Same token must now be rejected
-        mockMvc.perform(get("/api/v1/devices")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden());
+        @Test
+        @DisplayName("role field in login response matches the DB-stored role for each user")
+        void loginResponse_roleMatchesUserRole() throws Exception {
+            JsonNode adminBody = loginBody("admin", "admin123");
+            JsonNode opBody    = loginBody("operator", "op123");
+
+            assertThat(adminBody.get("role").asText()).isEqualTo("ADMIN");
+            assertThat(opBody.get("role").asText()).isEqualTo("OPERATOR");
+        }
     }
 
-    // 3.3.5 — Login response body must NOT contain refreshToken field
-    @SuppressWarnings("null")
-    @Test
-    void loginResponseBody_hasNoRefreshTokenField() throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(authRequest("admin", "admin123"))))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(body.has("refreshToken")).isFalse();
-    }
-
-    // 3.3.6 — Role field in response matches the DB-stored role for each user
-    @Test
-    void loginResponse_roleMatchesUserRole() throws Exception {
-        JsonNode adminBody  = loginBody("admin", "admin123");
-        JsonNode opBody     = loginBody("operator", "op123");
-
-        assertThat(adminBody.get("role").asText()).isEqualTo("ADMIN");
-        assertThat(opBody.get("role").asText()).isEqualTo("OPERATOR");
-    }
-
-    // ── helpers ───────────────────────────────────────────────────────────────
-
-    private String loginAndGetToken(String username, String password) throws Exception {
-        return loginBody(username, password).get("accessToken").asText();
-    }
+    // ── private helper (returns full response body, unique to this file) ──────
 
     @SuppressWarnings("null")
     private JsonNode loginBody(String username, String password) throws Exception {
@@ -135,12 +151,5 @@ class AuthRegressionTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString());
-    }
-
-    private AuthRequest authRequest(String username, String password) {
-        AuthRequest req = new AuthRequest();
-        req.setUsername(username);
-        req.setPassword(password);
-        return req;
     }
 }

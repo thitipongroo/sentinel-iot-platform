@@ -6,6 +6,8 @@ import com.sentinel.iot.repository.TelemetryRepository;
 import com.sentinel.iot.service.RedisService;
 import com.sentinel.iot.service.ReplayQueueService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -23,10 +25,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * environments confirm the Kafka DLQ path handles 100% of in-flight data and
  * the queue has been empty for at least one full retention cycle.</p>
  */
+@DisplayName("ReplayConsistencyTest — legacy Redis replay queue")
 class ReplayConsistencyTest extends BaseIntegrationTest {
 
     @SuppressWarnings("removal")
-    @Autowired private ReplayQueueService replayQueueService;
+    @Autowired private ReplayQueueService  replayQueueService;
     @Autowired private RedisService        redisService;
     @Autowired private TelemetryRepository telemetryRepository;
     @Autowired private ObjectMapper        objectMapper;
@@ -40,80 +43,96 @@ class ReplayConsistencyTest extends BaseIntegrationTest {
         stringRedisTemplate.delete("sentinel:replay:queue");
     }
 
-    @Test
-    void drain_emptyQueue_doesNothing() {
-        // Queue starts empty — drain must be a no-op
-        long before = telemetryRepository.count();
-        replayQueueService.drain();
-        assertThat(telemetryRepository.count()).isEqualTo(before);
-    }
+    // ── Drain behaviour ───────────────────────────────────────────────────────
 
-    @Test
-    void drain_singleMessage_persistsToDb() throws Exception {
-        ReplayQueueMessage msg = buildMessage(deviceId, 72.4, 55.0);
-        redisService.pushToReplayQueue(objectMapper.writeValueAsString(msg));
+    @Nested
+    @DisplayName("Drain behaviour")
+    class DrainBehaviour {
 
-        assertThat(redisService.replayQueueSize()).isEqualTo(1);
-        replayQueueService.drain();
-
-        assertThat(redisService.replayQueueSize()).isZero();
-        // Verify the row was written with correct values
-        assertThat(telemetryRepository.findAll())
-                .anySatisfy(t -> {
-                    assertThat(t.getDeviceId()).isEqualTo(deviceId);
-                    assertThat(t.getTemperature()).isEqualTo(72.4);
-                });
-    }
-
-    @Test
-    void drain_multipleBatches_allMessagesEventuallyPersisted() throws Exception {
-        int total = 15;
-        for (int i = 0; i < total; i++) {
-            redisService.pushToReplayQueue(
-                objectMapper.writeValueAsString(buildMessage(deviceId, 60.0 + i, 50.0))
-            );
+        @Test
+        @DisplayName("drain() is a no-op when the replay queue is empty")
+        void drain_emptyQueue_doesNothing() {
+            long before = telemetryRepository.count();
+            replayQueueService.drain();
+            assertThat(telemetryRepository.count())
+                    .as("row count must not change when queue is empty")
+                    .isEqualTo(before);
         }
-        assertThat(redisService.replayQueueSize()).isEqualTo(total);
 
-        // Drain in default batch size (100 > 15, so one pass clears all)
-        replayQueueService.drain();
+        @Test
+        @DisplayName("drain() persists a single queued message to the telemetry table and empties the queue")
+        void drain_singleMessage_persistsToDb() throws Exception {
+            ReplayQueueMessage msg = buildMessage(deviceId, 72.4, 55.0);
+            redisService.pushToReplayQueue(objectMapper.writeValueAsString(msg));
 
-        assertThat(redisService.replayQueueSize()).isZero();
-    }
+            assertThat(redisService.replayQueueSize()).as("queue size before drain").isEqualTo(1);
+            replayQueueService.drain();
 
-    @Test
-    void drain_malformedMessage_requeuesAndContinues() throws Exception {
-        // Push one bad message flanked by two good ones
-        redisService.pushToReplayQueue(
-            objectMapper.writeValueAsString(buildMessage(deviceId, 70.0, 50.0))
-        );
-        redisService.pushToReplayQueue("{ this is not valid json }");
-        redisService.pushToReplayQueue(
-            objectMapper.writeValueAsString(buildMessage(deviceId, 71.0, 51.0))
-        );
+            assertThat(redisService.replayQueueSize()).as("queue size after drain").isZero();
+            assertThat(telemetryRepository.findAll())
+                    .as("telemetry row must match the drained message")
+                    .anySatisfy(t -> {
+                        assertThat(t.getDeviceId()).isEqualTo(deviceId);
+                        assertThat(t.getTemperature()).isEqualTo(72.4);
+                    });
+        }
 
-        replayQueueService.drain();
-
-        // Bad message is re-queued; two good ones are persisted
-        assertThat(redisService.replayQueueSize()).isEqualTo(1);
-        assertThat(telemetryRepository.findAll())
-                .filteredOn(t -> t.getDeviceId().equals(deviceId))
-                .hasSize(2);
-    }
-
-    @Test
-    void pushToReplayQueue_respectsMaxQueueSize() throws Exception {
-        int maxSize = 5;
-        // Push maxSize + 2 messages; only maxSize should be stored
-        for (int i = 0; i < maxSize + 2; i++) {
-            // Simulate max-queue-size=5 by checking size before each push
-            if (redisService.replayQueueSize() < maxSize) {
+        @Test
+        @DisplayName("drain() persists all messages when the queue spans more than one batch")
+        void drain_multipleBatches_allMessagesEventuallyPersisted() throws Exception {
+            int total = 15;
+            for (int i = 0; i < total; i++) {
                 redisService.pushToReplayQueue(
-                    objectMapper.writeValueAsString(buildMessage(deviceId, 60.0 + i, 50.0))
-                );
+                        objectMapper.writeValueAsString(buildMessage(deviceId, 60.0 + i, 50.0)));
             }
+            assertThat(redisService.replayQueueSize()).as("queue size before drain").isEqualTo(total);
+
+            // Default batch size > 15, so one pass clears all
+            replayQueueService.drain();
+
+            assertThat(redisService.replayQueueSize()).as("queue must be empty after drain").isZero();
         }
-        assertThat(redisService.replayQueueSize()).isLessThanOrEqualTo(maxSize);
+
+        @Test
+        @DisplayName("drain() re-queues a malformed message and continues processing the remaining valid messages")
+        void drain_malformedMessage_requeuesAndContinues() throws Exception {
+            redisService.pushToReplayQueue(
+                    objectMapper.writeValueAsString(buildMessage(deviceId, 70.0, 50.0)));
+            redisService.pushToReplayQueue("{ this is not valid json }");
+            redisService.pushToReplayQueue(
+                    objectMapper.writeValueAsString(buildMessage(deviceId, 71.0, 51.0)));
+
+            replayQueueService.drain();
+
+            assertThat(redisService.replayQueueSize())
+                    .as("bad message must be re-queued").isEqualTo(1);
+            assertThat(telemetryRepository.findAll())
+                    .filteredOn(t -> t.getDeviceId().equals(deviceId))
+                    .as("two valid messages must be persisted")
+                    .hasSize(2);
+        }
+    }
+
+    // ── Queue capacity ────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Queue capacity")
+    class QueueCapacity {
+
+        @Test
+        @DisplayName("pushToReplayQueue respects the configured maximum queue size")
+        void pushToReplayQueue_respectsMaxQueueSize() throws Exception {
+            int maxSize = 5;
+            for (int i = 0; i < maxSize + 2; i++) {
+                if (redisService.replayQueueSize() < maxSize) {
+                    redisService.pushToReplayQueue(
+                            objectMapper.writeValueAsString(buildMessage(deviceId, 60.0 + i, 50.0)));
+                }
+            }
+            assertThat(redisService.replayQueueSize())
+                    .as("queue size must not exceed the configured maximum")
+                    .isLessThanOrEqualTo(maxSize);
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

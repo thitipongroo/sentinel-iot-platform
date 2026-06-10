@@ -6,6 +6,8 @@ import ch.qos.logback.core.read.ListAppender;
 import com.sentinel.iot.repository.AppUserRepository;
 import com.sentinel.iot.service.JwtService;
 import com.sentinel.iot.websocket.JwtWebSocketHandshakeInterceptor;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,103 +32,119 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   8.3 Handshake ด้วย valid token ผ่าน และ orgId ถูก store ใน session attributes
  *   8.4 Token value does not appear in application log output during handshake
  */
+@DisplayName("WebSocket Security — handshake interceptor")
 class WebSocketSecurityTest extends BaseIntegrationTest {
 
     @Autowired JwtWebSocketHandshakeInterceptor interceptor;
-    @Autowired JwtService jwtService;
-    @Autowired AppUserRepository userRepository;
+    @Autowired JwtService                        jwtService;
+    @Autowired AppUserRepository                 userRepository;
 
-    // ── 8.1 WebSocket handshake without token is rejected ────────────────────
+    // ── Handshake rejection ───────────────────────────────────────────────────
 
-    @Test
-    void handshake_withNoToken_isRejected() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        // No 'token' query parameter set
-        Map<String, Object> attributes = new HashMap<>();
+    @Nested
+    @DisplayName("Handshake rejection")
+    class HandshakeRejection {
 
-        boolean accepted = interceptor.beforeHandshake(
-                new ServletServerHttpRequest(request),
-                new ServletServerHttpResponse(new MockHttpServletResponse()),
-                null,   // wsHandler is not used by the interceptor
-                attributes);
-
-        assertThat(accepted).isFalse();
-    }
-
-    // ── 8.2 WebSocket handshake with invalid/expired token is rejected ─────────
-
-    @Test
-    void handshake_withInvalidToken_isRejected() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setParameter("token", "completely-invalid-jwt-token-value");
-        Map<String, Object> attributes = new HashMap<>();
-
-        boolean accepted = interceptor.beforeHandshake(
-                new ServletServerHttpRequest(request),
-                new ServletServerHttpResponse(new MockHttpServletResponse()),
-                null,
-                attributes);
-
-        assertThat(accepted).isFalse();
-    }
-
-    // ── 8.3 Valid token → handshake accepted and orgId stored in attributes ───
-
-    @SuppressWarnings("null")
-    @Test
-    void handshake_withValidToken_storesOrgIdInAttributes() throws Exception {
-        UUID orgId = userRepository.findByUsername("admin")
-                .orElseThrow(() -> new IllegalStateException("admin user not seeded"))
-                .getOrganizationId();
-        String token = jwtService.generateAccessToken("admin", "ADMIN", orgId);
-
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setParameter("token", token);
-        Map<String, Object> attributes = new HashMap<>();
-
-        boolean accepted = interceptor.beforeHandshake(
-                new ServletServerHttpRequest(request),
-                new ServletServerHttpResponse(new MockHttpServletResponse()),
-                null,
-                attributes);
-
-        assertThat(accepted).isTrue();
-        assertThat(attributes).containsKey("orgId");
-        assertThat(attributes.get("orgId")).isEqualTo(orgId);
-    }
-
-    // ── 8.4 JWT token value does not appear in application logs during handshake ──
-
-    @SuppressWarnings("null")
-    @Test
-    void handshake_doesNotLogRawJwtTokenValue() throws Exception {
-        UUID orgId = userRepository.findByUsername("admin")
-                .orElseThrow(() -> new IllegalStateException("admin user not seeded"))
-                .getOrganizationId();
-        String token = jwtService.generateAccessToken("admin", "ADMIN", orgId);
-
-        // Attach a ListAppender to the interceptor's logger to capture output
-        Logger interceptorLogger = (Logger) LoggerFactory.getLogger(JwtWebSocketHandshakeInterceptor.class);
-        ListAppender<ILoggingEvent> appender = new ListAppender<>();
-        appender.start();
-        interceptorLogger.addAppender(appender);
-
-        try {
+        @Test
+        @DisplayName("handshake without a 'token' query parameter is rejected")
+        void handshake_withNoToken_isRejected() throws Exception {
             MockHttpServletRequest request = new MockHttpServletRequest();
-            request.setParameter("token", token);
-            interceptor.beforeHandshake(
+            Map<String, Object> attributes = new HashMap<>();
+
+            boolean accepted = interceptor.beforeHandshake(
                     new ServletServerHttpRequest(request),
                     new ServletServerHttpResponse(new MockHttpServletResponse()),
                     null,
-                    new HashMap<>());
-        } finally {
-            interceptorLogger.detachAppender(appender);
+                    attributes);
+
+            assertThat(accepted).as("handshake without token must be rejected").isFalse();
         }
 
-        List<ILoggingEvent> logs = appender.list;
-        logs.forEach(event ->
-                assertThat(event.getFormattedMessage())
-                        .as("Log message must not contain the raw JWT token value")
-                        .doesNotContain(token));
+        @Test
+        @DisplayName("handshake with an invalid/malformed token is rejected")
+        void handshake_withInvalidToken_isRejected() throws Exception {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setParameter("token", "completely-invalid-jwt-token-value");
+            Map<String, Object> attributes = new HashMap<>();
+
+            boolean accepted = interceptor.beforeHandshake(
+                    new ServletServerHttpRequest(request),
+                    new ServletServerHttpResponse(new MockHttpServletResponse()),
+                    null,
+                    attributes);
+
+            assertThat(accepted).as("handshake with invalid token must be rejected").isFalse();
+        }
+    }
+
+    // ── Successful handshake ──────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Successful handshake")
+    class SuccessfulHandshake {
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("valid token is accepted and the orgId claim is stored in session attributes")
+        void handshake_withValidToken_storesOrgIdInAttributes() throws Exception {
+            UUID orgId = userRepository.findByUsername("admin")
+                    .orElseThrow(() -> new IllegalStateException("admin user not seeded"))
+                    .getOrganizationId();
+            String token = jwtService.generateAccessToken("admin", "ADMIN", orgId);
+
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.setParameter("token", token);
+            Map<String, Object> attributes = new HashMap<>();
+
+            boolean accepted = interceptor.beforeHandshake(
+                    new ServletServerHttpRequest(request),
+                    new ServletServerHttpResponse(new MockHttpServletResponse()),
+                    null,
+                    attributes);
+
+            assertThat(accepted).as("handshake with valid token must be accepted").isTrue();
+            assertThat(attributes).as("orgId must be stored in session attributes").containsKey("orgId");
+            assertThat(attributes.get("orgId")).as("orgId value must match the token claim").isEqualTo(orgId);
+        }
+    }
+
+    // ── Token confidentiality ─────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Token confidentiality in logs")
+    class TokenConfidentiality {
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("the raw JWT token value must not appear in application logs during handshake")
+        void handshake_doesNotLogRawJwtTokenValue() throws Exception {
+            UUID orgId = userRepository.findByUsername("admin")
+                    .orElseThrow(() -> new IllegalStateException("admin user not seeded"))
+                    .getOrganizationId();
+            String token = jwtService.generateAccessToken("admin", "ADMIN", orgId);
+
+            Logger interceptorLogger = (Logger) LoggerFactory.getLogger(JwtWebSocketHandshakeInterceptor.class);
+            ListAppender<ILoggingEvent> appender = new ListAppender<>();
+            appender.start();
+            interceptorLogger.addAppender(appender);
+
+            try {
+                MockHttpServletRequest request = new MockHttpServletRequest();
+                request.setParameter("token", token);
+                interceptor.beforeHandshake(
+                        new ServletServerHttpRequest(request),
+                        new ServletServerHttpResponse(new MockHttpServletResponse()),
+                        null,
+                        new HashMap<>());
+            } finally {
+                interceptorLogger.detachAppender(appender);
+            }
+
+            List<ILoggingEvent> logs = appender.list;
+            logs.forEach(event ->
+                    assertThat(event.getFormattedMessage())
+                            .as("log message must not contain the raw JWT token value")
+                            .doesNotContain(token));
+        }
     }
 }
