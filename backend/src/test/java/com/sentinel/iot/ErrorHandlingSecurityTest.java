@@ -13,11 +13,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * หมวดที่ 9 — Error Handling & Information Disclosure (3 tests)
+ * หมวดที่ 9 — Error Handling & Information Disclosure (4 tests)
  *
  * ทดสอบ: user enumeration prevention (same status for unknown user vs wrong password),
  *        no stack trace in error responses,
- *        nonexistent endpoint returns 404 without leaking internal paths.
+ *        nonexistent endpoint returns 404 without leaking internal paths,
+ *        Swagger UI is accessible in all profiles (documents gap — should be disabled in prod).
  */
 class ErrorHandlingSecurityTest extends BaseIntegrationTest {
 
@@ -77,6 +78,23 @@ class ErrorHandlingSecurityTest extends BaseIntegrationTest {
         assertThat(result.getResponse().getStatus()).isEqualTo(404);
         String body = result.getResponse().getContentAsString();
         assertThat(body).doesNotContain("at com.sentinel", "stackTrace");
+    }
+
+    // ── 9.4 Swagger UI is reachable in all Spring profiles (documented gap) ───
+    //
+    // SECURITY GAP: OpenApiConfig has no @Profile annotation and SecurityConfig
+    // always permits /swagger-ui/**, /swagger, /api-docs/**.  Production deployments
+    // should disable Swagger by activating a "prod" profile that excludes OpenApiConfig
+    // and adds a security rule rejecting those paths.
+
+    @Test
+    void swaggerUi_isAccessibleWithoutAuth_documentedGap() throws Exception {
+        mockMvc.perform(get("/swagger"))
+                .andExpect(result ->
+                        assertThat(result.getResponse().getStatus())
+                                .as("Swagger must be accessible (no auth required) — documents gap: " +
+                                    "it should be disabled when spring.profiles.active=prod")
+                                .isLessThan(400));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

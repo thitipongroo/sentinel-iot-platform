@@ -39,7 +39,7 @@ let token = null
 
 function getToken() {
   if (token) return token
-  const resp = http.post(`${BASE_URL}/api/auth/login`,
+  const resp = http.post(`${BASE_URL}/api/v1/auth/login`,
     JSON.stringify({ username: 'admin', password: 'admin123' }),
     { headers: { 'Content-Type': 'application/json' } }
   )
@@ -51,7 +51,7 @@ function getToken() {
 
 export function setup() {
   const jwt = getToken()
-  const devicesResp = http.get(`${BASE_URL}/api/devices`, {
+  const devicesResp = http.get(`${BASE_URL}/api/v1/devices`, {
     headers: { Authorization: `Bearer ${jwt}` }
   })
   const devices = JSON.parse(devicesResp.body)
@@ -67,7 +67,7 @@ export default function (data) {
   const deviceId = data.deviceIds[Math.floor(Math.random() * data.deviceIds.length)]
 
   const start = Date.now()
-  const resp = http.get(`${BASE_URL}/api/telemetry/${deviceId}/cache`, {
+  const resp = http.get(`${BASE_URL}/api/v1/telemetry/${deviceId}/cache`, {
     headers: { Authorization: `Bearer ${data.token}` },
     tags: { endpoint: 'telemetry-cache' }
   })

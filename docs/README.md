@@ -117,6 +117,6 @@ Diagram และ visual asset ที่อ้างอิงจากเอก�
 | [security-test-plan.md](test-plans/security-test-plan.md) | JWT auth, RBAC, multi-tenant isolation, rate limit, WebSocket, error handling | 45 | ✅ Implemented |
 | [e2e-test-plan.md](test-plans/e2e-test-plan.md) | Full user journeys (Cypress) — device lifecycle, alert, WebSocket | 39 | ✅ Implemented |
 | [frontend-unit-test-plan.md](test-plans/frontend-unit-test-plan.md) | React component unit tests (Jest + React Testing Library) | 76 | ✅ Implemented |
-| [performance-test-plan.md](test-plans/performance-test-plan.md) | Normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast | 16 | 📋 วางแผน |
-| [load-test-plan.md](test-plans/load-test-plan.md) | Cache read path baseline (implemented) + ramp-up, spike, soak, Kafka consumer, multi-tenant (planned) | 22 | 🟡 บางส่วน |
+| [performance-test-plan.md](test-plans/performance-test-plan.md) | Normal load (50 VU), Kafka throughput, Redis cache, WebSocket broadcast | 16 | ✅ Implemented |
+| [load-test-plan.md](test-plans/load-test-plan.md) | Cache read path baseline + ramp-up, spike, soak, Kafka consumer, multi-tenant | 22 | ✅ Implemented |
 | [regression-test-plan.md](test-plans/regression-test-plan.md) | API contract, HTTP status, auth, RBAC, multi-tenant, migration, rate limit, WebSocket | 55 | ✅ Implemented |

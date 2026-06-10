@@ -2,7 +2,7 @@
 
 **ขอบเขต:** Backend REST API · Kafka Telemetry Pipeline · WebSocket · Redis Cache  
 **วิธีทดสอบ:** k6 (JavaScript) พร้อม Prometheus remote-write output  
-**สถานะ:** 📋 วางแผนแล้ว — ยังไม่ได้ implement  
+**สถานะ:** ✅ Implemented — `performance/scenarios/normal-load.js` (1.1+1.3), `kafka-load.js` (1.2), `websocket.js` (1.4)  
 **Environment:** `docker compose --profile full up` (core + observability)  
 **เป้าหมาย:** วัด response time, throughput และ resource utilization ภายใต้ **normal operating load**
 

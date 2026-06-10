@@ -2,7 +2,7 @@
 
 **ขอบเขต:** Backend REST API · Kafka Telemetry Pipeline · Multi-Tenant Concurrent Load  
 **วิธีทดสอบ:** k6 (JavaScript) พร้อม Prometheus remote-write output  
-**สถานะ:** 🟡 บางส่วนสำเร็จ — baseline cache read path ผ่านแล้ว, comprehensive scenarios (2.1–2.5) ยังไม่ได้ implement  
+**สถานะ:** ✅ Implemented — `load-testing/telemetry.js` (baseline), `performance/scenarios/ramp-up.js` (2.1), `spike.js` (2.2), `soak.js` (2.3), `kafka-load.js` (2.4), `multi-tenant.js` (2.5)  
 **Environment:** `docker compose --profile full up` (core + observability)  
 **เป้าหมาย:** หา **breaking point**, ทดสอบ system behavior under stress, และตรวจ resource exhaustion
 

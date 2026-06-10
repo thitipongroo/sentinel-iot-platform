@@ -48,7 +48,13 @@
       "WebFetch(domain:investors.datadoghq.com)",
       "WebFetch(domain:saasdb.app)",
       "WebFetch(domain:businessquant.com)",
-      "Bash(mkdir -p \"d:/workspace/sentinel-iot-platform/docs/marketing\")"
+      "Bash(mkdir -p \"d:/workspace/sentinel-iot-platform/docs/marketing\")",
+      "Bash(xargs -I {} grep -E \"^\\\\s+@Test|^\\\\s+public void test\" {})",
+      "Bash(xargs ls -1)",
+      "Bash(Get-ChildItem \"d:\\\\workspace\\\\sentinel-iot-platform\\\\frontend\" -Filter \"cypress.config*\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object FullName)",
+      "Bash(Remove-Item -Recurse -Force \"d:\\\\workspace\\\\sentinel-iot-platform\\\\load-testing\\\\scenarios\" \"d:\\\\workspace\\\\sentinel-iot-platform\\\\load-testing\\\\common\")",
+      "Bash(grep -o '[^/]*$')"
     ],
     "additionalDirectories": [
       "d:\\workspace\\sentinel-iot-platform\\frontend\\src\\app\\devices",

@@ -1,0 +1,16 @@
+{
+  "thresholds": {
+    "temperatureCelsius": 80.0,
+    "humidityPercent": 90.0,
+    "smokePpm": 200.0
+  },
+  "retention": {
+    "telemetryDays": 30,
+    "auditDays": 90
+  },
+  "notifications": {
+    "slack": true,
+    "line": false,
+    "webhook": false
+  }
+}

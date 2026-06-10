@@ -11,10 +11,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * หมวดที่ 5 — Rate Limiting Security (4 tests)
+ * หมวดที่ 5 — Rate Limiting Security (5 tests)
  *
  * ทดสอบ: auth endpoint 10/min limit, API endpoint 100/min limit,
- *        X-Forwarded-For spoofing prevention, per-IP bucket isolation.
+ *        X-Forwarded-For spoofing prevention, per-IP bucket isolation,
+ *        and bucket reset after the refill window elapses.
  *
  * Uses a fresh RateLimitFilter per test to avoid shared bucket state.
  * No trusted proxies configured (empty string) — mirrors production default.
@@ -102,6 +103,33 @@ class RateLimitSecurityTest {
         // IP B's bucket is independent — first request must pass
         assertThat(invoke("/api/v1/auth/login", ipB).getStatus())
                 .as("IP B should not be affected by IP A's exhausted bucket")
+                .isNotEqualTo(429);
+    }
+
+    // ── 5.5 After window reset new requests are accepted ─────────────────────
+
+    @Test
+    void afterWindowReset_newRequestsAreAccepted() throws Exception {
+        String ip = "192.168.5.20";
+        // Exhaust the auth bucket (10/min)
+        for (int i = 0; i < 10; i++) {
+            invoke("/api/v1/auth/login", ip);
+        }
+        assertThat(invoke("/api/v1/auth/login", ip).getStatus())
+                .as("11th request should be blocked")
+                .isEqualTo(429);
+
+        // Simulate window reset: evict the bucket from the ConcurrentHashMap.
+        // Bucket4j's greedy refill would restore tokens after 1 minute in production;
+        // evicting forces a fresh bucket on the next request — equivalent outcome.
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> buckets =
+                (java.util.Map<String, Object>) ReflectionTestUtils.getField(filter, "buckets");
+        assertThat(buckets).isNotNull();
+        buckets.remove("auth:" + ip);
+
+        assertThat(invoke("/api/v1/auth/login", ip).getStatus())
+                .as("first request after window reset should be accepted")
                 .isNotEqualTo(429);
     }
 

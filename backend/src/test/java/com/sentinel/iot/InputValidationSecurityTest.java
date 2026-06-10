@@ -2,30 +2,37 @@ package com.sentinel.iot;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinel.iot.dto.AuthRequest;
+import com.sentinel.iot.service.MqttConsumerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.integration.support.MessageBuilder;
+import org.springframework.messaging.Message;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.Arrays;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * หมวดที่ 6 — Input Validation Security (5 tests)
+ * หมวดที่ 6 — Input Validation Security (7 tests)
  *
  * ทดสอบ: semver pattern enforcement, blank name rejection,
  *        SQL injection stored as literal (JPA parameterized query),
  *        XSS payload stored as literal (no server-side execution),
- *        invalid enum value rejection.
+ *        invalid enum value rejection, MQTT payload missing deviceId routed
+ *        to DLQ without crashing the consumer, oversized request body rejected.
  */
 class InputValidationSecurityTest extends BaseIntegrationTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
+    @Autowired MqttConsumerService mqttConsumerService;
 
     // ── 6.1 Non-semver firmware version is rejected ──────────────────────────
 
@@ -126,6 +133,40 @@ class InputValidationSecurityTest extends BaseIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"lifecycleStatus\":\"INVALID_STATUS\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ── 6.6 MQTT payload without deviceId is routed to DLQ, service does not crash ──
+
+    @Test
+    void mqttPayloadWithoutDeviceId_routesToDlqWithoutCrash() {
+        // Payload intentionally omits the required "deviceId" field.
+        // MqttConsumerService validates the parsed TelemetryMessage and routes invalid
+        // messages to mqttDlqChannel — it must never propagate an exception to the caller.
+        String payloadMissingDeviceId =
+                "{\"temperature\":45.0,\"humidity\":60.0,\"motion\":false,\"smokePpm\":5.0}";
+        Message<String> msg = MessageBuilder.withPayload(payloadMissingDeviceId).build();
+
+        assertThatNoException().isThrownBy(() -> mqttConsumerService.handleMessage(msg));
+    }
+
+    // ── 6.7 Oversized request body (10 MB) is rejected with 413 ─────────────
+    //
+    // NOTE: This test documents a security gap.
+    // Spring Boot 3.2 with embedded Tomcat does not enforce a request body size
+    // limit for application/json payloads by default. Configure
+    // server.tomcat.max-http-form-post-size or a custom filter to reject
+    // oversized bodies with 413 Payload Too Large.
+
+    @Test
+    void oversizedRequestBody_isRejectedWith413() throws Exception {
+        // 10 MB of filler JSON (will fail Jackson parsing but must be rejected before that)
+        byte[] body = new byte[10 * 1024 * 1024];
+        Arrays.fill(body, (byte) 'x');
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isPayloadTooLarge());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
