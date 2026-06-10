@@ -144,18 +144,22 @@ sentinel-iot-platform/
 │   │   ├── repository/         # Spring Data repositories
 │   │   ├── security/           # JWT filter + token service
 │   │   ├── service/            # TelemetryService, AlertService, RedisService,
-│   │   │   │                   #   ReplayQueueService, TelemetryRetentionService
+│   │   │   │                   #   ReplayQueueService, TelemetryRetentionService,
+│   │   │   │                   #   PlatformSettingsService, UserService, AuditService,
+│   │   │   │                   #   JwtService, DeviceEnrollmentService, MqttConsumerService,
+│   │   │   │                   #   NotificationService, SchemaCompatibilityService
 │   │   │   └── notification/   # LINE Messaging API, Telegram, Apprise, Slack, generic webhook providers + AlertDeduplicator
 │   │   └── websocket/          # WebSocket broadcast publisher + subscriber
 │   ├── src/main/resources/
 │   │   ├── application.yml     # All config; env-var overrides for every external dependency
 │   │   ├── logback-spring.xml  # JSON (prod) / human-readable (dev) logging
 │   │   └── db/migration/       # V1–V11: schema, partitioning, lifecycle, multi-tenancy,
-│   │                           #   RLS, schema evolution, enrollment tokens, nullable fields
+│   │                           #   RLS, schema evolution, enrollment tokens, nullable fields,
+│   │                           #   device name uniqueness (V10), platform settings (V11)
 │   └── src/test/               # Unit + integration tests (BaseIntegrationTest Testcontainers base)
 ├── frontend/                   # Next.js 14 (App Router) + Tailwind CSS
 │   └── src/
-│       ├── app/                # App Router pages — dashboard, devices, alerts, users, settings, login
+│       ├── app/                # App Router pages — dashboard, devices, devices/[id], alerts, users, settings, login, forgot-password
 │       ├── api/                # Axios client + generated API types
 │       ├── components/         # Shared UI components + ui/ primitives
 │       ├── hooks/              # Custom React hooks
@@ -351,6 +355,35 @@ PUT /api/v1/alerts/{id}/acknowledge    # ADMIN only
 PUT /api/v1/alerts/acknowledge-all     # ADMIN only
 ```
 
+### Users
+
+```http
+GET    /api/v1/users                          # ADMIN only — list all users in organization
+POST   /api/v1/users                          # ADMIN only — create user (ADMIN or OPERATOR role)
+DELETE /api/v1/users/{username}               # ADMIN only — cannot delete your own account
+PATCH  /api/v1/users/{username}/role          # ADMIN only — change role; cannot change own
+PATCH  /api/v1/users/{username}/password      # ADMIN only — reset password; cannot reset own
+```
+
+### Settings
+
+```http
+GET   /api/v1/settings    # ADMIN + OPERATOR — get platform settings for current organization
+PATCH /api/v1/settings    # ADMIN only — update thresholds, retention days, notification toggles
+```
+
+Response shape:
+
+```json
+{
+  "thresholds": { "temperatureCelsius": 80.0, "humidityPercent": 90.0, "smokePpm": 200.0 },
+  "retention":  { "telemetryDays": 30, "auditDays": 90 },
+  "notifications": { "slack": false, "line": false, "webhook": false }
+}
+```
+
+Settings are stored per-organization in the `platform_settings` table (V11 migration). On first read the row is seeded from the global env-var defaults.
+
 ### WebSocket
 
 ```text
@@ -532,15 +565,15 @@ Login: `admin` / `$INIT_ADMIN_PASSWORD`
 
 ---
 
-### Industry Device Catalog (400 devices across 20 industries)
+### Industry Device Catalog (47 devices across 8 industries)
 
 ```bash
-./scripts/seed-industry.sh       # seeds 20 orgs + 400 devices + 48 h telemetry + alerts
+./scripts/seed-industry.sh       # seeds 8 industries, 47 devices, 48 h telemetry + sample alerts
 docker exec -i sentinel-postgres psql -U sentinel -d sentinel \
   < scripts/unseed-industry.sql  # removes industry data only
 ```
 
-Full catalog — all 400 devices with per-sensor thresholds across 20 industries: **[docs/system-design/device-catalog.md](docs/system-design/device-catalog.md)**
+Full catalog — all 47 devices with per-sensor thresholds across 8 industries: **[docs/system-design/device-catalog.md](docs/system-design/device-catalog.md)**
 
 ---
 

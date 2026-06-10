@@ -13,7 +13,8 @@ docs/
 ├── test-reports/    # Test execution reports
 ├── runbooks/        # Operational runbooks & incident response
 ├── screenshots/     # Architecture diagrams & visual assets
-└── test-plans/      # Test plans (unit, integration, e2e, security, performance)
+├── test-plans/      # Test plans (unit, integration, e2e, security, performance)
+└── marketing/       # Product overview, pricing strategy, competitive analysis
 ```
 
 ---
@@ -40,7 +41,7 @@ docs/
 | [telemetry-retention.md](system-design/telemetry-retention.md) | Telemetry retention policy — 30-day raw retention, hourly aggregates, partition lifecycle |
 | [cicd.md](system-design/cicd.md) | CI/CD pipeline — GitHub Actions stages, security scan, Testcontainers, contract testing |
 | [mqtt-tls.md](system-design/mqtt-tls.md) | MQTT TLS / mTLS setup — certificate generation, env vars, connection testing |
-| [notification.md](system-design/notification.md) | Notification providers — Slack, generic webhook, LINE Notify (deprecated) |
+| [notification.md](system-design/notification.md) | Notification providers — LINE Messaging API, Telegram, Apprise, Slack, generic webhook + deduplication |
 | [capacity-planning.md](system-design/capacity-planning.md) | Capacity planning — การประมาณ resource ที่ต้องการ, scaling thresholds, hardware sizing |
 | [scaling.md](system-design/scaling.md) | Scaling strategy — horizontal/vertical scaling approach สำหรับแต่ละ component |
 | [sequence-diagrams.md](system-design/sequence-diagrams.md) | Sequence diagrams — flows หลักของระบบ เช่น device enrollment, telemetry ingestion, alert flow |
@@ -97,10 +98,10 @@ Diagram และ visual asset ที่อ้างอิงจากเอก�
 | [sentinel-architecture-diagram.png](screenshots/sentinel-architecture-diagram.png) | Detailed architecture diagram พร้อม internal data flows |
 | [sentinel-tech-stack.png](screenshots/sentinel-tech-stack.png) | Technology stack — layers และ frameworks ที่ใช้ |
 | [sentinel-deployment-topology.png](screenshots/sentinel-deployment-topology.png) | Deployment topology — Docker Compose services และ network |
-| [sentinel-data-flow-normal.png](screenshots/sentinel-data-flow-normal.png) | Data flow — happy path (telemetry ingestion → storage → broadcast) |
-| [sentinel-data-flow-failure.png](screenshots/sentinel-data-flow-failure.png) | Data flow — failure path (DB down → replay queue → recovery) |
-| [sentinel-dataflow-normal-path.png](screenshots/sentinel-dataflow-normal-path.png) | Detailed normal path flow diagram |
-| [sentinel-dataflow-failure-path.png](screenshots/sentinel-dataflow-failure-path.png) | Detailed failure path flow diagram |
+| [sentinel-data-flow-normal-ingestion-path.png](screenshots/sentinel-data-flow-normal-ingestion-path.png) | Data flow — happy path (telemetry ingestion → storage → broadcast) |
+| [sentinel-data-flow-failure-ingestion-path.png](screenshots/sentinel-data-flow-failure-ingestion-path.png) | Data flow — failure path (DB down → replay queue → recovery) |
+| [sentinel-data-flow-normal-path.png](screenshots/sentinel-data-flow-normal-path.png) | Detailed normal path flow diagram |
+| [sentinel-data-flow-failure-path.png](screenshots/sentinel-data-flow-failure-path.png) | Detailed failure path flow diagram |
 
 ---
 

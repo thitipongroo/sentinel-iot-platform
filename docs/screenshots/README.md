@@ -19,7 +19,18 @@ Architecture diagrams และ visual assets ที่อ้างอิงจ�
 
 | ไฟล์ | คำอธิบาย |
 |------|----------|
-| [sentinel-data-flow-normal.png](sentinel-data-flow-normal.png) | Data flow — happy path (telemetry ingestion → storage → broadcast) |
-| [sentinel-data-flow-failure.png](sentinel-data-flow-failure.png) | Data flow — failure path (DB down → replay queue → recovery) |
-| [sentinel-dataflow-normal-path.png](sentinel-dataflow-normal-path.png) | Detailed normal path flow diagram |
-| [sentinel-dataflow-failure-path.png](sentinel-dataflow-failure-path.png) | Detailed failure path flow diagram |
+| [sentinel-data-flow-normal-ingestion-path.png](sentinel-data-flow-normal-ingestion-path.png) | Data flow — happy path (telemetry ingestion → storage → broadcast) |
+| [sentinel-data-flow-failure-ingestion-path.png](sentinel-data-flow-failure-ingestion-path.png) | Data flow — failure path (DB down → replay queue → recovery) |
+| [sentinel-data-flow-normal-path.png](sentinel-data-flow-normal-path.png) | Detailed normal path flow diagram |
+| [sentinel-data-flow-failure-path.png](sentinel-data-flow-failure-path.png) | Detailed failure path flow diagram |
+
+---
+
+## UI Screenshots
+
+| ไฟล์ | คำอธิบาย |
+|------|----------|
+| [dashboard.png](dashboard.png) | Dashboard หน้าหลัก — real-time charts, device list, alert summary |
+| [alerts.png](alerts.png) | Alerts page — unacknowledged alerts, acknowledge controls |
+| [grafana.png](grafana.png) | Grafana dashboard — Prometheus metrics, SLO panels |
+| [sentinel-project-structure.png](sentinel-project-structure.png) | Project directory structure overview |
