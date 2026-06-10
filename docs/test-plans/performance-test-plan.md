@@ -54,7 +54,8 @@
 | 1.1.5 | Telemetry range latency | `GET /api/v1/telemetry/{id}/range?from=&to=` | 30 | 10 min | P95 < 800 ms |
 | 1.1.6 | Alert list latency | `GET /api/v1/alerts` | 50 | 10 min | P95 < 200 ms |
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - รัน `k6 run scenarios/normal-load.js --out prometheus=http://localhost:9090/api/v1/write`
 - วัด `http_req_duration{p(95)}`, `http_req_failed`, `http_reqs` (RPS)
 - ดู Grafana dashboard ที่ `http://localhost:3001`
@@ -72,7 +73,8 @@
 | 1.2.3 | DLQ rate ที่ peak throughput | นับ messages ที่ land ใน `telemetry.dlq` | DLQ rate < 0.5% |
 | 1.2.4 | JDBC batch efficiency | ตรวจ PostgreSQL `pg_stat_user_tables` → `n_tup_ins` rate | batch size ≈ 50 rows/statement |
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - Kafka lag: `kafka-consumer-groups.sh --describe --group sentinel-telemetry-ingest`
 - DB insert rate: Prometheus → `spring_datasource_connections_active`
 - Circuit breaker: `GET /actuator/health` → `resilience4j.circuitbreaker.telemetryDB`
@@ -89,7 +91,8 @@
 | 1.3.2 | Redis auth DB latency under load | 50 VU → `GET /api/v1/devices` — JwtAuthFilter query DB-1 ทุก request | Redis DB-1 latency P99 < 5 ms |
 | 1.3.3 | Replay queue drain after backpressure | หยุด PostgreSQL 30 วินาที → restart → วัด drain speed | queue drain ภายใน 60 วินาที |
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - Redis INFO: `redis-cli info stats` → `keyspace_hits`, `keyspace_misses`
 - Prometheus: `redis_commands_duration_seconds_total`, `redis_connected_clients`
 
@@ -105,7 +108,8 @@
 | 1.4.2 | Broadcast to 500 concurrent clients | 500 | P95 delivery latency < 300 ms |
 | 1.4.3 | Cross-instance broadcast via Redis pub/sub | 2 backend instances | message ถึงทุก client ทั้ง 2 instances |
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - k6 WebSocket extension (`k6/x/websocket`): วัด `ws_session_duration`, `ws_msgs_received`
 - ฝัง `sentAt` timestamp ใน payload → วัด `receivedAt - sentAt` client-side
 - ตรวจ Redis pub/sub channel: `redis-cli subscribe ws:telemetry`
@@ -114,7 +118,7 @@
 
 ## Environment
 
-```
+```text
 Hardware (minimum):
   Backend host : 4 vCPU · 8 GB RAM
   k6 runner    : 2 vCPU · 4 GB RAM (เครื่องแยกจาก backend)
@@ -138,7 +142,7 @@ Infrastructure:
 
 ### แนะนำ Project Structure
 
-```
+```text
 performance/
 ├── common/
 │   ├── auth.js          # login helper, token management

@@ -46,7 +46,7 @@
 **Executor:** `ramping-arrival-rate` — ควบคุม RPS โดยตรง ไม่ขึ้นกับ latency ของ server
 **Endpoint:** `GET /api/v1/telemetry/{deviceId}/cache` — Redis-backed hot read path
 
-```
+```text
 Stages (total 300s):
   10 → 100 RPS  ramp   30s   (warm-up)
   100 → 500 RPS ramp   60s
@@ -70,7 +70,7 @@ Stages (total 300s):
 
 **Scenario:** Gradually เพิ่ม VU ตั้งแต่ 0 → 500 เพื่อหาจุดที่ SLO เริ่ม fail
 
-```
+```text
 Stages:
   0 → 50 VU    over  2 min   (warm-up)
   50 → 200 VU  over  5 min   (normal load)
@@ -86,13 +86,15 @@ Stages:
 | 2.1.3 | Auth endpoint scaling | `POST /auth/login` | Error rate < 0.1% ที่ 200 VU | Rate limit 429s เกิน 20% ที่ 500 VU |
 | 2.1.4 | HikariCP pool exhaustion | mixed API calls | ไม่มี `SQLTransientConnectionException` ที่ 200 VU | Pool exhaustion errors ที่ VU เท่าใด |
 
-**สิ่งที่ต้องบันทึก:**
+**สิ่งที่ต้องบันทึก :**
+
 - VU count ที่ error rate เริ่มเกิน 1%
 - VU count ที่ P99 เกิน 2 วินาที
 - VU count ที่ HikariCP timeout เริ่มเกิด
 - Circuit breaker state ตลอด test
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - รัน `k6 run scenarios/ramp-up.js --out prometheus=http://localhost:9090/api/v1/write`
 - ดู `hikaricp_connections_active`, `hikaricp_connections_timeout_total` ใน Grafana
 - ตรวจ circuit breaker: `GET /actuator/health` → `resilience4j.circuitbreaker`
@@ -103,7 +105,7 @@ Stages:
 
 **Scenario:** Traffic กระโดดจาก baseline → spike ทันทีโดยไม่มี ramp-up (เช่น factory shift change)
 
-```
+```text
 Stages:
   10 VU        hold   2 min   (baseline)
   10 → 300 VU  in    10 sec   (sudden spike)
@@ -119,7 +121,8 @@ Stages:
 | 2.2.3 | Rate limiter behavior at spike | ตรวจ 429 responses ระหว่าง spike | 429 ไม่เกิน 30% ของ total requests (expected behavior) |
 | 2.2.4 | Circuit breaker under spike | ตรวจ circuit breaker state ที่ `/actuator/health` | ไม่ trip ไปสถานะ OPEN ถ้า DB ยัง healthy |
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - รัน `k6 run scenarios/spike.js --out prometheus=http://localhost:9090/api/v1/write`
 - วัด error rate ระหว่างแต่ละ stage ใน Grafana
 - ตรวจ recovery time หลัง ramp-down: `http_req_failed` ลดลงใน 60 วินาที
@@ -130,7 +133,7 @@ Stages:
 
 **Scenario:** 100 VU รัน **2 ชั่วโมงต่อเนื่อง** — ตรวจ memory leak, connection leak และ long-term degradation
 
-```
+```text
 Stages:
   0 → 100 VU  over  5 min
   100 VU      hold   120 min
@@ -146,7 +149,8 @@ Stages:
 | 2.3.5 | TenantContext leak detection | ตรวจ cross-tenant data ใน response ตลอด test | ไม่มี cross-tenant responses เลย |
 | 2.3.6 | JWT revocation list growth | Redis DB-1 memory ผ่าน `redis_memory_used_bytes` | Memory ไม่เพิ่มขึ้น unbounded (expired keys ถูก evict) |
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - รัน `k6 run scenarios/soak.js --out prometheus=http://localhost:9090/api/v1/write`
 - บันทึก Grafana snapshot ทุก 30 นาที
 - เปรียบ `jvm_memory_used_bytes` ที่ t=0, t=60min, t=120min
@@ -165,7 +169,8 @@ Stages:
 | 2.4.4 | DLQ under load | ส่ง 5% malformed messages ระหว่าง load test | Malformed messages ทั้งหมด land ใน DLQ ไม่ crash consumer |
 | 2.4.5 | JDBC batch insert rate | วัด `telemetry` rows/sec ใน PostgreSQL | ≥ 800 rows/sec sustained (batch_size=50) |
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - Kafka lag: `kafka-consumer-groups.sh --describe --group sentinel-telemetry-ingest`
 - Per-partition lag: ตรวจแต่ละ partition ใน Kafka UI หรือ `--verbose` flag
 - DB insert rate: ตรวจ `pg_stat_user_tables` → `n_tup_ins` ก่อนและหลัง test
@@ -176,7 +181,7 @@ Stages:
 
 **Scenario:** ทดสอบ per-org isolation ภายใต้ concurrent requests จาก **หลาย tenants พร้อมกัน**
 
-```
+```text
 Setup:
   - 5 organizations (org-A ถึง org-E) แต่ละ org มี admin + 10 devices
   - 50 VU แต่ละ org (รวม 250 VU)
@@ -189,7 +194,8 @@ Setup:
 | 2.5.2 | RLS performance overhead | เปรียบ latency ระหว่าง single-tenant vs multi-tenant | Overhead < 15% |
 | 2.5.3 | TenantContext ThreadLocal under high concurrency | ทดสอบกับ thread pool reuse | 0 cross-tenant data leaks |
 
-**วิธีวัด:**
+**วิธีวัด :**
+
 - ตรวจ `organizationId` ใน response body ทุก request ว่าตรงกับ JWT ของ VU นั้น
 - เปรียบ P95 latency ระหว่าง single-org scenario (50 VU) กับ multi-org scenario (250 VU รวม)
 
@@ -197,7 +203,7 @@ Setup:
 
 ## Environment
 
-```
+```text
 Hardware (minimum):
   Backend host : 4 vCPU · 8 GB RAM
   k6 runner    : 2 vCPU · 4 GB RAM (เครื่องแยกจาก backend)
@@ -221,7 +227,7 @@ Infrastructure:
 
 ### แนะนำ Project Structure
 
-```
+```text
 performance/
 ├── common/
 │   ├── auth.js          # login helper, token management
@@ -236,7 +242,7 @@ performance/
 
 ### ลำดับการรัน (แนะนำ)
 
-```
+```text
 1. Ramp-Up Test (2.1)     — หา breaking point ก่อน
 2. Spike Test (2.2)       — ตรวจ recovery behavior
 3. Kafka Load (2.4)       — ทดสอบ pipeline แยกต่างหาก
