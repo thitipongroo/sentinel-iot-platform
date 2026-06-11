@@ -96,32 +96,32 @@ Invalid MQTT payload / unknown device:
 ![Tech Stack](/docs/screenshots/sentinel-tech-stack.png)
 
 <!--
-| Layer           | Technology                                                                  |
-|-----------------|-----------------------------------------------------------------------------|
-| Backend         | Spring Boot 3.2, Java 21                                                    |
-| Security        | Spring Security + JWT (jjwt 0.12), Bucket4j rate limiting, ApiVersionFilter |
-| Messaging       | Eclipse Mosquitto MQTT + Spring Integration + Apache Kafka (KRaft)          |
-| Schema Registry | Apache Avro + Confluent Schema Registry (BACKWARD compatibility enforcement)|
-| Database        | PostgreSQL 16 + Spring Data JPA + Flyway + range partitioning               |
-| HA Database     | CloudNativePG (1 primary + hot-standby, Barman WAL backup)                  |
-| Cache           | Redis 7 (Lettuce) — latest value cache + replay queue + WS pub/sub          |
-| Resiliency      | Resilience4j CircuitBreaker + Retry                                         |
-| Realtime        | WebSocket (native Spring WS) + Redis pub/sub cross-replica fan-out          |
-| Frontend        | Next.js 14 (App Router) + Tailwind CSS + Recharts                           |
-| State mgmt      | React Query (@tanstack/react-query) + Zustand (normalised client state)     |
-| UI performance  | @tanstack/react-virtual (virtualised table, 10 000+ devices)                |
-| Design system   | Badge, Select, ErrorBoundary, OfflineBanner primitives                      |
-| Observability   | Prometheus + Grafana + OTel/Micrometer + Jaeger                             |
-| SLO             | Multi-window burn-rate rules + Grafana SLO dashboard                        |
-| Logging         | Logstash-logback-encoder (JSON) + MDC request correlation                   |
-| Testing         | JUnit 5 · Mockito · Testcontainers · ArchUnit · Pact (contract) · JMH (benchmark) · Pitest (mutation) · schemathesis |
-| Load Test       | k6                                                                          |
-| CI/CD           | GitHub Actions (ci.yml + api-contract.yml)                                  |
-| Infra (local)   | Docker Compose                                                              |
-| Infra (cloud)   | Kubernetes (EKS) via Helm + ArgoCD + Terraform (EKS/RDS/ElastiCache/MSK)    |
-| Deployment      | Argo Rollouts (blue/green + canary), KEDA (Kafka-lag autoscaling)           |
-| Backup/DR       | Velero (namespace backup) + pg_dump CronJob + DR restore script             |
-| Notify          | Multi-provider: LINE Messaging API, Telegram, Apprise (self-hosted), Slack webhook, generic webhook — with per-device deduplication |
+| Layer           | Technology                                      | Tool                                                                                              |
+|-----------------|-------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| Backend         | Java                                         | Spring Boot                                                                                   |
+| Security        | JWT, Rate Limiting                              | Spring Security, JWT, Bucket4j, ApiVersionFilter                                            |
+| Messaging       | MQTT, Event Streaming                           | Eclipse Mosquitto, Spring Integration, Apache Kafka                                       |
+| Schema Registry | Avro                                            | Apache Avro, Confluent Schema Registry                                                            |
+| Database        | ORM, Range Partitioning          | PostgreSQL, Spring Data JPA, Flyway                                                                           |
+| HA Database     | HA Replication, WAL Archiving                   | CloudNativePG, Barman                                                                             |
+| Cache           | In-memory Cache, Pub/Sub                        | Redis                                                                                 |
+| Resiliency      | Circuit Breaker, Retry                          | Resilience4j                                                                                      |
+| Realtime        | WebSocket, Pub/Sub Fan-out                      | Spring WebSocket, Redis pub/sub                                                                   |
+| Frontend        | React, App Router, CSS Utility, Charting        | Next.js, Tailwind CSS, Recharts                                                                |
+| State mgmt      | Server State, Client State                      | @tanstack/react-query, Zustand                                                      |
+| UI performance  | List Virtualization                             | @tanstack/react-virtual                                                                           |
+| Design system   | Custom UI Primitives                            | Badge, Select, ErrorBoundary, OfflineBanner                                                       |
+| Observability   | Metrics, Distributed Tracing                    | Prometheus, Grafana, OTel/Micrometer, Jaeger                                                      |
+| SLO             | Multi-window Burn-rate Alerting                 | Grafana SLO dashboard                                                                             |
+| Logging         | Structured Logging, Request Correlation         | Logstash-logback-encoder, MDC                                                                     |
+| Testing         | Unit, Integration, Contract, Mutation, Architecture, Benchmark | JUnit, Mockito, Testcontainers, Pact, JMH, Pitest, ArchUnit, schemathesis          |
+| Load Test       | Load Testing                                    | k6                                                                                                |
+| CI/CD           | Continuous Integration/Delivery                 | GitHub Actions                                                                                    |
+| Infra (local)   | Container Orchestration                         | Docker Compose                                                                                    |
+| Infra (cloud)   | Kubernetes, Infrastructure as Code, GitOps      | EKS, Helm, ArgoCD, Terraform                                                                      |
+| Deployment      | Blue/Green, Canary, Event-driven Autoscaling    | Argo Rollouts, KEDA                                                                               |
+| Backup/DR       | Backup, Disaster Recovery                       | Velero, pg_dump CronJob, DR restore script                                                        |
+| Notify          | Multi-channel Notification, Deduplication       | LINE, Telegram, Apprise, Slack, webhook                             |
 -->
 
 ---
@@ -132,54 +132,52 @@ Invalid MQTT payload / unknown device:
 
 <!--
 ```text
-sentinel-iot-platform/
-├── backend/                    # Spring Boot application
-│   ├── src/main/java/com/sentinel/iot/
-│   │   ├── config/             # Security, MQTT (+ DLQ), WebSocket, Redis, RequestIdFilter, RLS
-│   │   ├── controller/         # REST endpoints (auth, devices, telemetry, alerts, users, settings)
-│   │   ├── converter/          # JPA attribute converters (DeviceCapabilities, SensorReadings)
-│   │   ├── dto/                # Request/response DTOs + ReplayQueueMessage
-│   │   ├── kafka/              # KafkaTelemetryProducer, KafkaTelemetryConsumer, TelemetryDlqConsumer
-│   │   ├── model/              # JPA entities (Device, Telemetry, TelemetryHourlyAggregate, ...)
-│   │   ├── repository/         # Spring Data repositories
-│   │   ├── security/           # JWT filter + token service
-│   │   ├── service/            # TelemetryService, AlertService, RedisService,
-│   │   │   │                   #   ReplayQueueService, TelemetryRetentionService,
-│   │   │   │                   #   PlatformSettingsService, UserService, AuditService,
-│   │   │   │                   #   JwtService, DeviceEnrollmentService, MqttConsumerService,
-│   │   │   │                   #   NotificationService, SchemaCompatibilityService
-│   │   │   └── notification/   # LINE Messaging API, Telegram, Apprise, Slack, generic webhook providers + AlertDeduplicator
-│   │   └── websocket/          # WebSocket broadcast publisher + subscriber
-│   ├── src/main/resources/
-│   │   ├── application.yml     # All config; env-var overrides for every external dependency
-│   │   ├── logback-spring.xml  # JSON (prod) / human-readable (dev) logging
-│   │   └── db/migration/       # V1–V11: schema, partitioning, lifecycle, multi-tenancy,
-│   │                           #   RLS, schema evolution, enrollment tokens, nullable fields,
-│   │                           #   device name uniqueness (V10), platform settings (V11)
-│   └── src/test/               # Unit · Integration · Contract (Pact) · Benchmark (JMH) · Concurrent · Chaos (Toxiproxy) · Architecture (ArchUnit) · Regression
-├── frontend/                   # Next.js 14 (App Router) + Tailwind CSS
-│   └── src/
-│       ├── app/                # App Router pages — dashboard, devices, devices/[id], alerts, users, settings, login, forgot-password
-│       ├── api/                # Axios client + generated API types
-│       ├── components/         # Shared UI components + ui/ primitives
-│       ├── hooks/              # Custom React hooks
-│       └── lib/                # Utility functions
-├── infra/                      # Cloud infrastructure
-│   ├── helm/sentinel-iot/      # Helm chart — Kubernetes manifests, Argo Rollouts, KEDA, Velero
-│   ├── argocd/                 # ArgoCD Application + ApplicationSet (staging + prod)
-│   ├── terraform/              # EKS, RDS, ElastiCache, MSK modules
-│   ├── monitoring/             # SLO rules + Grafana SLO dashboard
-│   └── scripts/                # DR restore script
-├── simulator/                  # Node.js MQTT publisher — dev/demo only (docs/demo/README.md)
-├── monitoring/                 # Prometheus config + Grafana provisioning (Docker Compose)
-├── mosquitto/                  # MQTT broker config
-├── tests/                      # k6 system-level tests (load/, performance/)
-├── scripts/                    # seed-demo.sh, seed-industry.sh, unseed-demo.sh, unseed-industry.sql, gen-mqtt-certs.sh
-├── deploy/                     # nginx-lb.conf
-├── docs/                       # Documentation — see docs/README.md
-├── .github/workflows/          # ci.yml (main pipeline) + api-contract.yml (contract fuzzing)
-├── run.sh                      # Docker Compose wrapper (alternative to make)
-└── docker-compose.yml          # Full stack (backend, postgres, redis, mosquitto, kafka, jaeger, grafana, prometheus)
+sentinel-iot-platform
+├── backend                    # Spring Boot application
+│   ├── src/main/java/com/sentinel/iot
+│   │   ├── config             # Security, MQTT (+ DLQ), WebSocket, Redis, RequestIdFilter, RLS
+│   │   ├── controller         # REST endpoints (auth, devices, telemetry, alerts, users, settings)
+│   │   ├── converter          # JPA attribute converters (DeviceCapabilities, SensorReadings)
+│   │   ├── dto                # Request/response DTOs + ReplayQueueMessage
+│   │   ├── kafka              # KafkaTelemetryProducer, KafkaTelemetryConsumer, TelemetryDlqConsumer
+│   │   ├── model              # JPA entities (Device, Telemetry, TelemetryHourlyAggregate, ...)
+│   │   ├── repository         # Spring Data repositories
+│   │   ├── security           # JWT filter + token service
+│   │   ├── service            # AlertService, AuditService, DeviceEnrollmentService, JwtService, MqttConsumerService,
+│   │   │   │                  # NotificationService, PlatformSettingsService, RedisService, ReplayQueueService, 
+│   │   │   │                  # SchemaCompatibilityService, TelemetryService, TelemetryRetentionService, UserService
+│   │   │   └── notification   # LINE, Telegram, Apprise, Slack, Webhook + AlertDeduplicator
+│   │   └── websocket          # WebSocket broadcast publisher + subscriber
+│   ├── src/main/resources
+│   │   ├── application.yml    # All config; env-var overrides for every external dependency
+│   │   ├── logback-spring.xml # JSON (prod) / human-readable (dev) logging
+│   │   └── db/migration       # V1–V11: schema, partitioning, lifecycle, multi-tenancy,
+│   │                          # RLS, schema evolution, enrollment tokens, nullable fields,
+│   │                          # device name uniqueness (V10), platform settings (V11)
+│   └── src/test               # Unit · Integration · Contract · Benchmark · Concurrent · Chaos · Architecture · Regression
+├── frontend                   # Next.js 14 (App Router) + Tailwind CSS
+│   └── src
+│       ├── app                # App Router — dashboard, devices, alerts, users, settings, login, forgot-password
+│       ├── api                # Axios client + generated API types
+│       ├── components         # Shared UI components + ui / primitives
+│       ├── hooks              # Custom React hooks
+│       └── lib                # Utility functions
+├── infra                      # Cloud infrastructure
+│   ├── helm/sentinel-iot      # Helm chart — Kubernetes manifests, Argo Rollouts, KEDA, Velero
+│   ├── argocd                 # ArgoCD Application + ApplicationSet (staging + prod)
+│   ├── terraform              # EKS, RDS, ElastiCache, MSK modules
+│   ├── monitoring             # SLO rules + Grafana SLO dashboard
+│   └── scripts                # DR restore script
+├── simulator                  # Node.js MQTT publisher — dev/demo only (docs/demo/README.md)
+├── monitoring                 # Prometheus config + Grafana provisioning (Docker Compose)
+├── mosquitto                  # MQTT broker config
+├── tests                      # k6 system-level tests (load/, performance/)
+├── scripts                    # seed-demo.sh, seed-industry.sh, unseed-demo.sh, unseed-industry.sql, gen-mqtt-certs.sh
+├── deploy                     # nginx-lb.conf
+├── docs                       # Documentation — see docs/README.md
+├── .github/workflows          # ci.yml (main pipeline) + api-contract.yml (contract fuzzing)
+├── run.sh                     # Docker Compose wrapper (alternative to make)
+└── docker-compose.yml         # Full stack (backend, postgres, redis, mosquitto, kafka, jaeger, grafana, prometheus)
 ```
 -->
 
