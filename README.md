@@ -16,81 +16,92 @@
 ## Architecture Diagram
 
 
-<details>
-<summary>View text-based architecture diagram</summary>
+```mermaid
+flowchart TB
+    subgraph "Sentinel IoT Platform"
+        direction TB
+        
+        Devices["IoT Devices (sensors)"]
+        Broker["Eclipse Mosquitto (MQTT Broker)"]
+        DLQ["factory/telemetry/dlq (DLQ)"]
+        
+        SpringBoot["Spring Boot Backend<br/>• JWT Auth<br/>• MQTT Consumer + DLQ routing<br/>• Alert Engine<br/>• WebSocket GW<br/>• Retry + CB<br/>• Replay Queue"]
+        
+        Redis[("Redis 7<br/>• Latest cache<br/>• Replay queue")]
+        PostgreSQL[("PostgreSQL 16<br/>• Partitioned by month<br/>• Hourly aggs")]
+        
+        UI["Next.js Dashboard"]
+        GrafanaUI["Grafana + Jaeger UI"]
+        Notify["Notification"]
+        Jaeger["Jaeger (OTel) Distributed Tracing"]
 
-```text
-┌───────────────────────────────────────────────────────────────────────────────┐
-│                            Sentinel IoT Platform                              │
-│                                                                               │
-│  ┌──────────────┐    MQTT        ┌──────────────────┐                         │
-│  │ IoT Devices  │───────────────▶│ Eclipse Mosquitto│                         │
-│  │  (sensors)   │  factory/      │   MQTT Broker    │◀── DLQ ── factory/      │
-│  └──────────────┘  telemetry     └───────┬──────────┘        telemetry/dlq    │
-│                                          │ subscribe                          │
-│                                ┌─────────▼───────────┐    ┌─────────────────┐ │
-│                                │   Spring Boot       │──▶ │ Redis 7         │ │
-│                                │   Backend           │    │ • Latest cache  │ │
-│                                │                     │    │ • Replay queue  │ │
-│                                │  • JWT Auth         │    └─────────────────┘ │
-│  ┌──────────────┐  REST/WS     │  • MQTT Consumer    │                        │
-│  │  Next.js     │◀────────────▶│    + DLQ routing    │    ┌─────────────────┐ │
-│  │  Dashboard   │              │  • Alert Engine     │──▶ │ PostgreSQL 16   │ │
-│  └──────────────┘              │  • WebSocket GW     │    │ • Partitioned   │ │
-│                                │  • Retry + CB       │    │   by month      │ │
-│  ┌──────────────┐              │  • Replay Queue     │    │ • Hourly aggs   │ │
-│  │   Grafana    │◀── scrape ───│  • Prometheus       │    └─────────────────┘ │
-│  │  +Jaeger UI  │              └──────────┬──────────┘                        │
-│  └──────────────┘                         │ OTLP traces                       │
-│                                  ┌────────▼────────┐                          │
-│  ┌──────────────┐                │ Jaeger (OTel)   │                          │
-│  │ Notification │◀── webhook ─── │ Distributed     │                          │
-│  └──────────────┘                │ Tracing         │                          │
-│                                  └─────────────────┘                          │
-└───────────────────────────────────────────────────────────────────────────────┘
+        Devices -- "MQTT (factory/telemetry)" --> Broker
+        Broker -- "DLQ" --> DLQ
+        Broker -- "subscribe" --> SpringBoot
+        
+        SpringBoot --> Redis
+        SpringBoot --> PostgreSQL
+        
+        UI <--"REST/WS"--> SpringBoot
+        GrafanaUI --"scrape"--> SpringBoot
+        SpringBoot --"OTLP traces"--> Jaeger
+        SpringBoot --"webhook"--> Notify
+    end
 ```
-</details>
 
 ### Data Flow — Normal Path
 
 
-<details>
-<summary>View text-based normal data flow</summary>
+```mermaid
+sequenceDiagram
+    participant Device as IoT Device
+    participant Broker as Mosquitto
+    participant MqttConsumer as MqttConsumerService
+    participant Telemetry as TelemetryService
+    participant DB as PostgreSQL
+    participant Cache as Redis
+    participant Alert as AlertService
+    participant Notify as Notification
+    participant WS as WebSocket / React UI
 
-```text
-IoT Device
-  │── MQTT publish ──▶ Mosquitto
-                          │── Spring Integration ──▶ MqttConsumerService
-                                                          │── validate payload
-                                                          │── resolve device (lifecycle gate)
-                                                          │── TelemetryService.save()
-                                                          │        │── PostgreSQL (retry + CB)
-                                                          │        └── Redis cache (setLatestTelemetry)
-                                                          │── AlertService.evaluate()
-                                                          │        └── Notification providers (if threshold exceeded, with deduplication)
-                                                          └── WebSocket broadcast ──▶ React UI
+    Device->>Broker: MQTT publish
+    Broker->>MqttConsumer: Spring Integration
+    
+    activate MqttConsumer
+    MqttConsumer->>MqttConsumer: validate payload
+    MqttConsumer->>MqttConsumer: resolve device (lifecycle gate)
+    
+    MqttConsumer->>Telemetry: save()
+    activate Telemetry
+    Telemetry->>DB: persist (retry + CB)
+    Telemetry->>Cache: setLatestTelemetry
+    deactivate Telemetry
+    
+    MqttConsumer->>Alert: evaluate()
+    activate Alert
+    Alert-->>Notify: notify (if threshold exceeded, deduped)
+    deactivate Alert
+    
+    MqttConsumer->>WS: broadcast
+    deactivate MqttConsumer
 ```
-</details>
 
 ### Data Flow — Failure Paths
 
 
-<details>
-<summary>View text-based failure data flows</summary>
+```mermaid
+flowchart TD
+    subgraph "DB unavailable (circuit breaker OPEN)"
+        F1[TelemetryService.saveFallback] --> F2[Redis cache updated<br/>dashboard stays live]
+        F1 --> F3[Redis replay queue RPUSH]
+        F3 -. "drained every 30s once CB recovers" .-> F4[ReplayQueueService]
+    end
 
-```text
-DB unavailable (circuit breaker OPEN):
-  TelemetryService.saveFallback()
-     │── Redis cache updated (dashboard stays live)
-     └── Redis replay queue (RPUSH)  ←── drained every 30s by ReplayQueueService
-                                              once circuit breaker recovers
-
-Invalid MQTT payload / unknown device:
-  MqttConsumerService
-     └── mqttDlqChannel ──▶ factory/telemetry/dlq
-           headers: dlq-error-code, dlq-error-detail, dlq-timestamp
+    subgraph "Invalid MQTT payload / unknown device"
+        I1[MqttConsumerService] --> I2[mqttDlqChannel<br/>topic: factory/telemetry/dlq]
+        I2 -. "headers: dlq-error-code, dlq-error-detail, dlq-timestamp" .-> I3[(DLQ)]
+    end
 ```
-</details>
 
 ---
 
