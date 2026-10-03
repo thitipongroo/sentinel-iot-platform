@@ -1,6 +1,6 @@
 # ⚡ Sentinel IoT Platform
 
-[![CI](https://github.com/thitipongroo/sentinel-iot-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/thitipongroo/sentinel-iot-platform/actions/workflows/ci.yml)
+[![CI](https://github.com/your-github-username/sentinel-iot-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/your-github-username/sentinel-iot-platform/actions/workflows/ci.yml)
 [![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2-green?logo=springboot)](https://spring.io/projects/spring-boot)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=nextdotjs)](https://nextjs.org/)
@@ -15,10 +15,9 @@
 
 ## Architecture Diagram
 
+![Sentinel IoT Platform](/docs/screenshots/sentinel-architecture-diagram.png)
 
-<details>
-<summary>View text-based architecture diagram</summary>
-
+<!--
 ```text
 ┌───────────────────────────────────────────────────────────────────────────────┐
 │                            Sentinel IoT Platform                              │
@@ -49,14 +48,13 @@
 │                                  └─────────────────┘                          │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
-</details>
+-->
 
 ### Data Flow — Normal Path
 
+![Data Flow - Normal Path](/docs/screenshots/sentinel-data-flow-normal-path.png)
 
-<details>
-<summary>View text-based normal data flow</summary>
-
+<!--
 ```text
 IoT Device
   │── MQTT publish ──▶ Mosquitto
@@ -70,14 +68,13 @@ IoT Device
                                                           │        └── Notification providers (if threshold exceeded, with deduplication)
                                                           └── WebSocket broadcast ──▶ React UI
 ```
-</details>
+-->
 
 ### Data Flow — Failure Paths
 
+![Data Flow - Failure Paths](/docs/screenshots/sentinel-data-flow-failure-path.png)
 
-<details>
-<summary>View text-based failure data flows</summary>
-
+<!--
 ```text
 DB unavailable (circuit breaker OPEN):
   TelemetryService.saveFallback()
@@ -90,16 +87,15 @@ Invalid MQTT payload / unknown device:
      └── mqttDlqChannel ──▶ factory/telemetry/dlq
            headers: dlq-error-code, dlq-error-detail, dlq-timestamp
 ```
-</details>
+-->
 
 ---
 
 ## Tech Stack
 
+![Tech Stack](/docs/screenshots/sentinel-tech-stack.png)
 
-<details>
-<summary>View Tech Stack table</summary>
-
+<!--
 | Layer           | Technology                                      | Tool                                                                                              |
 |-----------------|-------------------------------------------------|---------------------------------------------------------------------------------------------------|
 | Backend         | Java                                         | Spring Boot                                                                                   |
@@ -126,16 +122,15 @@ Invalid MQTT payload / unknown device:
 | Deployment      | Blue/Green, Canary, Event-driven Autoscaling    | Argo Rollouts, KEDA                                                                               |
 | Backup/DR       | Backup, Disaster Recovery                       | Velero, pg_dump CronJob, DR restore script                                                        |
 | Notify          | Multi-channel Notification, Deduplication       | LINE, Telegram, Apprise, Slack, webhook                             |
-</details>
+-->
 
 ---
 
 ## Project Structure
 
+![Project Structure](/docs/screenshots/sentinel-project-structure.png)
 
-<details>
-<summary>View text-based project structure</summary>
-
+<!--
 ```text
 sentinel-iot-platform
 ├── backend                    # Spring Boot application
@@ -187,7 +182,7 @@ sentinel-iot-platform
 ├── run.sh                     # Docker Compose wrapper (alternative to make)
 └── docker-compose.yml         # Full stack (backend, postgres, redis, mosquitto, kafka, jaeger, grafana, prometheus)
 ```
-</details>
+-->
 
 ---
 
@@ -198,15 +193,15 @@ sentinel-iot-platform
 - Docker + Docker Compose v2
 - JDK 21 and Node 20 or Above (for local dev)
 
-### Clone and Configure `.env`
+### Clone และตั้งค่า `.env`
 
 ```bash
-git clone https://github.com/thitipongroo/sentinel-iot-platform.git
+git clone https://github.com/your-github-username/sentinel-iot-platform.git
 cd sentinel-iot-platform
 cp .env.template .env
 ```
 
-Open `.env` and configure the following variables:
+เปิด `.env` และกำหนดค่า:
 
 ```env
 INIT_ADMIN_PASSWORD=<your-admin-password>
@@ -216,7 +211,7 @@ COMPOSE_PROFILES=prod
 
 ---
 
-Then run:
+จากนั้น:
 
 ```bash
 # Linux / macOS / Git Bash
@@ -229,38 +224,38 @@ docker compose up -d
 
 ---
 
-### Compose Profiles Reference
+### Compose profiles reference
 
-| `COMPOSE_PROFILES` | Running Services |
+| `COMPOSE_PROFILES` | Services ที่รัน |
 |---|---|
-| `prod` | core only |
+| `prod` | core เท่านั้น |
 | `prod,observability` | core + Prometheus + Grafana + Jaeger |
 
 > **core** = postgres, redis, mosquitto, kafka, backend, frontend
 >
-> For the `dev` profile (simulator), see [docs/demo/README.md](docs/demo/README.md)
+> สำหรับ `dev` profile (simulator) ดูที่ [docs/demo/README.md](docs/demo/README.md)
 
 ---
 
-### Shortcut Commands
+### Shortcut commands
 
-`Makefile` and `run.sh` are wrappers for `docker compose` — they can be used interchangeably.
+`Makefile` และ `run.sh` เป็น wrapper ของ `docker compose` — ใช้แทนกันได้ทุกคำสั่ง
 
-| Command (`make`) | Command (`./run.sh`) | Result |
+| คำสั่ง (`make`) | คำสั่ง (`./run.sh`) | ผลลัพธ์ |
 |----------------|-------------------|---------|
-| `make up` | `./run.sh up` | Start stack according to `COMPOSE_PROFILES` in `.env` |
-| `make up-obs` | `./run.sh up-obs` | Start stack + Prometheus / Grafana / Jaeger |
-| `make up-full` | `./run.sh up-full` | Start stack + monitoring + rebuild all images |
-| `make build` | `./run.sh build` | Rebuild images and start |
-| `make down` | `./run.sh down` | Stop all containers |
-| `make down-v` | `./run.sh down-v` | Stop all containers + remove all volumes (data will be lost) |
-| `make logs` | `./run.sh logs` | Tail logs for all services |
-| `make ps` | `./run.sh ps` | Show container status |
+| `make up` | `./run.sh up` | Start stack ตาม `COMPOSE_PROFILES` ใน `.env` |
+| `make up-obs` | `./run.sh up-obs` | Start stack + เปิด Prometheus / Grafana / Jaeger |
+| `make up-full` | `./run.sh up-full` | Start stack + monitoring + rebuild images ทั้งหมด |
+| `make build` | `./run.sh build` | Rebuild images แล้ว start |
+| `make down` | `./run.sh down` | หยุดทุก container |
+| `make down-v` | `./run.sh down-v` | หยุดทุก container + ลบ volumes ทั้งหมด (ข้อมูลหาย) |
+| `make logs` | `./run.sh logs` | Tail logs ทุก service |
+| `make ps` | `./run.sh ps` | แสดงสถานะ container |
 
-> **Note:**
+> **หมายเหตุ :**
 >
-> - `make` is available on Linux / macOS and Git Bash (Windows).
-> - Use `./run.sh` if `make` is not installed on your system.
+> - `make` - ใช้ได้บน Linux / macOS และ Git Bash (Windows)
+> - `./run.sh` — กรณีที่ไม่ได้ติดตั้ง `make`
 
 | Service       | URL                                    |
 |---------------|----------------------------------------|
@@ -272,32 +267,32 @@ docker compose up -d
 | Jaeger UI     | <http://localhost:16686>               |
 | MQTT Broker   | `tcp://localhost:1883`                 |
 
-**First-Run Credentials:**
+**First-Run Credentials :**
 
-1. Configure these in `.env` before starting the stack for the first time:
+1. ตั้งค่าใน `.env` ก่อน start stack ครั้งแรก :
 
    ```env
    INIT_ADMIN_PASSWORD=<your-admin-password>
    INIT_OPERATOR_PASSWORD=<your-operator-password>
    ```
 
-   > **`JWT_SECRET`** — Two ways to set this:
-   > - **Automatic:** Running `make <target>` or `./run.sh <command>` will automatically generate and save it to `.env` if not present.
-   > - **Manual:** Run the following command in your terminal and paste the result into `.env`:
+   > **`JWT_SECRET`** — มี 2 วิธี:
+   > - **อัตโนมัติ :** ตอนรันคำสั่ง `make <target>` หรือ `./run.sh <command>` จะ generate และบันทึกลง `.env` ให้เองหากยังไม่มีค่า
+   > - **Manual :** รันคำสั่งนี้ใน terminal แล้วนำค่าที่ได้ไปใส่ใน `.env`
    >
    >   ```bash
    >   openssl rand -base64 48
    >   ```
 
-2. Start or recreate the desired service (if you have already run it and modified `.env` values that affect `<service>`):
+2. Start หรือ recreate service ที่ต้องการ (กรณีที่รันไปแล้ว แล้วมีการแก้ไขค่าใน `.env` ที่มีผลต่อการทำงานของ `<service>`) :
 
    ```bash
    docker compose up -d --force-recreate `<service>`
    ```
 
-3. Login at <http://localhost:3000> using `admin` / _(value of `INIT_ADMIN_PASSWORD`)_
+3. Login ที่ <http://localhost:3000> ด้วย `admin` / _(ค่า `INIT_ADMIN_PASSWORD`)_
 
-- Grafana: `admin` / _(value of `GRAFANA_PASSWORD` in `.env`, default `changeme` — MUST be changed before any internet-facing deployment)_
+- Grafana: `admin` / _(value of `GRAFANA_PASSWORD`, default `changeme` — change before any internet-facing deployment)_
 
 ---
 
@@ -642,18 +637,6 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 | Dashboard                                    | Alerts                                 | Grafana                                  |
 |----------------------------------------------|----------------------------------------|------------------------------------------|
 | ![dashboard](docs/screenshots/dashboard.png) | ![alerts](docs/screenshots/alerts.png) | ![grafana](docs/screenshots/grafana.png) |
-
----
-
-## Contributing
-
-We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and suggest features.
-
----
-
-## Support & Contact
-
-If you encounter any issues or have questions, please [open an issue](https://github.com/thitipongroo/sentinel-iot-platform/issues) on GitHub.
 
 ---
 
