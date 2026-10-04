@@ -17,7 +17,7 @@
 
 ```mermaid
 C4Container
-    title C4 Container Diagram - Sentinel IoT Platform
+    title Sentinel IoT Platform
 
     Person(user, "Platform User", "Admin / Operator managing devices and viewing telemetry")
     System_Ext(device, "IoT Devices", "Sensors publishing data (MQTT)")
