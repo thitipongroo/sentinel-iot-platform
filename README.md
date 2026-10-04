@@ -16,7 +16,6 @@
 ## Architecture Diagram
 
 ```mermaid
-%%{init: {'theme': 'default', 'themeVariables': {'background': '#ffffff'}}}%%
 C4Container
     title Sentinel IoT Platform
 
@@ -24,11 +23,11 @@ C4Container
     System_Ext(device, "IoT Devices", "Sensors")
 
     System_Boundary(c1, "Sentinel IoT Platform") {
-        Container(ui, "Next.js Dashboard", "React", "Web interface")
+        Container(ui, "Dashboard", "Next.js", "Web interface")
+        Container(backend, "Spring Boot API", "Java", "Core logic & alert engine")
+        ContainerDb(db, "PostgreSQL", "PostgreSQL", "Time-series & metadata")
+        ContainerDb(redis, "Redis", "Redis", "Cache & queue")
         Container(broker, "MQTT Broker", "Mosquitto", "Ingests telemetry")
-        Container(backend, "Spring Boot API", "Java 21", "Core logic & alert engine")
-        ContainerDb(db, "PostgreSQL", "PostgreSQL 16", "Time-series & metadata")
-        ContainerDb(redis, "Redis", "Redis 7", "Cache & queue")
     }
 
     System_Ext(notify, "Notifications", "LINE, Slack, Webhook")
