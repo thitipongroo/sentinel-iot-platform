@@ -15,8 +15,6 @@
 
 ## Architecture Diagram
 
-### C4 Container Model
-
 ```mermaid
 C4Container
     title C4 Container Diagram - Sentinel IoT Platform
