@@ -19,27 +19,31 @@
 C4Container
     title Sentinel IoT Platform
 
-    Person(user, "Platform User", "Admin / Operator managing devices and viewing telemetry")
-    System_Ext(device, "IoT Devices", "Sensors publishing data (MQTT)")
-    System_Ext(notify, "Notification Channels", "LINE, Telegram, Slack, Webhook")
-    System_Ext(observability, "Observability Stack", "Grafana, Prometheus, Jaeger")
+    Person(user, "Platform User", "Admin / Operator")
+    System_Ext(device, "IoT Devices", "Sensors")
 
     System_Boundary(c1, "Sentinel IoT Platform") {
-        Container(ui, "Next.js Dashboard", "Next.js, React", "Provides the web interface for the IoT platform")
-        Container(backend, "Spring Boot API", "Java 21, Spring Boot", "Core logic, MQTT ingestion, Alert Engine, WebSocket GW")
-        Container(broker, "MQTT Broker", "Eclipse Mosquitto", "Message broker for device telemetry")
-        ContainerDb(db, "PostgreSQL", "PostgreSQL 16", "Stores device metadata, user config, and partitioned telemetry")
-        ContainerDb(redis, "Redis", "Redis 7", "In-memory cache, WebSocket pub/sub, replay queue")
+        Container(ui, "Next.js Dashboard", "React", "Web interface")
+        Container(broker, "MQTT Broker", "Mosquitto", "Ingests telemetry")
+        Container(backend, "Spring Boot API", "Java 21", "Core logic & alert engine")
+        ContainerDb(db, "PostgreSQL", "PostgreSQL 16", "Time-series & metadata")
+        ContainerDb(redis, "Redis", "Redis 7", "Cache & queue")
     }
 
-    Rel(user, ui, "Uses", "HTTPS")
-    Rel(ui, backend, "API & WebSocket", "REST/WS")
-    Rel(device, broker, "Publishes telemetry", "MQTT")
-    Rel(broker, backend, "Subscribes", "Spring Integration")
-    Rel(backend, db, "Reads/Writes", "JDBC")
-    Rel(backend, redis, "Reads/Writes", "RESP")
-    Rel(backend, notify, "Sends alerts", "Webhook/HTTPS")
-    Rel(backend, observability, "Metrics & Traces", "OTLP/Scrape")
+    System_Ext(notify, "Notifications", "LINE, Slack, Webhook")
+    System_Ext(observability, "Observability", "Prometheus, Jaeger")
+
+    Rel_D(user, ui, "Uses", "HTTPS")
+    Rel_D(device, broker, "Publishes", "MQTT")
+    
+    Rel_D(ui, backend, "API & WS", "REST/WS")
+    Rel_D(broker, backend, "Subscribes", "Spring Int.")
+    
+    Rel_D(backend, db, "Reads/Writes", "JDBC")
+    Rel_D(backend, redis, "Reads/Writes", "RESP")
+    
+    Rel_L(backend, observability, "Metrics/Traces", "OTLP")
+    Rel_R(backend, notify, "Sends alerts", "HTTPS")
 ```
 
 ### High-level Architecture
