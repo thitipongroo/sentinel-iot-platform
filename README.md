@@ -16,6 +16,7 @@
 ## Architecture Diagram
 
 ```mermaid
+%%{init: {'theme': 'default', 'themeVariables': {'background': '#ffffff'}}}%%
 C4Container
     title Sentinel IoT Platform
 
