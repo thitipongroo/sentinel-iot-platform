@@ -42,7 +42,7 @@ flowchart TB
         end
     end
 
-    Notify(("💬 LINE, Slack, Webhook")):::external
+    Notify(("💬 Notifications")):::external
     Observe(("📊 Observability")):::external
 
     %% Relationships
@@ -77,7 +77,7 @@ flowchart TB
         
         UI["Next.js Web Interface"]
         GrafanaUI["Grafana + Jaeger UI"]
-        Notify["LINE, Slack, Webhook"]
+        Notify["LINE, Slack, Telegram"]
         Jaeger["Jaeger (OTel) Distributed Tracing"]
 
         Devices -- "MQTT (factory/telemetry)" --> Broker
