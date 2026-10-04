@@ -25,25 +25,25 @@ flowchart TB
     classDef db fill:#f59e0b,stroke:#b45309,stroke-width:2px,color:#fff
     classDef broker fill:#8b5cf6,stroke:#5b21b6,stroke-width:2px,color:#fff
 
-    User(("🧑‍💻 Platform User")):::user
+    User(("🧑‍💻 User Dashboard")):::user
     Devices(("📡 IoT Devices")):::external
 
     subgraph Platform ["⚡ Sentinel IoT Platform"]
         direction TB
         
-        UI["💻 Dashboard<br/>(Next.js Web Interface)"]:::frontend
-        Broker{"🔄 MQTT Broker<br/>(Eclipse Mosquitto)"}:::broker
-        API["⚙️ Spring Boot API<br/>(Core Logic & Alert Engine)"]:::backend
+        UI["💻 Web Interface"]:::frontend
+        Broker{"🔄 MQTT Broker"}:::broker
+        API["⚙️ Core Logic & Alert Engine"]:::backend
         
         subgraph DataLayer ["Data Layer"]
             direction LR
-            DB[("🗄️ PostgreSQL<br/>(Metadata & Time-series)")]:::db
-            Redis[("⚡ Redis<br/>(Cache & Queue)")]:::db
+            DB[("🗄️ Metadata & Time-series")]:::db
+            Redis[("⚡ Cache & Queue")]:::db
         end
     end
 
-    Notify(("💬 Notifications<br/>(LINE, Slack, Webhook)")):::external
-    Observe(("📊 Observability<br/>(Prometheus, Jaeger)")):::external
+    Notify(("💬 LINE, Slack, Webhook")):::external
+    Observe(("📊 Observability")):::external
 
     %% Relationships
     User -- "HTTPS" --> UI
@@ -67,7 +67,7 @@ flowchart TB
         direction TB
         
         Devices["IoT Devices (sensors)"]
-        Broker["Eclipse Mosquitto (MQTT Broker)"]
+        Broker["Eclipse Mosquitto"]
         DLQ["factory/telemetry/dlq (DLQ)"]
         
         SpringBoot["Spring Boot Backend<br/>• JWT Auth<br/>• MQTT Consumer + DLQ routing<br/>• Alert Engine<br/>• WebSocket GW<br/>• Retry + CB<br/>• Replay Queue"]
@@ -75,9 +75,9 @@ flowchart TB
         Redis[("Redis 7<br/>• Latest cache<br/>• Replay queue")]
         PostgreSQL[("PostgreSQL 16<br/>• Partitioned by month<br/>• Hourly aggs")]
         
-        UI["Next.js Dashboard"]
+        UI["Next.js Web Interface"]
         GrafanaUI["Grafana + Jaeger UI"]
-        Notify["Notification"]
+        Notify["LINE, Slack, Webhook"]
         Jaeger["Jaeger (OTel) Distributed Tracing"]
 
         Devices -- "MQTT (factory/telemetry)" --> Broker
