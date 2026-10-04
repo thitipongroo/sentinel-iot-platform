@@ -22,7 +22,7 @@ export default function AlertsPage() {
     queryFn:  () => alertsApi.list(page, PAGE_SIZE).then(r => r.data),
     enabled:  !!user,
   })
-  const alerts     = alertPage?.content  ?? []
+  const alerts     = useMemo(() => alertPage?.content ?? [], [alertPage?.content])
   const totalPages = alertPage?.totalPages ?? 1
   const totalItems = alertPage?.totalElements ?? 0
 

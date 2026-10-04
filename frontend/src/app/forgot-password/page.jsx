@@ -51,7 +51,7 @@ export default function ForgotPasswordPage() {
               <span className="flex-shrink-0 mt-0.5">✓</span>
               <span>
                 Contact your administrator and provide your username{' '}
-                <span className="font-semibold text-white">"{username}"</span>{' '}
+                <span className="font-semibold text-white">&quot;{username}&quot;</span>{' '}
                 to have your password reset.
               </span>
             </div>

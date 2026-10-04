@@ -31,14 +31,14 @@ flowchart TB
     subgraph Platform ["⚡ Sentinel IoT Platform"]
         direction TB
         
-        UI["💻 Next.js Dashboard<br/>(React Web Interface)"]:::frontend
+        UI["💻 Dashboard<br/>(Next.js Web Interface)"]:::frontend
         Broker{"🔄 MQTT Broker<br/>(Eclipse Mosquitto)"}:::broker
         API["⚙️ Spring Boot API<br/>(Core Logic & Alert Engine)"]:::backend
         
         subgraph DataLayer ["Data Layer"]
             direction LR
             DB[("🗄️ PostgreSQL<br/>(Metadata & Time-series)")]:::db
-            Redis[("⚡ Redis 7<br/>(Cache & Queue)")]:::db
+            Redis[("⚡ Redis<br/>(Cache & Queue)")]:::db
         end
     end
 
@@ -46,8 +46,8 @@ flowchart TB
     Observe(("📊 Observability<br/>(Prometheus, Jaeger)")):::external
 
     %% Relationships
-    User -- "Uses (HTTPS)" --> UI
-    Devices -- "Publishes (MQTT)" --> Broker
+    User -- "HTTPS" --> UI
+    Devices -- "Publishes" --> Broker
     
     UI <--"API & WS"--> API
     Broker --"Subscribes"--> API
