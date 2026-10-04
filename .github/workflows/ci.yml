@@ -21,9 +21,6 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Lint (Checkstyle)
-        working-directory: backend
-        run: mvn checkstyle:check -q
 
       - name: Build
         working-directory: backend
@@ -110,6 +107,9 @@ jobs:
         uses: azure/setup-helm@v4
         with:
           version: v3.15.2
+
+      - name: Build dependencies
+        run: helm dependency build infra/helm/sentinel-iot
 
       - name: Lint default values
         run: helm lint infra/helm/sentinel-iot

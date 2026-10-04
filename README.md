@@ -16,34 +16,47 @@
 ## Architecture Diagram
 
 ```mermaid
-C4Container
-    title Sentinel IoT Platform
+flowchart TB
+    %% Custom Styles
+    classDef user fill:#f9f9f9,stroke:#333,stroke-width:2px,color:#333
+    classDef external fill:#e1e1e1,stroke:#666,stroke-width:2px,stroke-dasharray: 5 5,color:#333
+    classDef frontend fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff
+    classDef backend fill:#10b981,stroke:#047857,stroke-width:2px,color:#fff
+    classDef db fill:#f59e0b,stroke:#b45309,stroke-width:2px,color:#fff
+    classDef broker fill:#8b5cf6,stroke:#5b21b6,stroke-width:2px,color:#fff
 
-    Person(user, "Platform User", "Admin / Operator")
-    System_Ext(device, "IoT Devices", "Sensors")
+    User(("🧑‍💻 Platform User")):::user
+    Devices(("📡 IoT Devices")):::external
 
-    System_Boundary(c1, "Sentinel IoT Platform") {
-        Container(ui, "Dashboard", "Next.js", "Web interface")
-        Container(backend, "Spring Boot API", "Java", "Core logic & alert engine")
-        ContainerDb(db, "PostgreSQL", "PostgreSQL", "Time-series & metadata")
-        ContainerDb(redis, "Redis", "Redis", "Cache & queue")
-        Container(broker, "MQTT Broker", "Mosquitto", "Ingests telemetry")
-    }
+    subgraph Platform ["⚡ Sentinel IoT Platform"]
+        direction TB
+        
+        UI["💻 Next.js Dashboard<br/>(React Web Interface)"]:::frontend
+        Broker{"🔄 MQTT Broker<br/>(Eclipse Mosquitto)"}:::broker
+        API["⚙️ Spring Boot API<br/>(Core Logic & Alert Engine)"]:::backend
+        
+        subgraph DataLayer ["Data Layer"]
+            direction LR
+            DB[("🗄️ PostgreSQL<br/>(Metadata & Time-series)")]:::db
+            Redis[("⚡ Redis 7<br/>(Cache & Queue)")]:::db
+        end
+    end
 
-    System_Ext(notify, "Notifications", "LINE, Slack, Webhook")
-    System_Ext(observability, "Observability", "Prometheus, Jaeger")
+    Notify(("💬 Notifications<br/>(LINE, Slack, Webhook)")):::external
+    Observe(("📊 Observability<br/>(Prometheus, Jaeger)")):::external
 
-    Rel_D(user, ui, "Uses", "HTTPS")
-    Rel_D(device, broker, "Publishes", "MQTT")
+    %% Relationships
+    User -- "Uses (HTTPS)" --> UI
+    Devices -- "Publishes (MQTT)" --> Broker
     
-    Rel_D(ui, backend, "API & WS", "REST/WS")
-    Rel_D(broker, backend, "Subscribes", "Spring Int.")
+    UI <--"API & WS"--> API
+    Broker --"Subscribes"--> API
     
-    Rel_D(backend, db, "Reads/Writes", "JDBC")
-    Rel_D(backend, redis, "Reads/Writes", "RESP")
+    API --"Reads/Writes"--> DB
+    API --"Reads/Writes"--> Redis
     
-    Rel_L(backend, observability, "Metrics/Traces", "OTLP")
-    Rel_R(backend, notify, "Sends alerts", "HTTPS")
+    API -."Sends Alerts".-> Notify
+    API -."Metrics & Traces".-> Observe
 ```
 
 ### High-level Architecture
