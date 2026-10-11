@@ -46,8 +46,8 @@ flowchart TB
     Observe(("📊 Observability")):::external
 
     %% Relationships
-    User -- " HTTPS " --> UI
-    Devices -- " Publishes " --> Broker
+    User -- "HTTPS" --> UI
+    Devices -- "Publishes" --> Broker
     
     UI <--"API & WS"--> API
     Broker --"Subscribes"--> API
@@ -66,7 +66,7 @@ flowchart TB
     subgraph "Sentinel IoT Platform"
         direction TB
         
-        Devices["IoT Devices (sensors)"]
+        Devices["Sensors"]
         Broker["Eclipse Mosquitto"]
         DLQ["factory/telemetry/dlq (DLQ)"]
         
@@ -80,7 +80,7 @@ flowchart TB
         Notify["LINE, Slack, Telegram"]
         Jaeger["Jaeger (OTel) Distributed Tracing"]
 
-        Devices -- "MQTT (factory/telemetry)" --> Broker
+        Devices -- "Factory/Telemetry" --> Broker
         Broker -- "DLQ" --> DLQ
         Broker -- "subscribe" --> SpringBoot
         
