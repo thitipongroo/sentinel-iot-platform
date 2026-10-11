@@ -25,13 +25,13 @@ flowchart TB
     classDef db fill:#f59e0b,stroke:#b45309,stroke-width:2px,color:#fff
     classDef broker fill:#8b5cf6,stroke:#5b21b6,stroke-width:2px,color:#fff
 
-    User(("🧑‍💻 User Dashboard")):::user
+    User(("🧑‍💻 Dashboard")):::user
     Devices(("📡 IoT Devices")):::external
 
     subgraph Platform ["⚡ Sentinel IoT Platform"]
         direction TB
         
-        UI["💻 Web Interface"]:::frontend
+        UI["💻 Frontend"]:::frontend
         Broker{"🔄 MQTT Broker"}:::broker
         API["⚙️ Core Logic & Alert Engine"]:::backend
         
@@ -46,8 +46,8 @@ flowchart TB
     Observe(("📊 Observability")):::external
 
     %% Relationships
-    User -- "HTTPS" --> UI
-    Devices -- "Publishes" --> Broker
+    User -- " HTTPS " --> UI
+    Devices -- " Publishes " --> Broker
     
     UI <--"API & WS"--> API
     Broker --"Subscribes"--> API
@@ -96,7 +96,6 @@ flowchart TB
 
 ### Data Flow — Normal Path
 
-
 ```mermaid
 sequenceDiagram
     participant Device as IoT Device
@@ -133,7 +132,6 @@ sequenceDiagram
 
 ### Data Flow — Failure Paths
 
-
 ```mermaid
 flowchart TD
     subgraph "DB unavailable (circuit breaker OPEN)"
@@ -151,7 +149,6 @@ flowchart TD
 ---
 
 ## Tech Stack
-
 
 <details>
 <summary>View Tech Stack table</summary>
@@ -182,12 +179,12 @@ flowchart TD
 | Deployment      | Blue/Green, Canary, Event-driven Autoscaling    | Argo Rollouts, KEDA                                                                               |
 | Backup/DR       | Backup, Disaster Recovery                       | Velero, pg_dump CronJob, DR restore script                                                        |
 | Notify          | Multi-channel Notification, Deduplication       | LINE, Telegram, Apprise, Slack, webhook                             |
+
 </details>
 
 ---
 
 ## Project Structure
-
 
 <details>
 <summary>View text-based project structure</summary>
@@ -243,6 +240,7 @@ sentinel-iot-platform
 ├── run.sh                     # Docker Compose wrapper (alternative to make)
 └── docker-compose.yml         # Full stack (backend, postgres, redis, mosquitto, kafka, jaeger, grafana, prometheus)
 ```
+
 </details>
 
 ---
