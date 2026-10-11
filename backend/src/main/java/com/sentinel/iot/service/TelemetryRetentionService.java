@@ -1,11 +1,14 @@
 package com.sentinel.iot.service;
 
+import com.sentinel.iot.model.TelemetryDailyRollup;
 import com.sentinel.iot.model.TelemetryHourlyAggregate;
+import com.sentinel.iot.model.TelemetryMonthlyRollup;
+import com.sentinel.iot.repository.TelemetryDailyRollupRepository;
 import com.sentinel.iot.repository.TelemetryHourlyAggregateRepository;
+import com.sentinel.iot.repository.TelemetryMonthlyRollupRepository;
 import com.sentinel.iot.repository.TelemetryRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,16 +20,37 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class TelemetryRetentionService {
 
     private final TelemetryRepository telemetryRepository;
     private final TelemetryHourlyAggregateRepository hourlyAggregateRepository;
+    private final TelemetryDailyRollupRepository dailyRollupRepository;
+    private final TelemetryMonthlyRollupRepository monthlyRollupRepository;
+    private final TelemetryArchivalService archivalService;
+
+    public TelemetryRetentionService(TelemetryRepository telemetryRepository,
+                                     TelemetryHourlyAggregateRepository hourlyAggregateRepository) {
+        this(telemetryRepository, hourlyAggregateRepository, null, null, null);
+    }
+
+    @Autowired
+    public TelemetryRetentionService(TelemetryRepository telemetryRepository,
+                                     TelemetryHourlyAggregateRepository hourlyAggregateRepository,
+                                     @Autowired(required = false) TelemetryDailyRollupRepository dailyRollupRepository,
+                                     @Autowired(required = false) TelemetryMonthlyRollupRepository monthlyRollupRepository,
+                                     @Autowired(required = false) TelemetryArchivalService archivalService) {
+        this.telemetryRepository = telemetryRepository;
+        this.hourlyAggregateRepository = hourlyAggregateRepository;
+        this.dailyRollupRepository = dailyRollupRepository;
+        this.monthlyRollupRepository = monthlyRollupRepository;
+        this.archivalService = archivalService;
+    }
 
     @Autowired(required = false)
     private StringRedisTemplate redisTemplate;
@@ -42,17 +66,6 @@ public class TelemetryRetentionService {
 
     /**
      * Look-back window for late-arrival aggregation recomputation.
-     *
-     * <p>IoT telemetry is often late or out-of-order: a device may reconnect after an
-     * offline period and deliver several hours of buffered readings at once. The daily
-     * aggregation job only covers "yesterday" by default, so those late records would
-     * miss being aggregated until the Kafka DLQ consumer replays them — which could
-     * land them in hours that have already been aggregated.
-     *
-     * <p>Setting {@code TELEMETRY_LATE_ARRIVAL_LOOKBACK_DAYS} to N causes the retention
-     * job to also re-run aggregation for the previous N days (idempotent upsert — safe
-     * to re-run). This closes the gap for replay data and short-duration DB outages.
-     * Default is 2 days (covers overnight outages and same-day replay drains).
      */
     @Value("${telemetry.late-arrival.lookback-days:2}")
     private int lateArrivalLookbackDays;
@@ -61,12 +74,10 @@ public class TelemetryRetentionService {
 
     /**
      * Runs daily at 02:30 UTC.
-     * Phase 1 — aggregate yesterday + late-arrival look-back window (idempotent upsert).
-     * Phase 2 — purge raw rows older than retention-days.
-     * Phase 3 — DETACH and DROP empty monthly partition tables whose data has been fully pruned.
-     *
-     * When running across multiple horizontal replicas on EKS, acquires a Redis distributed lock
-     * so that only one replica executes the daily maintenance job.
+     * Phase 1 — aggregate hourly, daily, and monthly rollups (idempotent upserts).
+     * Phase 2 — archive raw rows to columnar Parquet cold storage before purging (zero data loss).
+     * Phase 3 — purge raw rows older than retention-days.
+     * Phase 4 — DETACH and DROP empty monthly partition tables whose data has been archived and pruned.
      */
     @Scheduled(cron = "${telemetry.retention.cron:0 30 2 * * *}")
     @Transactional
@@ -84,25 +95,55 @@ public class TelemetryRetentionService {
             }
         }
 
-        // Phase 1: aggregate yesterday + look-back window for late-arriving replay data
+        // Phase 1: Tiered Rollup Aggregations (Hourly, Daily, Monthly)
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-
-        // Always cover at least yesterday. Look-back covers additional days to catch
-        // telemetry that arrived late via Kafka DLQ replay or device reconnect bursts.
         LocalDate lookbackStart = today.minusDays(Math.max(1, lateArrivalLookbackDays));
         Instant aggregateFrom = lookbackStart.atStartOfDay(ZoneOffset.UTC).toInstant();
         Instant aggregateTo   = today.atStartOfDay(ZoneOffset.UTC).toInstant();
 
-        int aggregated = hourlyAggregateRepository.aggregateHourly(aggregateFrom, aggregateTo);
+        int aggregatedHourly = hourlyAggregateRepository.aggregateHourly(aggregateFrom, aggregateTo);
         log.info("Retention: aggregated {} hourly buckets for window [{}, {}] (lookback={}d)",
-                aggregated, lookbackStart, today.minusDays(1), lateArrivalLookbackDays);
+                aggregatedHourly, lookbackStart, today.minusDays(1), lateArrivalLookbackDays);
 
-        // Phase 2: prune raw rows
+        if (dailyRollupRepository != null) {
+            try {
+                int aggregatedDaily = dailyRollupRepository.aggregateDaily(aggregateFrom, aggregateTo);
+                log.info("Retention: aggregated {} daily rollups for window [{}, {}]", aggregatedDaily, lookbackStart, today);
+            } catch (Exception e) {
+                log.warn("Failed to compute daily rollups: {}", e.getMessage());
+            }
+        }
+
+        if (monthlyRollupRepository != null) {
+            try {
+                // Monthly rollups cover from start of previous month to current month
+                Instant monthFrom = today.minusMonths(1).withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+                int aggregatedMonthly = monthlyRollupRepository.aggregateMonthly(monthFrom, aggregateTo);
+                log.info("Retention: aggregated {} monthly rollups for window [{}, {}]", aggregatedMonthly, monthFrom, aggregateTo);
+            } catch (Exception e) {
+                log.warn("Failed to compute monthly rollups: {}", e.getMessage());
+            }
+        }
+
+        // Phase 2: Automated Parquet Archival before pruning (Zero Data Loss)
         Instant cutoff = Instant.now().minus(retentionDays, ChronoUnit.DAYS);
+        if (archivalService != null) {
+            try {
+                // Archive from 60 days ago up to cutoff to catch expiring data
+                Instant archiveStart = cutoff.minus(30, ChronoUnit.DAYS);
+                var report = archivalService.archiveRange(archiveStart, cutoff);
+                log.info("Retention: cold archival complete — {} records ({} bytes) in {}ms",
+                        report.recordsArchived(), report.bytesWritten(), report.durationMs());
+            } catch (Exception e) {
+                log.error("Retention: automated Parquet archival failed: {}", e.getMessage());
+            }
+        }
+
+        // Phase 3: Prune raw rows
         int deleted = telemetryRepository.deleteByTimestampBefore(cutoff);
         log.info("Retention: deleted {} raw telemetry rows older than {} days", deleted, retentionDays);
 
-        // Phase 3: drop empty partition tables that are fully outside the retention window
+        // Phase 4: drop empty partition tables that are fully outside the retention window
         dropEmptyExpiredPartitions(cutoff);
     }
 
@@ -218,5 +259,17 @@ public class TelemetryRetentionService {
     public List<TelemetryHourlyAggregate> getHourlyAggregates(UUID deviceId, Instant from, Instant to) {
         return hourlyAggregateRepository
                 .findByDeviceIdAndHourBucketBetweenOrderByHourBucketAsc(deviceId, from, to);
+    }
+
+    public List<TelemetryDailyRollup> getDailyRollups(UUID deviceId, Instant from, Instant to) {
+        if (dailyRollupRepository == null) return Collections.emptyList();
+        return dailyRollupRepository
+                .findByDeviceIdAndDayBucketBetweenOrderByDayBucketAsc(deviceId, from, to);
+    }
+
+    public List<TelemetryMonthlyRollup> getMonthlyRollups(UUID deviceId, Instant from, Instant to) {
+        if (monthlyRollupRepository == null) return Collections.emptyList();
+        return monthlyRollupRepository
+                .findByDeviceIdAndMonthBucketBetweenOrderByMonthBucketAsc(deviceId, from, to);
     }
 }

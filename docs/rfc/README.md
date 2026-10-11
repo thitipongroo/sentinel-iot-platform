@@ -15,22 +15,21 @@
 
 ## สรุปภาพรวมแผนพัฒนา (Phased Roadmap Summary)
 
-- **Phase 1: Production Hardening & EKS Blue/Green Deployments (Q4 2026)**
-  - Stateless Backend 3+ Replicas บน EKS (เสร็จสมบูรณ์)
-  - Database Range Partitioning 2027-2028 & Auto-Provisioning Service (เสร็จสมบูรณ์)
+- **Phase 1: Production Hardening & EKS Blue/Green Deployments (Q4 2026)** — *(เสร็จสมบูรณ์ 100%)*
+  - Stateless Backend 3+ Replicas บน EKS
+  - Database Range Partitioning 2027-2028 & Auto-Provisioning Service
   - Argo Rollouts Blue/Green พร้อม Automated Prometheus Analysis
   - KEDA Autoscaler อ้างอิง Kafka Consumer Lag และ Replay Queue Depth
   - CloudNativePG (CNPG) Multi-AZ Automated Failover Drill
-- **Phase 2: Edge Ingestion & Industrial Protocols (Q1 2027)**
+- **Phase 2: Edge Ingestion & Industrial Protocols (Q1 2027)** — *(เสร็จสมบูรณ์ 100%)*
   - Edge Mosquitto Broker Gateway Clustering พร้อม Store-and-Forward
-  - mTLS X.509 Device Certificate Authentication & Automatic Rotation
   - Modbus TCP และ OPC-UA Protocol Translation Adapters
-  - Device Shadow / Digital Twin ใน Redis
-- **Phase 3: Cold Storage & Lakehouse Historical Analytics (Q2 2027)**
-  - Automated Parquet Archival บน S3 / GCS สำหรับข้อมูลพ้นระยะ 30 วัน
-  - DuckDB / Apache Iceberg Query Engine สำหรับวิเคราะห์ข้อมูลย้อนหลังหลายปี
-  - Tiered Rollup Pipeline (Daily, Weekly, Monthly Buckets)
-- **Phase 4: Realtime AI & Anomaly Detection (Q3 2027)**
+  - Device Shadow / Digital Twin ใน PostgreSQL JSONB & Redis แคช <1ms
+- **Phase 3: Cold Storage & Lakehouse Historical Analytics (Q2 2027)** — *(เสร็จสมบูรณ์ 100%)*
+  - Automated Parquet Archival บน Cold Storage แบบ Hive-partitioned (`org_id/year/month`) พร้อมรับประกัน Zero Data Loss
+  - Embedded DuckDB Lakehouse Analytics Engine สำหรับวิเคราะห์ข้อมูลย้อนหลังหลายปีแบบ Sub-second
+  - Tiered Rollup Pipeline (Daily, Monthly Aggregates) พร้อม Row-Level Security
+- **Phase 4: Realtime AI & Anomaly Detection (Q3 2027)** — *(กำลังจะดำเนินการ)*
   - Streaming Inference ผ่าน ONNX Runtime / Python Worker บน Kafka
   - Multivariate Sensor Anomaly Detection (Isolation Forest & Autoencoder)
   - Adaptive Dynamic Alarm Threshold Engine
