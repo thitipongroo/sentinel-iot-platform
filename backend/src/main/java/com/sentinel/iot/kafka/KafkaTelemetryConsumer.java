@@ -14,8 +14,10 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
+import com.sentinel.iot.anomaly.service.StreamingAnomalyInferenceService;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -48,6 +50,7 @@ public class KafkaTelemetryConsumer {
     private final ObjectMapper            objectMapper;
     private final Counter                 processedCounter;
     private final Counter                 droppedCounter;
+    private final StreamingAnomalyInferenceService anomalyInferenceService;
 
     public KafkaTelemetryConsumer(TelemetryRepository telemetryRepository,
                                   DeviceRepository deviceRepository,
@@ -56,12 +59,25 @@ public class KafkaTelemetryConsumer {
                                   RedisService redisService,
                                   ObjectMapper objectMapper,
                                   MeterRegistry meterRegistry) {
+        this(telemetryRepository, deviceRepository, alertService, wsBroadcastPublisher,
+                redisService, objectMapper, meterRegistry, null);
+    }
+
+    public KafkaTelemetryConsumer(TelemetryRepository telemetryRepository,
+                                  DeviceRepository deviceRepository,
+                                  AlertService alertService,
+                                  WebSocketBroadcastPublisher wsBroadcastPublisher,
+                                  RedisService redisService,
+                                  ObjectMapper objectMapper,
+                                  MeterRegistry meterRegistry,
+                                  @Autowired(required = false) StreamingAnomalyInferenceService anomalyInferenceService) {
         this.telemetryRepository  = telemetryRepository;
         this.deviceRepository     = deviceRepository;
         this.alertService         = alertService;
         this.wsBroadcastPublisher = wsBroadcastPublisher;
         this.redisService         = redisService;
         this.objectMapper         = objectMapper;
+        this.anomalyInferenceService = anomalyInferenceService;
         this.processedCounter     = Counter.builder("sentinel.kafka.telemetry.processed")
                 .description("Telemetry records written to PostgreSQL via Kafka batch ingest")
                 .register(meterRegistry);
@@ -272,6 +288,19 @@ public class KafkaTelemetryConsumer {
             // Capability-aware alert evaluation: uses per-device thresholds when available
             alertService.evaluate(a.device().getId(), a.device().getOrganizationId(),
                     a.device().getName(), a.telemetry().getReadings(), a.device().getCapabilities());
+
+            // Phase 4: Streaming ML anomaly inference & adaptive dynamic threshold evaluation
+            if (anomalyInferenceService != null) {
+                anomalyInferenceService.processTelemetry(
+                        a.device().getId(),
+                        a.device().getOrganizationId(),
+                        a.device().getName(),
+                        a.telemetry().getTemperature(),
+                        a.telemetry().getHumidity(),
+                        a.telemetry().getSmokePpm(),
+                        a.telemetry().getMotion(),
+                        a.telemetry().getReadings());
+            }
 
             wsBroadcastPublisher.publish(a.device().getOrganizationId(), a.rawPayload());
         }

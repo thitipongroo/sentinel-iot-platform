@@ -124,6 +124,28 @@ class KafkaTelemetryConsumerTest {
 
             verify(redisService).setLatestTelemetry(eq(orgId), eq(deviceId.toString()), anyDouble(), anyDouble(), any(), any());
         }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("triggers streaming ML anomaly inference when anomalyInferenceService is configured")
+        void consumeBatch_invokesStreamingAnomalyInference() {
+            var mlService = mock(com.sentinel.iot.anomaly.service.StreamingAnomalyInferenceService.class);
+            var mlConsumer = new KafkaTelemetryConsumer(
+                    telemetryRepository, deviceRepository, alertService,
+                    wsBroadcastPublisher, redisService,
+                    new ObjectMapper(), new io.micrometer.core.instrument.simple.SimpleMeterRegistry(),
+                    mlService);
+
+            Device device = activeDevice();
+            when(deviceRepository.findAllByNameIn(anySet())).thenReturn(List.of(device));
+            when(deviceRepository.saveAll(any())).thenReturn(List.of(device));
+
+            mlConsumer.consumeBatch(List.of(V1_PAYLOAD));
+
+            verify(mlService).processTelemetry(
+                    eq(deviceId), eq(orgId), eq(SENSOR_NAME),
+                    eq(45.0), eq(60.0), eq(10.0), isNull(), any());
+        }
     }
 
     // ── Drop conditions ───────────────────────────────────────────────────────
