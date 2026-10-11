@@ -544,10 +544,10 @@ Key decisions: Redis over Memcached (hash structures + Pub/Sub + List for replay
 
 ## Known Limitations
 
-1. **Partition range is finite** — monthly child tables pre-created through 2026-12; add new year migrations before range exhausts.
-2. **Rate limiting is in-process** — each replica has its own Bucket4j bucket; fix with `bucket4j-redis` for shared state.
-3. **Replay queue overflow is silent** — entries dropped at `TELEMETRY_REPLAY_MAX_QUEUE` (default 10,000); set a Prometheus alert on `sentinel_telemetry_dropped_total` for extended outages.
-4. **Alert deduplication uses Redis DB 0** — `AlertDeduplicator` uses `SET NX PX` so all replicas share the same cooldown state. If Redis is unavailable, dedup is skipped (fail-open) so notifications still reach operators — the Kafka consumer treats Redis as best-effort and has no error handling around `alertService.evaluate()`.
+1. **Partition range is finite** — ตารางพาร์ติชันรายเดือนสร้างล่วงหน้าถึง 2028-12 (ผ่าน V14 migration) ต้องขยาย migration เพิ่มก่อนช่วงเวลาสิ้นสุด
+2. **Rate limiting ใช้ Redis แบบ Distributed พร้อม Fallback** — `bucket4j-redis` (`LettuceBasedProxyManager`) บังคับใช้ข้ามทุก replica พร้อมมี in-memory bucket สำรองเมื่อ Redis ขัดข้อง
+3. **Replay queue overflow is guarded by alert** — ข้อมูลที่ล้นเกิน `TELEMETRY_REPLAY_MAX_QUEUE` (10,000) จะนับเข้า `sentinel.replay.queue.overflow` metric พร้อมแจ้งเตือนผ่าน `SentinelReplayQueueTelemetryDropped` critical alert ทันที
+4. **Alert deduplication รองรับ Multi-tier Caching** — `AlertDeduplicator` ใช้ Redis `SET NX PX` ร่วมกันข้าม replicas และมี in-memory cache สำรองในเครื่องเมื่อ Redis ล่ม เพื่อป้องกัน alert storm และข้อความล้นโควตา LINE Messaging API
 
 See [`docs/system-design/tradeoffs.md`](docs/system-design/tradeoffs.md) for the full list.
 

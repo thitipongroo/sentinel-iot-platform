@@ -117,14 +117,31 @@ class AlertDeduplicatorTest {
 
         @SuppressWarnings("null")
         @Test
-        @DisplayName("fails open (returns true) when Redis is unavailable")
+        @DisplayName("fails open (returns true) on first alert when Redis is unavailable")
         void shouldSend_failOpenWhenRedisThrows() {
             when(valueOps.setIfAbsent(anyString(), eq("1"), any(Duration.class)))
                     .thenThrow(new RuntimeException("Redis connection refused"));
 
             assertThat(deduplicator.shouldSend(UUID.randomUUID(), "TEMPERATURE", "CRITICAL"))
-                    .as("must fail-open so alerts are not silently dropped")
+                    .as("must deliver first alert when Redis is down")
                     .isTrue();
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("suppresses duplicate alerts within cooldown via in-memory cache when Redis throws")
+        void shouldSend_suppressesDuplicatesViaInMemoryFallbackWhenRedisThrows() {
+            UUID deviceId = UUID.randomUUID();
+            when(valueOps.setIfAbsent(anyString(), eq("1"), any(Duration.class)))
+                    .thenThrow(new RuntimeException("Redis connection refused"));
+
+            assertThat(deduplicator.shouldSend(deviceId, "TEMPERATURE", "CRITICAL"))
+                    .as("first alert should send")
+                    .isTrue();
+
+            assertThat(deduplicator.shouldSend(deviceId, "TEMPERATURE", "CRITICAL"))
+                    .as("duplicate alert within cooldown should be suppressed by local fallback cache")
+                    .isFalse();
         }
     }
 }

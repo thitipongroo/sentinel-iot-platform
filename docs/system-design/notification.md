@@ -8,6 +8,9 @@ The platform supports multiple alert notification providers. Multiple providers 
 
 Repeated alerts for the same device + sensor + severity are suppressed within the cooldown window. Alerts are still persisted to the database — only the outbound notification is suppressed.
 
+- **Primary Tier (Distributed):** Redis atomic `SET NX PX` (`alert:dedup:{deviceId}:{sensorKey}:{severity}`) shared across all backend replicas.
+- **Fallback Tier (In-Memory Resilience):** If Redis is unavailable or restarts, an internal concurrent fallback cache suppresses duplicate notifications locally, preventing alert storms and third-party quota exhaustion (e.g. LINE Messaging API limits) while guaranteeing initial alert delivery.
+
 ```bash
 NOTIFY_DEDUP_ENABLED=true
 NOTIFY_DEDUP_COOLDOWN_MINUTES=5

@@ -23,6 +23,7 @@ The dashboard's historical analytics mode uses the hourly aggregates for 24h and
 
 ---
 
-## Known Limitation
+## Partition Coverage & Automated Lifespan
 
-Monthly partition child tables are pre-created through `telemetry_2026_12`. Telemetry outside this range lands in `telemetry_default`. New year migrations must be added before the range is exhausted. See [tradeoffs.md](tradeoffs.md) for context.
+Monthly partition child tables are pre-created through `telemetry_2028_12` (via migrations V3 and V14).
+Additionally, `TelemetryRetentionService.ensureUpcomingPartitions()` proactively creates partition tables 6 months in advance on a monthly schedule, protected by a Redis distributed lock (`lock:telemetry:partition-provision`), ensuring continuous zero-maintenance lifespan. Telemetry outside known ranges lands safely in `telemetry_default`. See [tradeoffs.md](tradeoffs.md) for context.

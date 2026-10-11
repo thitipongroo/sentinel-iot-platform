@@ -101,13 +101,19 @@ public class RedisService {
         return redis.opsForHash().entries(telemetryKey(deviceId));
     }
 
+    public int getMaxQueueSize() {
+        return maxQueueSize;
+    }
+
     // ── Replay queue (offline buffering) ─────────────────────────────────────
 
-    public void pushToReplayQueue(String serializedMessage) {
+    public boolean pushToReplayQueue(String serializedMessage) {
         Long size = redis.opsForList().size(REPLAY_QUEUE_KEY);
         if (size == null || size < maxQueueSize) {
             redis.opsForList().rightPush(REPLAY_QUEUE_KEY, serializedMessage);
+            return true;
         }
+        return false;
     }
 
     public List<String> drainReplayQueue(int batchSize) {

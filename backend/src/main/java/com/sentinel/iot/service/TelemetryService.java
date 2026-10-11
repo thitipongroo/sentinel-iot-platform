@@ -29,6 +29,7 @@ public class TelemetryService {
     private final ObjectMapper objectMapper;
     private final Counter telemetryCounter;
     private final Counter telemetryDroppedCounter;
+    private final Counter replayOverflowCounter;
 
     public TelemetryService(TelemetryRepository telemetryRepository,
                             RedisService redisService,
@@ -42,6 +43,9 @@ public class TelemetryService {
                 .register(meterRegistry);
         this.telemetryDroppedCounter = Counter.builder("sentinel.telemetry.dropped")
                 .description("Telemetry messages buffered to replay queue due to DB unavailability")
+                .register(meterRegistry);
+        this.replayOverflowCounter  = Counter.builder("sentinel.replay.queue.overflow")
+                .description("Telemetry messages permanently dropped because replay queue reached maximum capacity")
                 .register(meterRegistry);
         Gauge.builder("sentinel.replay.queue.size", redisService, RedisService::replayQueueSize)
                 .description("Number of buffered telemetry messages waiting for DB recovery")
@@ -70,15 +74,22 @@ public class TelemetryService {
 
         redisService.setLatestTelemetry(deviceId.toString(), temperature, humidity, motion, smokePpm);
 
+        boolean queued = false;
         try {
             ReplayQueueMessage msg = new ReplayQueueMessage(
                     deviceId, temperature, humidity, motion, smokePpm, Instant.now());
-            redisService.pushToReplayQueue(objectMapper.writeValueAsString(msg));
+            queued = redisService.pushToReplayQueue(objectMapper.writeValueAsString(msg));
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize replay message for device={}: {}", deviceId, e.getMessage());
         }
 
-        telemetryDroppedCounter.increment();
+        if (queued) {
+            telemetryDroppedCounter.increment();
+        } else {
+            replayOverflowCounter.increment();
+            log.error("REPLAY_QUEUE_OVERFLOW: Replay queue is full (cap={}), permanently dropped telemetry for device={}",
+                    redisService.getMaxQueueSize(), deviceId);
+        }
         return null;
     }
 

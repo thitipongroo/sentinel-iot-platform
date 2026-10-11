@@ -98,6 +98,7 @@ class TelemetryServiceTest {
         @DisplayName("updates Redis cache and pushes a serialised replay-queue message, returns null")
         void saveFallback_updatesRedisAndPushesToReplayQueue() {
             UUID deviceId = UUID.randomUUID();
+            when(redisService.pushToReplayQueue(anyString())).thenReturn(true);
 
             Telemetry result = service.saveFallback(
                     deviceId, 72.0, 55.0, false, 10.0, new RuntimeException("DB down"));
@@ -105,6 +106,21 @@ class TelemetryServiceTest {
             verify(redisService).setLatestTelemetry(deviceId.toString(), 72.0, 55.0, false, 10.0);
             verify(redisService).pushToReplayQueue(anyString());
             assertThat(result).as("fallback must return null so callers treat it as a no-op").isNull();
+        }
+
+        @Test
+        @DisplayName("when replay queue overflows, logs error and increments overflow counter")
+        void saveFallback_replayQueueOverflow_incrementsOverflowCounter() {
+            UUID deviceId = UUID.randomUUID();
+            when(redisService.pushToReplayQueue(anyString())).thenReturn(false);
+            when(redisService.getMaxQueueSize()).thenReturn(10000);
+
+            Telemetry result = service.saveFallback(
+                    deviceId, 72.0, 55.0, false, 10.0, new RuntimeException("DB down"));
+
+            verify(redisService).setLatestTelemetry(deviceId.toString(), 72.0, 55.0, false, 10.0);
+            verify(redisService).pushToReplayQueue(anyString());
+            assertThat(result).isNull();
         }
 
         @Test

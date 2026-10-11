@@ -7,6 +7,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -26,11 +28,17 @@ public class TelemetryRetentionService {
     private final TelemetryRepository telemetryRepository;
     private final TelemetryHourlyAggregateRepository hourlyAggregateRepository;
 
+    @Autowired(required = false)
+    private StringRedisTemplate redisTemplate;
+
     @PersistenceContext
     private EntityManager entityManager;
 
     @Value("${telemetry.retention-days:30}")
     private int retentionDays;
+
+    @Value("${telemetry.partition.months-ahead:6}")
+    private int proactiveMonths;
 
     /**
      * Look-back window for late-arrival aggregation recomputation.
@@ -56,10 +64,26 @@ public class TelemetryRetentionService {
      * Phase 1 — aggregate yesterday + late-arrival look-back window (idempotent upsert).
      * Phase 2 — purge raw rows older than retention-days.
      * Phase 3 — DETACH and DROP empty monthly partition tables whose data has been fully pruned.
+     *
+     * When running across multiple horizontal replicas on EKS, acquires a Redis distributed lock
+     * so that only one replica executes the daily maintenance job.
      */
     @Scheduled(cron = "${telemetry.retention.cron:0 30 2 * * *}")
     @Transactional
     public void runRetention() {
+        if (redisTemplate != null) {
+            try {
+                Boolean acquired = redisTemplate.opsForValue()
+                        .setIfAbsent("lock:telemetry:retention", "locked", Duration.ofHours(2));
+                if (Boolean.FALSE.equals(acquired)) {
+                    log.info("Retention: another replica is already executing the daily retention job. Skipping.");
+                    return;
+                }
+            } catch (Exception e) {
+                log.warn("Redis distributed lock check failed: {}. Continuing with retention execution.", e.getMessage());
+            }
+        }
+
         // Phase 1: aggregate yesterday + look-back window for late-arriving replay data
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
 
@@ -80,6 +104,59 @@ public class TelemetryRetentionService {
 
         // Phase 3: drop empty partition tables that are fully outside the retention window
         dropEmptyExpiredPartitions(cutoff);
+    }
+
+    /**
+     * Proactively provisions upcoming monthly partition tables N months into the future.
+     * Prevents inserts from falling into telemetry_default, maintaining O(1) partition
+     * pruning performance and eliminating manual database migration maintenance.
+     * Runs on the 1st of every month at 03:00 UTC (and can be invoked programmatically).
+     */
+    @Scheduled(cron = "${telemetry.partition.cron:0 0 3 1 * *}")
+    @Transactional
+    public void ensureUpcomingPartitions() {
+        if (redisTemplate != null) {
+            try {
+                Boolean acquired = redisTemplate.opsForValue()
+                        .setIfAbsent("lock:telemetry:partition-provision", "locked", Duration.ofHours(2));
+                if (Boolean.FALSE.equals(acquired)) {
+                    log.info("Auto-partition: another replica is already provisioning upcoming partitions. Skipping.");
+                    return;
+                }
+            } catch (Exception e) {
+                log.warn("Redis distributed lock check failed: {}. Continuing with partition provisioning.", e.getMessage());
+            }
+        }
+        createPartitionsAhead(proactiveMonths);
+    }
+
+    public void createPartitionsAhead(int months) {
+        YearMonth current = YearMonth.now(ZoneOffset.UTC);
+        for (int i = 0; i <= months; i++) {
+            YearMonth targetMonth = current.plusMonths(i);
+            String partitionName = "telemetry_" + targetMonth.format(PARTITION_FMT);
+            try {
+                @SuppressWarnings("unchecked")
+                List<?> exists = entityManager.createNativeQuery(
+                        "SELECT child.relname FROM pg_inherits " +
+                        "JOIN pg_class parent ON pg_inherits.inhparent = parent.oid " +
+                        "JOIN pg_class child ON pg_inherits.inhrelid = child.oid " +
+                        "WHERE parent.relname = 'telemetry' AND child.relname = :pname"
+                ).setParameter("pname", partitionName).getResultList();
+
+                if (exists.isEmpty()) {
+                    LocalDate start = targetMonth.atDay(1);
+                    LocalDate end = targetMonth.plusMonths(1).atDay(1);
+                    entityManager.createNativeQuery(
+                            "CREATE TABLE IF NOT EXISTS " + partitionName +
+                            " PARTITION OF telemetry FOR VALUES FROM ('" + start + "') TO ('" + end + "')"
+                    ).executeUpdate();
+                    log.info("Auto-partition: created upcoming partition {} for range [{}, {})", partitionName, start, end);
+                }
+            } catch (Exception e) {
+                log.warn("Auto-partition: failed to create partition {}: {}", partitionName, e.getMessage());
+            }
+        }
     }
 
     /**

@@ -12,7 +12,7 @@ backend:
     repository: sentinel-backend
     tag: latest
     pullPolicy: IfNotPresent
-  replicaCount: 2
+  replicaCount: 3
   resources:
     requests:
       cpu: 500m
@@ -22,7 +22,7 @@ backend:
       memory: 1Gi
   autoscaling:
     enabled: true
-    minReplicas: 2
+    minReplicas: 3
     maxReplicas: 10
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80

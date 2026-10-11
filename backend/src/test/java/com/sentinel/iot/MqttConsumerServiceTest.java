@@ -54,6 +54,21 @@ class MqttConsumerServiceTest {
             verify(kafkaProducer).publish(eq("sensor-1"), eq(VALID_PAYLOAD));
             verify(mqttDlqChannel, never()).send(any(), anyLong());
         }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("extracts orgId correctly from shared subscription topic")
+        void handleMessage_withSharedSubscriptionTopic_extractsOrgId() {
+            String orgId = "00000000-0000-0000-0000-000000000001";
+            Message<String> msg = MessageBuilder.withPayload(VALID_PAYLOAD)
+                    .setHeader(org.springframework.integration.mqtt.support.MqttHeaders.RECEIVED_TOPIC,
+                            "$share/sentinel-backend/tenants/" + orgId + "/telemetry")
+                    .build();
+
+            service.handleMessage(msg);
+
+            verify(kafkaProducer).publish(eq(orgId + ":sensor-1"), contains(orgId));
+        }
     }
 
     // ── DLQ routing for malformed payloads ────────────────────────────────────

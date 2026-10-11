@@ -191,6 +191,45 @@ class TelemetryRetentionServiceTest {
         }
     }
 
+    // ── Phase 4: multi-replica distributed lock & auto-partitioning ────────────
+
+    @Nested
+    @DisplayName("Phase 4 — multi-replica distributed lock & auto-partitioning")
+    class MultiReplicaAndAutoPartition {
+
+        @SuppressWarnings({"null", "unchecked"})
+        @Test
+        @DisplayName("runRetention skips execution when another replica holds the distributed lock")
+        void runRetention_whenLockHeldByAnotherReplica_skipsExecution() {
+            org.springframework.data.redis.core.StringRedisTemplate redisTemplate = mock(org.springframework.data.redis.core.StringRedisTemplate.class);
+            org.springframework.data.redis.core.ValueOperations<String, String> ops = mock(org.springframework.data.redis.core.ValueOperations.class);
+            when(redisTemplate.opsForValue()).thenReturn(ops);
+            when(ops.setIfAbsent(eq("lock:telemetry:retention"), eq("locked"), any())).thenReturn(Boolean.FALSE);
+            ReflectionTestUtils.setField(service, "redisTemplate", redisTemplate);
+
+            service.runRetention();
+
+            verify(hourlyAggregateRepository, never()).aggregateHourly(any(), any());
+            verify(telemetryRepository, never()).deleteByTimestampBefore(any());
+        }
+
+        @SuppressWarnings({"null", "unchecked"})
+        @Test
+        @DisplayName("createPartitionsAhead creates partition if not exists in catalog")
+        void createPartitionsAhead_createsUpcomingPartitionTables() {
+            Query checkQuery = mock(Query.class);
+            Query createQuery = mock(Query.class);
+            when(checkQuery.setParameter(eq("pname"), anyString())).thenReturn(checkQuery);
+            when(checkQuery.getResultList()).thenReturn(List.of());
+            when(entityManager.createNativeQuery(contains("SELECT child.relname"))).thenReturn(checkQuery);
+            when(entityManager.createNativeQuery(contains("CREATE TABLE IF NOT EXISTS"))).thenReturn(createQuery);
+
+            service.createPartitionsAhead(1);
+
+            verify(createQuery, atLeastOnce()).executeUpdate();
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     @SuppressWarnings("null")

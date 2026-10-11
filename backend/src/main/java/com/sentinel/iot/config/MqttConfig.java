@@ -20,20 +20,45 @@ public class MqttConfig {
     @Value("${mqtt.broker}")
     private String brokerUrl;
 
-    @Value("${mqtt.client-id}")
+    @Value("${mqtt.client-id:sentinel-backend}")
     private String clientId;
 
-    @Value("${mqtt.topic}")
+    @Value("${INSTANCE_ID:${HOSTNAME:}}")
+    private String instanceId;
+
+    @Value("${mqtt.share-group:}")
+    private String shareGroup;
+
+    @Value("${mqtt.topic:factory/telemetry}")
     private String topic;
 
-    @Value("${mqtt.dlq-topic}")
+    @Value("${mqtt.dlq-topic:factory/telemetry/dlq}")
     private String dlqTopic;
 
-    @Value("${mqtt.username}")
+    @Value("${mqtt.username:}")
     private String username;
 
-    @Value("${mqtt.password}")
+    @Value("${mqtt.password:}")
     private String password;
+
+    private String resolveInstanceSuffix() {
+        if (instanceId != null && !instanceId.isBlank()) {
+            return "-" + instanceId.replaceAll("[^a-zA-Z0-9_-]", "-");
+        }
+        return "-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private String[] resolveInboundTopics() {
+        String[] baseTopics = new String[]{topic, "tenants/+/telemetry", "tenants/+/devices/+/telemetry"};
+        if (shareGroup != null && !shareGroup.isBlank()) {
+            String[] sharedTopics = new String[baseTopics.length];
+            for (int i = 0; i < baseTopics.length; i++) {
+                sharedTopics[i] = "$share/" + shareGroup + "/" + baseTopics[i];
+            }
+            return sharedTopics;
+        }
+        return baseTopics;
+    }
 
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
@@ -57,9 +82,10 @@ public class MqttConfig {
 
     @Bean
     public MqttPahoMessageDrivenChannelAdapter mqttInbound() {
+        String inboundClientId = clientId + resolveInstanceSuffix() + "-inbound";
         MqttPahoMessageDrivenChannelAdapter adapter =
-                new MqttPahoMessageDrivenChannelAdapter(clientId + "-inbound", mqttClientFactory(),
-                        topic, "tenants/+/telemetry", "tenants/+/devices/+/telemetry");
+                new MqttPahoMessageDrivenChannelAdapter(inboundClientId, mqttClientFactory(),
+                        resolveInboundTopics());
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);
@@ -77,8 +103,9 @@ public class MqttConfig {
     @Bean
     @ServiceActivator(inputChannel = "mqttDlqChannel")
     public MessageHandler mqttDlqOutbound() {
+        String dlqClientId = clientId + resolveInstanceSuffix() + "-dlq-pub";
         MqttPahoMessageHandler handler =
-                new MqttPahoMessageHandler(clientId + "-dlq-pub", mqttClientFactory());
+                new MqttPahoMessageHandler(dlqClientId, mqttClientFactory());
         handler.setAsync(true);
         handler.setDefaultTopic(dlqTopic);
         handler.setDefaultQos(0);

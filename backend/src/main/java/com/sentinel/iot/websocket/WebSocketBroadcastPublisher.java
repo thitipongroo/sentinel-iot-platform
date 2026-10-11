@@ -1,7 +1,7 @@
 package com.sentinel.iot.websocket;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -15,28 +15,48 @@ import java.util.UUID;
  * Each subscriber fans the message out to its own local WebSocket sessions for the
  * matching tenant — preventing cross-tenant data leakage via the live dashboard.
  *
+ * If Redis pub/sub is unavailable, falls back to broadcasting directly to this local
+ * instance's WebSocket sessions so the dashboard stays live.
+ *
  * Message format: {@code <orgId>|<rawPayload>}
  * The handler strips the prefix before forwarding to the client.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class WebSocketBroadcastPublisher {
 
     private final StringRedisTemplate redisTemplate;
+    private final TelemetryWebSocketHandler webSocketHandler;
 
     @Value("${ws.broadcast.channel:ws:telemetry}")
     private String channel;
 
+    public WebSocketBroadcastPublisher(StringRedisTemplate redisTemplate) {
+        this(redisTemplate, null);
+    }
+
+    @Autowired
+    public WebSocketBroadcastPublisher(StringRedisTemplate redisTemplate,
+                                       @Autowired(required = false) TelemetryWebSocketHandler webSocketHandler) {
+        this.redisTemplate = redisTemplate;
+        this.webSocketHandler = webSocketHandler;
+    }
+
     @SuppressWarnings("null")
     public void publish(UUID organizationId, String rawPayload) {
+        String envelope = organizationId + "|" + rawPayload;
         try {
-            String envelope = organizationId + "|" + rawPayload;
             redisTemplate.convertAndSend(channel, envelope);
         } catch (Exception e) {
-            // Non-fatal: Redis pub/sub failure means live dashboard misses this event,
-            // but telemetry is already persisted to PostgreSQL via Kafka consumer.
-            log.warn("Redis WebSocket broadcast failed — dashboard may miss event: {}", e.getMessage());
+            log.warn("Redis WebSocket broadcast failed — falling back to local instance broadcast: {}", e.getMessage());
+            if (webSocketHandler != null) {
+                try {
+                    webSocketHandler.broadcastLocal(envelope);
+                } catch (Exception ex) {
+                    log.error("Local WebSocket broadcast fallback failed: {}", ex.getMessage());
+                }
+            }
         }
     }
 }
+

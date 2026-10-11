@@ -95,6 +95,10 @@ spec:
             - configMapRef:
                 name: {{ $fullname }}-config
           env:
+            - name: INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:

@@ -9,6 +9,8 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
 /**
  * Wires Redis pub/sub for cluster-wide WebSocket broadcast.
  *
@@ -37,6 +39,7 @@ public class RedisWebSocketConfig {
             RedisConnectionFactory connectionFactory,
             WebSocketBroadcastSubscriber subscriber) {
         MessageListenerAdapter adapter = new MessageListenerAdapter(subscriber, "onMessage");
+        adapter.setSerializer(new StringRedisSerializer());
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);

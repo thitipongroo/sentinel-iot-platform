@@ -132,6 +132,13 @@ public class MqttConsumerService {
 
     private UUID extractOrgIdFromTopic(String topic) {
         if (topic == null) return null;
+        if (topic.startsWith("$share/")) {
+            // Strip $share/<group>/ prefix if broker delivered it in received topic
+            int secondSlash = topic.indexOf('/', "$share/".length());
+            if (secondSlash != -1 && secondSlash + 1 < topic.length()) {
+                topic = topic.substring(secondSlash + 1);
+            }
+        }
         // e.g. tenants/00000000-0000-0000-0000-000000000001/telemetry
         // or tenants/00000000-0000-0000-0000-000000000001/devices/sensor-1/telemetry
         String[] parts = topic.split("/");

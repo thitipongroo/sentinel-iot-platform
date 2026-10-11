@@ -8,6 +8,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
  * Falls back to in-memory ConcurrentHashMap if Redis is not configured or in unit tests.
  */
 @Component
+@Slf4j
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final int  GENERAL_CAPACITY   = 100;
@@ -86,9 +88,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         boolean allowed;
         if (proxyManager != null) {
-            BucketConfiguration config = isAuthPath ? AUTH_CONFIG : GENERAL_CONFIG;
-            Bucket bucket = proxyManager.builder().build(bucketKey, () -> config);
-            allowed = bucket.tryConsume(1);
+            try {
+                BucketConfiguration config = isAuthPath ? AUTH_CONFIG : GENERAL_CONFIG;
+                Bucket bucket = proxyManager.builder().build(bucketKey, () -> config);
+                allowed = bucket.tryConsume(1);
+            } catch (Exception e) {
+                log.warn("Redis rate limiter failed for key {}: {}. Falling back to in-memory bucket.", bucketKey, e.getMessage());
+                Bucket bucket = fallbackBuckets.computeIfAbsent(bucketKey, k -> newBucket(capacity));
+                allowed = bucket.tryConsume(1);
+            }
         } else {
             Bucket bucket = fallbackBuckets.computeIfAbsent(bucketKey, k -> newBucket(capacity));
             allowed = bucket.tryConsume(1);

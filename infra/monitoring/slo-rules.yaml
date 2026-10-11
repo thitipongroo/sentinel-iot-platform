@@ -273,8 +273,20 @@ groups:
           summary: "Redis replay queue approaching overflow limit (>5000/10000)"
           description: >
             Replay queue depth {{ $value }} is above 50% of the 10,000 cap. If the DB
-            outage continues, telemetry will start being dropped silently. Extend
+            outage continues, telemetry will start being dropped. Extend
             TELEMETRY_REPLAY_MAX_QUEUE or restore DB connectivity immediately.
+
+      - alert: SentinelReplayQueueTelemetryDropped
+        expr: rate(sentinel_replay_queue_overflow_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Telemetry messages permanently dropped due to replay queue overflow"
+          description: >
+            Replay queue has reached maximum capacity and incoming telemetry messages are being
+            dropped permanently. Restore PostgreSQL connectivity immediately or scale TELEMETRY_REPLAY_MAX_QUEUE.
 
       # ── MQTT load shed (backpressure signal) ──────────────────────────────────
       - alert: SentinelMQTTLoadShed

@@ -25,12 +25,13 @@ import static org.mockito.Mockito.*;
 class WebSocketBroadcastPublisherTest {
 
     @Mock StringRedisTemplate redisTemplate;
+    @Mock com.sentinel.iot.websocket.TelemetryWebSocketHandler webSocketHandler;
 
     WebSocketBroadcastPublisher publisher;
 
     @BeforeEach
     void setUp() {
-        publisher = new WebSocketBroadcastPublisher(redisTemplate);
+        publisher = new WebSocketBroadcastPublisher(redisTemplate, webSocketHandler);
         ReflectionTestUtils.setField(publisher, "channel", "ws:telemetry");
     }
 
@@ -75,15 +76,18 @@ class WebSocketBroadcastPublisherTest {
 
         @SuppressWarnings("null")
         @Test
-        @DisplayName("Redis exception does not propagate — publish is fail-open")
+        @DisplayName("Redis exception does not propagate — publish is fail-open and falls back to local broadcast")
         void publish_handlesRedisExceptionGracefully() {
             UUID orgId = UUID.randomUUID();
+            String payload = "test-payload";
             doThrow(new RuntimeException("Redis connection refused"))
                     .when(redisTemplate).convertAndSend(anyString(), anyString());
 
             assertThatNoException()
                     .as("Redis failure must not propagate from publish()")
-                    .isThrownBy(() -> publisher.publish(orgId, "payload"));
+                    .isThrownBy(() -> publisher.publish(orgId, payload));
+
+            verify(webSocketHandler).broadcastLocal(eq(orgId + "|" + payload));
         }
     }
 }
