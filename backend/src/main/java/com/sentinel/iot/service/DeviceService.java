@@ -25,6 +25,7 @@ public class DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final RedisService redisService;
+    private final MqttProvisioningService mqttProvisioningService;
 
     public Device create(DeviceRequest req) {
         UUID orgId = TenantContext.get();
@@ -95,10 +96,13 @@ public class DeviceService {
         }
         device.setLifecycleStatus(next);
 
-        // Decommissioned devices are forced offline so the dashboard reflects reality
+        // Decommissioned or inactive devices are forced offline and their MQTT credentials immediately revoked
         if (next == DeviceLifecycleStatus.DECOMMISSIONED || next == DeviceLifecycleStatus.INACTIVE) {
             device.setStatus("OFFLINE");
             redisService.setDeviceStatus(id.toString(), "OFFLINE");
+            if (mqttProvisioningService != null) {
+                mqttProvisioningService.revokeCredentials(device);
+            }
         }
         return deviceRepository.save(device);
     }

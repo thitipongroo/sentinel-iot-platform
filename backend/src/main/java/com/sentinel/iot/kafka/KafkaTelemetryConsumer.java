@@ -13,9 +13,11 @@ import com.sentinel.iot.websocket.WebSocketBroadcastPublisher;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
@@ -29,9 +31,10 @@ import java.util.stream.Collectors;
  * The {@link Telemetry#from} factory handles the schema branching; this class is
  * schema-version agnostic.</p>
  *
- * <p>Capability-aware alert evaluation: if the device has declared sensor capabilities,
- * per-device thresholds are used.  Falls back to global application.yml thresholds
- * for devices without a capability config.</p>
+ * <p>Multi-tenant Collision Protection: extracts tenant context from message payload,
+ * Kafka partition key (<orgId>:<deviceId>), or Kafka record headers (tenant-id).
+ * Resolves devices within their tenant boundary to prevent data collision between
+ * organizations that use identical sensor names.</p>
  */
 @Service
 @Slf4j
@@ -73,14 +76,45 @@ public class KafkaTelemetryConsumer {
             containerFactory  = "batchKafkaListenerContainerFactory",
             groupId           = "sentinel-telemetry-ingest"
     )
-    public void consumeBatch(List<String> rawPayloads) {
+    public void consumeBatch(List<?> batch) {
+        if (batch == null || batch.isEmpty()) return;
 
+        List<ConsumerRecord<String, String>> records = new ArrayList<>(batch.size());
+        for (Object item : batch) {
+            if (item instanceof ConsumerRecord<?, ?> cr) {
+                String key = cr.key() != null ? cr.key().toString() : null;
+                String value = cr.value() != null ? cr.value().toString() : null;
+                ConsumerRecord<String, String> typed = new ConsumerRecord<>(
+                        cr.topic(), cr.partition(), cr.offset(), key, value);
+                if (cr.headers() != null) {
+                    cr.headers().forEach(h -> typed.headers().add(h.key(), h.value()));
+                }
+                records.add(typed);
+            } else if (item instanceof String raw) {
+                records.add(new ConsumerRecord<>("telemetry.raw", 0, 0L, null, raw));
+            } else {
+                log.warn("Unexpected item type in Kafka batch: {}", item.getClass());
+            }
+        }
+        processBatch(records);
+    }
+
+    private void processBatch(List<ConsumerRecord<String, String>> records) {
         // ── 1. Parse all records (both v1 and v2) ─────────────────────────────
-        record Parsed(TelemetryMessage msg, String rawPayload) {}
-        List<Parsed> parsed = new ArrayList<>(rawPayloads.size());
-        for (String raw : rawPayloads) {
+        record Parsed(TelemetryMessage msg, String rawPayload, String recordKey, Map<String, String> headers) {}
+        List<Parsed> parsed = new ArrayList<>(records.size());
+        for (ConsumerRecord<String, String> rec : records) {
+            String raw = rec.value();
+            if (raw == null) continue;
             try {
-                parsed.add(new Parsed(objectMapper.readValue(raw, TelemetryMessage.class), raw));
+                TelemetryMessage msg = objectMapper.readValue(raw, TelemetryMessage.class);
+                Map<String, String> headers = new HashMap<>();
+                if (rec.headers() != null) {
+                    for (var h : rec.headers()) {
+                        headers.put(h.key(), new String(h.value(), StandardCharsets.UTF_8));
+                    }
+                }
+                parsed.add(new Parsed(msg, raw, rec.key(), headers));
             } catch (Exception e) {
                 log.warn("Dropping unparseable Kafka record: {}", e.getMessage());
                 droppedCounter.increment();
@@ -88,7 +122,29 @@ public class KafkaTelemetryConsumer {
         }
         if (parsed.isEmpty()) return;
 
-        // ── 2. Bulk device resolution — tenant-aware bulk query ─────────────────
+        // ── 2. Multi-tenant key extraction & fallback ─────────────────────────
+        for (Parsed p : parsed) {
+            TelemetryMessage msg = p.msg();
+            if (msg.getOrganizationId() == null) {
+                // Check Kafka headers
+                String headerOrg = p.headers().get("tenant-id");
+                if (headerOrg == null) headerOrg = p.headers().get("X-Organization-Id");
+                if (headerOrg == null) headerOrg = p.headers().get("orgId");
+                UUID orgFromHeader = tryParseUuid(headerOrg);
+                if (orgFromHeader != null) {
+                    msg.setOrganizationId(orgFromHeader);
+                } else if (p.recordKey() != null && p.recordKey().contains(":")) {
+                    // Check Kafka key: <orgId>:<deviceId>
+                    String prefix = p.recordKey().substring(0, p.recordKey().indexOf(':'));
+                    UUID orgFromKey = tryParseUuid(prefix);
+                    if (orgFromKey != null) {
+                        msg.setOrganizationId(orgFromKey);
+                    }
+                }
+            }
+        }
+
+        // ── 3. Bulk device resolution — tenant-aware bulk query ─────────────────
         Set<String> names = new HashSet<>();
         Set<UUID> ids = new HashSet<>();
         for (Parsed p : parsed) {
@@ -109,8 +165,15 @@ public class KafkaTelemetryConsumer {
                 .collect(Collectors.toMap(Device::getId, Function.identity(), (d1, d2) -> d1));
         Map<String, List<Device>> devicesByName = resolvedDevices.stream()
                 .collect(Collectors.groupingBy(Device::getName));
+        // Composite tenant-isolated map: orgId:name -> Device
+        Map<String, Device> devicesByTenantAndName = new HashMap<>();
+        for (Device d : resolvedDevices) {
+            if (d.getOrganizationId() != null && d.getName() != null) {
+                devicesByTenantAndName.put(d.getOrganizationId() + ":" + d.getName(), d);
+            }
+        }
 
-        // ── 3. Build insert list ───────────────────────────────────────────────
+        // ── 4. Build insert list with strict multi-tenant validation ───────────
         List<Telemetry> toInsert          = new ArrayList<>(parsed.size());
         Map<UUID, Device> devicesToUpdate = new LinkedHashMap<>();
         // Keep accepted pairs so we can do side-effects AFTER the DB commit
@@ -120,45 +183,58 @@ public class KafkaTelemetryConsumer {
         for (Parsed p : parsed) {
             TelemetryMessage msg    = p.msg();
             Device           device = null;
+            UUID             orgId  = msg.getOrganizationId();
+            String           devId  = msg.getDeviceId();
 
-            UUID parsedUuid = tryParseUuid(msg.getDeviceId());
+            UUID parsedUuid = tryParseUuid(devId);
             if (parsedUuid != null && devicesById.containsKey(parsedUuid)) {
                 Device candidate = devicesById.get(parsedUuid);
-                if (msg.getOrganizationId() == null || candidate.getOrganizationId().equals(msg.getOrganizationId())) {
+                // Strict multi-tenant verification:
+                if (orgId != null) {
+                    if (candidate.getOrganizationId().equals(orgId)) {
+                        device = candidate;
+                    } else {
+                        log.warn("Dropping cross-tenant collision: deviceId={} belongs to org {} but message claimed org {}",
+                                parsedUuid, candidate.getOrganizationId(), orgId);
+                        droppedCounter.increment();
+                        continue;
+                    }
+                } else {
+                    // UUID uniquely identifies device primary key
                     device = candidate;
                 }
             }
 
             if (device == null) {
-                List<Device> candidates = devicesByName.get(msg.getDeviceId());
-                if (candidates != null && !candidates.isEmpty()) {
-                    if (msg.getOrganizationId() != null) {
-                        // Exact tenant match
-                        device = candidates.stream()
-                                .filter(d -> d.getOrganizationId().equals(msg.getOrganizationId()))
-                                .findFirst()
-                                .orElse(null);
-                    } else if (candidates.size() == 1) {
-                        // Single device matches globally
-                        device = candidates.get(0);
-                    } else {
-                        // Ambiguous: multiple tenants have a device with this name, but payload has no orgId
-                        log.warn("Dropping ambiguous telemetry — device name '{}' exists in multiple organizations ({}), payload missing organizationId",
-                                msg.getDeviceId(), candidates.stream().map(Device::getOrganizationId).toList());
-                        droppedCounter.increment();
-                        continue;
+                if (orgId != null) {
+                    // Exact match within tenant boundary
+                    device = devicesByTenantAndName.get(orgId + ":" + devId);
+                } else {
+                    // Un-namespaced payload: search by device name
+                    List<Device> candidates = devicesByName.get(devId);
+                    if (candidates != null && !candidates.isEmpty()) {
+                        if (candidates.size() == 1) {
+                            // Single device matches globally
+                            device = candidates.get(0);
+                        } else {
+                            // Ambiguous: multiple tenants have a device with this name, but payload has no orgId
+                            log.warn("Dropping ambiguous telemetry — device name '{}' exists in multiple organizations ({}), payload missing organizationId",
+                                    devId, candidates.stream().map(Device::getOrganizationId).toList());
+                            droppedCounter.increment();
+                            continue;
+                        }
                     }
                 }
             }
 
             if (device == null) {
-                log.debug("Dropping telemetry — unregistered device={}", msg.getDeviceId());
+                log.debug("Dropping telemetry — unregistered device={}", devId);
                 droppedCounter.increment();
                 continue;
             }
             if (device.getLifecycleStatus() == DeviceLifecycleStatus.INACTIVE
                     || device.getLifecycleStatus() == DeviceLifecycleStatus.DECOMMISSIONED) {
-                log.debug("Dropping telemetry — device={} is {}", msg.getDeviceId(), device.getLifecycleStatus());
+                log.debug("Dropping telemetry — device={} is {}", devId, device.getLifecycleStatus());
                 droppedCounter.increment();
                 continue;
             }
@@ -173,7 +249,7 @@ public class KafkaTelemetryConsumer {
             devicesToUpdate.put(device.getId(), device);
         }
 
-        // ── 4. Batch DB writes — persist first, side-effects after ─────────────
+        // ── 5. Batch DB writes — persist first, side-effects after ─────────────
         if (!toInsert.isEmpty()) {
             telemetryRepository.saveAll(toInsert);
             processedCounter.increment(toInsert.size());
@@ -182,7 +258,7 @@ public class KafkaTelemetryConsumer {
             deviceRepository.saveAll(devicesToUpdate.values());
         }
 
-        // ── 5. Post-commit side-effects: Redis cache, alerts, WebSocket ────────
+        // ── 6. Post-commit side-effects: Redis cache, alerts, WebSocket ────────
         // Running these AFTER saveAll ensures we never broadcast or fire an alert
         // for a record that failed to persist. Kafka retries are idempotent because
         // alerts are evaluated per-batch and Redis is best-effort.
@@ -201,7 +277,7 @@ public class KafkaTelemetryConsumer {
         }
 
         log.debug("Kafka batch: received={} inserted={} dropped={}",
-                rawPayloads.size(), toInsert.size(), rawPayloads.size() - toInsert.size());
+                records.size(), toInsert.size(), records.size() - toInsert.size());
     }
 
     private UUID tryParseUuid(String val) {

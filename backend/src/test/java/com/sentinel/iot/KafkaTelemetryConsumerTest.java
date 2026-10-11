@@ -295,6 +295,94 @@ class KafkaTelemetryConsumerTest {
 
             verify(telemetryRepository, never()).saveAll(any());
         }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("extracts organizationId from Kafka record key when payload lacks organizationId")
+        void consumeBatch_withKafkaRecordKey_extractsOrgIdAndResolvesDevice() {
+            UUID org1 = UUID.randomUUID();
+            UUID org2 = UUID.randomUUID();
+            UUID dev1 = UUID.randomUUID();
+            UUID dev2 = UUID.randomUUID();
+
+            Device d1 = new Device();
+            d1.setId(dev1);
+            d1.setName("sensor-shared");
+            d1.setOrganizationId(org1);
+            d1.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);
+
+            Device d2 = new Device();
+            d2.setId(dev2);
+            d2.setName("sensor-shared");
+            d2.setOrganizationId(org2);
+            d2.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);
+
+            when(deviceRepository.findAllByNameIn(anySet())).thenReturn(List.of(d1, d2));
+            when(deviceRepository.saveAll(any())).thenReturn(List.of(d1));
+
+            // Payload has NO organizationId, but Kafka record key contains org1 + ":sensor-shared"
+            String payloadWithoutOrg = "{\"deviceId\":\"sensor-shared\",\"temperature\":22.0,\"humidity\":50.0}";
+            org.apache.kafka.clients.consumer.ConsumerRecord<String, String> record =
+                    new org.apache.kafka.clients.consumer.ConsumerRecord<>("telemetry.raw", 0, 100L,
+                            org1 + ":sensor-shared", payloadWithoutOrg);
+
+            consumer.consumeBatch(List.of(record));
+
+            verify(telemetryRepository).saveAll(argThat(list -> ((List<?>) list).size() == 1));
+            verify(wsBroadcastPublisher).publish(eq(org1), eq(payloadWithoutOrg));
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("extracts organizationId from Kafka header when payload lacks organizationId")
+        void consumeBatch_withKafkaHeader_extractsOrgIdAndResolvesDevice() {
+            UUID org1 = UUID.randomUUID();
+            UUID dev1 = UUID.randomUUID();
+
+            Device d1 = new Device();
+            d1.setId(dev1);
+            d1.setName("sensor-head");
+            d1.setOrganizationId(org1);
+            d1.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);
+
+            when(deviceRepository.findAllByNameIn(anySet())).thenReturn(List.of(d1));
+            when(deviceRepository.saveAll(any())).thenReturn(List.of(d1));
+
+            String payloadWithoutOrg = "{\"deviceId\":\"sensor-head\",\"temperature\":22.0,\"humidity\":50.0}";
+            org.apache.kafka.clients.consumer.ConsumerRecord<String, String> record =
+                    new org.apache.kafka.clients.consumer.ConsumerRecord<>("telemetry.raw", 0, 101L,
+                            "sensor-head", payloadWithoutOrg);
+            record.headers().add("tenant-id", org1.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            consumer.consumeBatch(List.of(record));
+
+            verify(telemetryRepository).saveAll(argThat(list -> ((List<?>) list).size() == 1));
+            verify(wsBroadcastPublisher).publish(eq(org1), eq(payloadWithoutOrg));
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("drops cross-tenant collision when device UUID belongs to another organization")
+        void consumeBatch_crossTenantDeviceUuidCollision_isSafelyDropped() {
+            UUID org1 = UUID.randomUUID();
+            UUID org2 = UUID.randomUUID();
+            UUID dev1 = UUID.randomUUID();
+
+            Device d1 = new Device();
+            d1.setId(dev1);
+            d1.setName("sensor-secure");
+            d1.setOrganizationId(org1); // belongs to org1
+            d1.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);
+
+            when(deviceRepository.findAllById(anySet())).thenReturn(List.of(d1));
+
+            // Message claims to be from org2, but submits dev1's UUID!
+            String spoofedPayload = "{\"deviceId\":\"" + dev1 + "\",\"organizationId\":\"" + org2 + "\",\"temperature\":22.0,\"humidity\":50.0}";
+
+            consumer.consumeBatch(List.of(spoofedPayload));
+
+            verify(telemetryRepository, never()).saveAll(any());
+        }
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

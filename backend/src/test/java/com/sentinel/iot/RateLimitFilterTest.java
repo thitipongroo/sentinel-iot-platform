@@ -50,6 +50,16 @@ class RateLimitFilterTest {
                         .isNotEqualTo(429);
             }
         }
+
+        @Test
+        @DisplayName("MQTT broker auth endpoints bypass IP rate limiter")
+        void mqttBrokerAuthEndpoints_bypassRateLimiter() throws Exception {
+            for (int i = 0; i < 200; i++) {
+                assertThat(invoke("/api/v1/auth/mqtt/authenticate", "10.5.5.5").getStatus())
+                        .as("mqtt auth request %d should pass without 429", i + 1)
+                        .isNotEqualTo(429);
+            }
+        }
     }
 
     // ── Rate-limited responses ────────────────────────────────────────────────
@@ -109,6 +119,53 @@ class RateLimitFilterTest {
             assertThat(invokeForwarded("/api/devices", "203.0.113.6").getStatus())
                     .as("different forwarded IP must not be affected")
                     .isNotEqualTo(429);
+        }
+    }
+
+    // ── Headers and Distributed ProxyManager ──────────────────────────────────
+
+    @Nested
+    @DisplayName("Response headers and Distributed ProxyManager")
+    class DistributedAndHeaders {
+
+        @Test
+        @DisplayName("successful request includes X-RateLimit-Limit and X-RateLimit-Remaining headers")
+        void successfulRequest_includesRateLimitHeaders() throws Exception {
+            MockHttpServletResponse response = invoke("/api/devices", "192.168.1.55");
+            assertThat(response.getStatus()).isEqualTo(200);
+            assertThat(response.getHeader("X-RateLimit-Limit")).isEqualTo("100");
+            assertThat(response.getHeader("X-RateLimit-Remaining")).isNotNull();
+        }
+
+        @Test
+        @DisplayName("rate-limited 429 response includes Retry-After header")
+        void rateLimitedResponse_includesRetryAfterHeader() throws Exception {
+            for (int i = 0; i < 100; i++) {
+                invoke("/api/devices", "192.168.1.99");
+            }
+            MockHttpServletResponse response = invoke("/api/devices", "192.168.1.99");
+            assertThat(response.getStatus()).isEqualTo(429);
+            assertThat(response.getHeader("Retry-After")).isEqualTo("60");
+            assertThat(response.getHeader("X-RateLimit-Remaining")).isEqualTo("0");
+        }
+
+        @Test
+        @DisplayName("falls back gracefully to in-memory bucket when ProxyManager throws exception")
+        void proxyManagerFailure_fallsBackToInMemory() throws Exception {
+            @SuppressWarnings("unchecked")
+            io.github.bucket4j.distributed.proxy.ProxyManager<String> mockProxyManager =
+                    org.mockito.Mockito.mock(io.github.bucket4j.distributed.proxy.ProxyManager.class);
+            org.mockito.Mockito.when(mockProxyManager.builder())
+                    .thenThrow(new RuntimeException("Redis connection pool exhausted"));
+
+            RateLimitFilter filterWithRedis = new RateLimitFilter(mockProxyManager);
+            org.springframework.mock.web.MockHttpServletRequest req = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/devices");
+            req.setRemoteAddr("172.16.0.5");
+            MockHttpServletResponse res = new MockHttpServletResponse();
+
+            filterWithRedis.doFilter(req, res, new org.springframework.mock.web.MockFilterChain());
+            assertThat(res.getStatus()).isEqualTo(200);
+            assertThat(res.getHeader("X-RateLimit-Limit")).isEqualTo("100");
         }
     }
 

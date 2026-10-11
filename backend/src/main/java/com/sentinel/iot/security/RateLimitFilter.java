@@ -3,6 +3,7 @@ package com.sentinel.iot.security;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.BucketConfiguration;
+import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -76,7 +77,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain chain) throws ServletException, IOException {
         String path = request.getRequestURI();
-        if (!path.startsWith("/api/")) {
+        if (!path.startsWith("/api/") || path.startsWith("/api/v1/auth/mqtt") || path.startsWith("/api/v1/mqtt")) {
             chain.doFilter(request, response);
             return;
         }
@@ -87,19 +88,31 @@ public class RateLimitFilter extends OncePerRequestFilter {
         int     capacity     = isAuthPath ? AUTH_CAPACITY : GENERAL_CAPACITY;
 
         boolean allowed;
+        long    remainingTokens = -1;
         if (proxyManager != null) {
             try {
                 BucketConfiguration config = isAuthPath ? AUTH_CONFIG : GENERAL_CONFIG;
                 Bucket bucket = proxyManager.builder().build(bucketKey, () -> config);
-                allowed = bucket.tryConsume(1);
+                ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+                allowed = probe.isConsumed();
+                remainingTokens = probe.getRemainingTokens();
             } catch (Exception e) {
                 log.warn("Redis rate limiter failed for key {}: {}. Falling back to in-memory bucket.", bucketKey, e.getMessage());
                 Bucket bucket = fallbackBuckets.computeIfAbsent(bucketKey, k -> newBucket(capacity));
-                allowed = bucket.tryConsume(1);
+                ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+                allowed = probe.isConsumed();
+                remainingTokens = probe.getRemainingTokens();
             }
         } else {
             Bucket bucket = fallbackBuckets.computeIfAbsent(bucketKey, k -> newBucket(capacity));
-            allowed = bucket.tryConsume(1);
+            ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+            allowed = probe.isConsumed();
+            remainingTokens = probe.getRemainingTokens();
+        }
+
+        response.setHeader("X-RateLimit-Limit", String.valueOf(capacity));
+        if (remainingTokens >= 0) {
+            response.setHeader("X-RateLimit-Remaining", String.valueOf(remainingTokens));
         }
 
         if (allowed) {
@@ -108,6 +121,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             String limit = isAuthPath ? "10" : "100";
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType("application/json");
+            response.setHeader("Retry-After", "60");
             response.getWriter().write(
                     "{\"error\":\"Rate limit exceeded. Max " + limit + " requests/minute.\"}");
         }

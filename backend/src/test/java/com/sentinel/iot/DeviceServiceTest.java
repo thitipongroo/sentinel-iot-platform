@@ -10,6 +10,7 @@ import com.sentinel.iot.model.SensorCapability;
 import com.sentinel.iot.repository.DeviceRepository;
 import com.sentinel.iot.security.TenantContext;
 import com.sentinel.iot.service.DeviceService;
+import com.sentinel.iot.service.MqttProvisioningService;
 import com.sentinel.iot.service.RedisService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,7 @@ class DeviceServiceTest {
 
     @Mock DeviceRepository deviceRepository;
     @Mock RedisService redisService;
+    @Mock MqttProvisioningService mqttProvisioningService;
     @InjectMocks DeviceService deviceService;
 
     private final UUID orgId    = UUID.fromString("aaaaaaaa-0000-0000-0000-000000000001");
@@ -271,6 +273,7 @@ class DeviceServiceTest {
 
             assertThat(result.getStatus()).isEqualTo("OFFLINE");
             verify(redisService).setDeviceStatus(deviceId.toString(), "OFFLINE");
+            verify(mqttProvisioningService).revokeCredentials(d);
         }
 
         @SuppressWarnings("null")
@@ -285,6 +288,7 @@ class DeviceServiceTest {
 
             assertThat(result.getStatus()).isEqualTo("OFFLINE");
             verify(redisService).setDeviceStatus(deviceId.toString(), "OFFLINE");
+            verify(mqttProvisioningService).revokeCredentials(d);
         }
 
         @SuppressWarnings("null")
