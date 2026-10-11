@@ -8,6 +8,8 @@
 
 ```text
 docs/
+├── adr/             # Architecture Decision Records (ADRs)
+├── rfc/             # Request for Comments (RFCs) & Engineering Roadmap
 ├── demo/            # Node.js Simulator & Demo Data (dev/demo only)
 ├── system-design/   # System design & architecture documents
 ├── test-reports/    # Test execution reports
@@ -16,6 +18,30 @@ docs/
 ├── test-plans/      # Test plans (unit, integration, e2e, security, performance)
 └── marketing/       # Product overview, pricing strategy, competitive analysis
 ```
+
+---
+
+## adr/
+
+บันทึกการตัดสินใจเชิงสถาปัตยกรรม (Architecture Decision Records) ตามมาตรฐานสากล
+
+| ไฟล์ | คำอธิบาย |
+|------|----------|
+| [README.md](adr/README.md) | **ADR Index** — สารบัญบันทึกการตัดสินใจเชิงสถาปัตยกรรมทั้งหมด |
+| [0001-database-lifespan-native-partitioning-vs-timescaledb.md](adr/0001-database-lifespan-native-partitioning-vs-timescaledb.md) | ADR-0001: Telemetry Database Lifespan: PostgreSQL Native Range Partitioning vs. TimescaleDB |
+| [0002-stateless-backend-redis-pubsub-and-mqtt-shared-subscriptions.md](adr/0002-stateless-backend-redis-pubsub-and-mqtt-shared-subscriptions.md) | ADR-0002: Stateless Multi-Replica Scaling on EKS via Redis Pub/Sub, Distributed Rate Limiting & MQTT Shared Subscriptions |
+| [0003-distributed-resilience-replay-queue-and-alert-deduplication.md](adr/0003-distributed-resilience-replay-queue-and-alert-deduplication.md) | ADR-0003: Distributed Resilience: Replay Queue Drop Observability and Cache-Fallbacked Alert Deduplication |
+
+---
+
+## rfc/
+
+เอกสารข้อเสนอการพัฒนา (Request for Comments) และแผนงานสถาปัตยกรรม (Engineering Roadmap)
+
+| ไฟล์ | คำอธิบาย |
+|------|----------|
+| [README.md](rfc/README.md) | **RFC Index & Roadmap Summary** — สารบัญ RFC และสรุปแผนพัฒนา 4 เฟส |
+| [RFC-001-production-readiness-and-scaling-roadmap.md](rfc/RFC-001-production-readiness-and-scaling-roadmap.md) | **RFC-001:** Production Readiness, Database Lifespan Extension & Scaling Roadmap (2026 - 2027) |
 
 ---
 
