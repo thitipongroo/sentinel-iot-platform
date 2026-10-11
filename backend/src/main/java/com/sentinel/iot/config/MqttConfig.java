@@ -49,7 +49,13 @@ public class MqttConfig {
     }
 
     private String[] resolveInboundTopics() {
-        String[] baseTopics = new String[]{topic, "tenants/+/telemetry", "tenants/+/devices/+/telemetry"};
+        String[] baseTopics = new String[]{
+                topic,
+                "tenants/+/telemetry",
+                "tenants/+/devices/+/telemetry",
+                "tenants/+/devices/+/shadow/update",
+                "tenants/+/devices/+/shadow/get"
+        };
         if (shareGroup != null && !shareGroup.isBlank()) {
             String[] sharedTopics = new String[baseTopics.length];
             for (int i = 0; i < baseTopics.length; i++) {
@@ -91,6 +97,24 @@ public class MqttConfig {
         adapter.setQos(1);
         adapter.setOutputChannel(mqttInputChannel());
         return adapter;
+    }
+
+    // ── Outbound MQTT publisher channel ─────────────────────────────────────
+
+    @Bean
+    public MessageChannel mqttOutboundChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttOutboundChannel")
+    public MessageHandler mqttOutbound() {
+        String pubClientId = clientId + resolveInstanceSuffix() + "-pub";
+        MqttPahoMessageHandler handler =
+                new MqttPahoMessageHandler(pubClientId, mqttClientFactory());
+        handler.setAsync(true);
+        handler.setDefaultQos(1);
+        return handler;
     }
 
     // ── Dead Letter Queue outbound ──────────────────────────────────────────

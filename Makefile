@@ -53,3 +53,10 @@ verify-rollout:
 drill-cnpg:
 	bash infra/scripts/cnpg-failover-drill.sh --dry-run
 
+# ── Phase 2: Edge & Store-and-Forward Ingestion ──────────────────────────────
+up-edge:
+	docker compose -f infra/edge/docker-compose.edge.yml up -d
+
+down-edge:
+	docker compose -f infra/edge/docker-compose.edge.yml down
+

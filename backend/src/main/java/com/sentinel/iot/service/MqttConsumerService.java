@@ -42,6 +42,7 @@ public class MqttConsumerService {
 
     private final KafkaTelemetryProducer kafkaProducer;
     private final MessageChannel mqttDlqChannel;
+    private final DeviceShadowService deviceShadowService;
     private final ObjectMapper objectMapper;
     private final Counter mqttCounter;
     private final Counter dlqCounter;
@@ -53,8 +54,18 @@ public class MqttConsumerService {
                                @Qualifier("mqttDlqChannel") MessageChannel mqttDlqChannel,
                                MeterRegistry meterRegistry,
                                @Value("${ingestion.max-concurrent-messages:200}") int maxConcurrent) {
+        this(kafkaProducer, mqttDlqChannel, null, meterRegistry, maxConcurrent);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MqttConsumerService(KafkaTelemetryProducer kafkaProducer,
+                               @Qualifier("mqttDlqChannel") MessageChannel mqttDlqChannel,
+                               @org.springframework.beans.factory.annotation.Autowired(required = false) DeviceShadowService deviceShadowService,
+                               MeterRegistry meterRegistry,
+                               @Value("${ingestion.max-concurrent-messages:200}") int maxConcurrent) {
         this.kafkaProducer        = kafkaProducer;
         this.mqttDlqChannel       = mqttDlqChannel;
+        this.deviceShadowService  = deviceShadowService;
         this.objectMapper         = new ObjectMapper();
         this.concurrencyLimiter   = new Semaphore(maxConcurrent);
         this.mqttCounter          = Counter.builder("sentinel.mqtt.messages")
@@ -86,6 +97,16 @@ public class MqttConsumerService {
         String rawPayload = message.getPayload().toString();
         String receivedTopic = (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC);
         try {
+            // ── Shadow message routing ────────────────────────────────────────────
+            if (isShadowTopic(receivedTopic)) {
+                if (deviceShadowService != null) {
+                    deviceShadowService.handleMqttShadowMessage(receivedTopic, rawPayload);
+                } else {
+                    log.warn("DeviceShadowService not available, ignoring shadow message on topic {}", receivedTopic);
+                }
+                return;
+            }
+
             // ── 1. Parse ──────────────────────────────────────────────────────────
             TelemetryMessage msg;
             try {
@@ -128,6 +149,11 @@ public class MqttConsumerService {
             activePermits.decrementAndGet();
             concurrencyLimiter.release();
         }
+    }
+
+    private boolean isShadowTopic(String topic) {
+        if (topic == null) return false;
+        return topic.contains("/shadow/");
     }
 
     private UUID extractOrgIdFromTopic(String topic) {

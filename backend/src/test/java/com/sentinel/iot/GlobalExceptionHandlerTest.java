@@ -54,6 +54,18 @@ class GlobalExceptionHandlerTest {
         }
 
         @Test
+        @DisplayName("DeviceShadowConflictException → 409 with problem detail and currentVersion property")
+        void handleShadowConflict_returns409WithCurrentVersion() {
+            ProblemDetail pd = handler.handleShadowConflict(
+                    new com.sentinel.iot.exception.DeviceShadowConflictException("Version conflict. Expected 42, but current is 45", 45L));
+
+            assertThat(pd.getStatus()).as("HTTP status").isEqualTo(HttpStatus.CONFLICT.value());
+            assertThat(pd.getDetail()).as("detail message").contains("Expected 42, but current is 45");
+            assertThat(pd.getType().toString()).as("type URI").contains("conflict");
+            assertThat(pd.getProperties()).containsEntry("currentVersion", 45L);
+        }
+
+        @Test
         @DisplayName("BadCredentialsException → 401 with unauthorized type")
         void handleAuthentication_returns401() {
             ProblemDetail pd = handler.handleAuthentication(

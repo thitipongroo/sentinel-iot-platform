@@ -43,6 +43,15 @@ public class GlobalExceptionHandler {
     }
 
     @SuppressWarnings("null")
+    @ExceptionHandler(com.sentinel.iot.exception.DeviceShadowConflictException.class)
+    public ProblemDetail handleShadowConflict(com.sentinel.iot.exception.DeviceShadowConflictException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setType(URI.create("https://sentinel.io/errors/conflict"));
+        pd.setProperty("currentVersion", ex.getCurrentVersion());
+        return pd;
+    }
+
+    @SuppressWarnings("null")
     @ExceptionHandler(AuthenticationException.class)
     public ProblemDetail handleAuthentication(AuthenticationException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
