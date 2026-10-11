@@ -10,6 +10,22 @@ spec:
   # SASL/PLAINTEXT for MSK; empty for in-cluster Kafka (no auth)
   secretTargetRef: []
 ---
+{{- if and .Values.keda.enabled .Values.keda.redis (and .Values.keda.redis.enabled .Values.keda.redis.enableAuth) }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-keda-redis-auth
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: {{ .Values.backend.secretName }}
+      key: REDIS_PASSWORD
+{{- end }}
+---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -37,6 +53,7 @@ spec:
   cooldownPeriod: 300
 
   triggers:
+    # ── Trigger 1: Kafka Consumer Group Lag (sentinel-telemetry-ingest) ────────
     - type: kafka
       metadata:
         bootstrapServers: {{ include "sentinel-iot.kafkaBootstrap" . | quote }}
@@ -47,4 +64,18 @@ spec:
         # Don't scale to 0 unless lag drops below activationLagThreshold
         activationLagThreshold: {{ .Values.keda.activationLagThreshold | quote }}
         offsetResetPolicy: latest
+
+    # ── Trigger 2: Redis Replay Queue Depth (sentinel:replay:queue) ────────────
+    {{- if and .Values.keda.redis .Values.keda.redis.enabled }}
+    - type: redis
+      metadata:
+        address: {{ printf "%s:%s" (include "sentinel-iot.redisHost" .) (.Values.externalRedis.port | default "6379") | quote }}
+        listName: {{ .Values.keda.redis.listName | default "sentinel:replay:queue" | quote }}
+        listLength: {{ .Values.keda.redis.listLength | default "200" | quote }}
+        activationListLength: {{ .Values.keda.redis.activationListLength | default "10" | quote }}
+      {{- if .Values.keda.redis.enableAuth }}
+      authenticationRef:
+        name: {{ include "sentinel-iot.fullname" . }}-keda-redis-auth
+      {{- end }}
+    {{- end }}
 {{- end }}

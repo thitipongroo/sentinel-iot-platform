@@ -187,7 +187,14 @@ rollout:
           duration: 2m
       - setWeight: 100
 
-# ── KEDA — Kafka-lag-based autoscaling (replaces HPA when enabled) ────────────
+  # Pre-promotion / post-promotion Prometheus analysis settings
+  analysis:
+    prometheusAddress: http://prometheus-operated.monitoring.svc:9090
+    maxErrorRate: 0.001          # 0.1% HTTP 5xx error rate ceiling
+    maxP95LatencySeconds: 0.2     # 200ms P95 latency ceiling
+    maxJvmHeapPercent: 0.85       # 85% JVM heap ceiling
+
+# ── KEDA — Kafka-lag & Redis-queue autoscaling (replaces HPA when enabled) ────
 keda:
   enabled: false
   minReplicaCount: 2
@@ -197,6 +204,14 @@ keda:
   activationLagThreshold: "100"   # start scaling from 0 only after this lag
   kafkaTopic: telemetry.raw
   consumerGroup: sentinel-telemetry-ingest
+
+  # Redis replay queue trigger
+  redis:
+    enabled: true
+    enableAuth: false
+    listName: sentinel:replay:queue
+    listLength: "200"
+    activationListLength: "10"
 
 # ── Velero — cluster-state backup ─────────────────────────────────────────────
 velero:

@@ -1,0 +1,9 @@
+dependencies:
+- name: argo-rollouts
+  repository: https://argoproj.github.io/argo-helm
+  version: 2.37.3
+- name: keda
+  repository: https://kedacore.github.io/charts
+  version: 2.14.2
+digest: sha256:170ff0559b218d8aef93da544da7e3b443e0c5c16c19235580ac7460a76be79a
+generated: "2026-10-11T23:44:54.805824+07:00"

@@ -66,14 +66,25 @@ rollout:
     scaleDownDelaySeconds: 120
     prePromotionAnalysis:
       enabled: true
+  analysis:
+    prometheusAddress: http://prometheus-operated.monitoring.svc:9090
+    maxErrorRate: 0.001          # 0.1% HTTP 5xx error rate ceiling
+    maxP95LatencySeconds: 0.2     # 200ms P95 latency ceiling
+    maxJvmHeapPercent: 0.85       # 85% JVM heap ceiling
 
-# ── KEDA — Kafka-lag autoscaling in prod ─────────────────────────────────────
+# ── KEDA — Kafka-lag & Redis-queue autoscaling in prod ───────────────────────
 keda:
   enabled: true
   minReplicaCount: 3
   maxReplicaCount: 20
   lagThreshold: "500"             # more aggressive in prod (lower threshold → faster scale-up)
   activationLagThreshold: "50"
+  redis:
+    enabled: true
+    enableAuth: true              # authenticates via REDIS_PASSWORD from secret
+    listName: sentinel:replay:queue
+    listLength: "100"             # aggressive scale-up on replay queue backup in prod
+    activationListLength: "10"
 
 # ── Velero backup — enabled in prod ──────────────────────────────────────────
 velero:

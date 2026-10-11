@@ -1,4 +1,5 @@
 {{- if .Values.rollout.enabled }}
+{{- $promAddr := .Values.rollout.analysis.prometheusAddress | default "http://prometheus-operated.monitoring.svc:9090" }}
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -11,36 +12,36 @@ spec:
     - name: service-name
 
   metrics:
-    # ── HTTP 5xx error rate < 5% ───────────────────────────────────────────────
+    # ── HTTP 5xx error rate < 0.1% (RFC-001 SLO threshold) ─────────────────────
     - name: error-rate
       interval: 30s
       count: 5
-      successCondition: result[0] < 0.05
+      successCondition: result[0] <= {{ .Values.rollout.analysis.maxErrorRate | default 0.001 }}
       failureLimit: 2
       provider:
         prometheus:
-          address: http://prometheus-operated.monitoring.svc:9090
+          address: {{ $promAddr | quote }}
           query: |
-            sum(rate(http_server_requests_seconds_count{
+            (sum(rate(http_server_requests_seconds_count{
               service="{{ `{{args.service-name}}` }}",
               status=~"5.."
-            }[2m]))
+            }[2m])) or vector(0))
             /
-            sum(rate(http_server_requests_seconds_count{
+            (sum(rate(http_server_requests_seconds_count{
               service="{{ `{{args.service-name}}` }}"
-            }[2m]))
+            }[2m])) > 0 or vector(1))
 
-    # ── P99 request latency < 500ms ────────────────────────────────────────────
-    - name: p99-latency
+    # ── P95 request latency < 200ms (RFC-001 SLO threshold) ────────────────────
+    - name: p95-latency
       interval: 30s
       count: 5
-      successCondition: result[0] < 0.5
+      successCondition: result[0] <= {{ .Values.rollout.analysis.maxP95LatencySeconds | default 0.2 }}
       failureLimit: 2
       provider:
         prometheus:
-          address: http://prometheus-operated.monitoring.svc:9090
+          address: {{ $promAddr | quote }}
           query: |
-            histogram_quantile(0.99,
+            histogram_quantile(0.95,
               sum(rate(http_server_requests_seconds_bucket{
                 service="{{ `{{args.service-name}}` }}"
               }[2m])) by (le)
@@ -50,11 +51,11 @@ spec:
     - name: jvm-heap-usage
       interval: 60s
       count: 3
-      successCondition: result[0] < 0.85
+      successCondition: result[0] < {{ .Values.rollout.analysis.maxJvmHeapPercent | default 0.85 }}
       failureLimit: 1
       provider:
         prometheus:
-          address: http://prometheus-operated.monitoring.svc:9090
+          address: {{ $promAddr | quote }}
           query: |
             sum(jvm_memory_used_bytes{
               service="{{ `{{args.service-name}}` }}",
@@ -66,11 +67,11 @@ spec:
               area="heap"
             })
 
-    # ── Readiness probe: service must respond 200 ──────────────────────────────
+    # ── Readiness probe: Spring Boot Actuator must respond with status UP ──────
     - name: readiness-check
       interval: 15s
       count: 4
-      successCondition: result == "Healthy"
+      successCondition: result == "UP"
       failureLimit: 2
       provider:
         web:

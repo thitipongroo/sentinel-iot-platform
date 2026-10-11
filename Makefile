@@ -45,3 +45,11 @@ logs:
 # ── Show container status ─────────────────────────────────────────────────────
 ps:
 	docker compose ps
+
+# ── Infra & Scaling Verification (Phase 1) ──────────────────────────────────
+verify-rollout:
+	bash infra/scripts/verify-rollout.sh
+
+drill-cnpg:
+	bash infra/scripts/cnpg-failover-drill.sh --dry-run
+
