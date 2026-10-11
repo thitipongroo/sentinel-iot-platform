@@ -116,12 +116,13 @@ Partition count cannot be decreased — plan ahead.
 ---
 
 ## Cost Estimates (AWS, us-east-1, on-demand)
+*(อ้างอิงอัตราแลกเปลี่ยน 1 USD = 35 บาท)*
 
 | Scale tier | PostgreSQL | Redis | EKS nodes | Kafka (MSK) | Monthly est. |
 |------------|-----------|-------|-----------|------------|-------------|
-| Small (200 devices) | `db.t3.medium` ($0.068/h) | `cache.t3.micro` ($0.017/h) | 2× `t3.medium` | Not needed | ~$120 |
-| Medium (2k devices) | `db.t3.large` ($0.136/h) | `cache.t3.small` ($0.034/h) | 3× `t3.large` | `kafka.t3.small` ($0.093/h) | ~$350 |
-| Large (10k devices) | `db.r6g.large` ($0.260/h) + replica | `cache.r7g.large` ($0.157/h) | 6× `m5.large` | `kafka.m5.large` ×2 ($0.317/h) | ~$1,200 |
+| Small (200 devices) | `db.t3.medium` (~2.38 บาท/ชม.) | `cache.t3.micro` (~0.60 บาท/ชม.) | 2× `t3.medium` | Not needed | ~4,200 บาท/เดือน |
+| Medium (2k devices) | `db.t3.large` (~4.76 บาท/ชม.) | `cache.t3.small` (~1.19 บาท/ชม.) | 3× `t3.large` | `kafka.t3.small` (~3.26 บาท/ชม.) | ~12,250 บาท/เดือน |
+| Large (10k devices) | `db.r6g.large` (~9.10 บาท/ชม.) + replica | `cache.r7g.large` (~5.50 บาท/ชม.) | 6× `m5.large` | `kafka.m5.large` ×2 (~11.10 บาท/ชม.) | ~42,000 บาท/เดือน |
 
 All estimates exclude data transfer, storage, and support.
 
@@ -150,5 +151,5 @@ Configure these alert thresholds in Grafana to act before hitting hard limits:
 | Device count crosses 150 | Review PostgreSQL WAL headroom; plan read replica |
 | Device count crosses 500 | Evaluate Kafka partition increase (3 → 9) |
 | Device count crosses 2,000 | Evaluate Redis Cluster and EMQX migration |
-| Monthly billing > $500 | Review Reserved Instance pricing for all services |
+| Monthly billing > 17,500 บาท | Review Reserved Instance pricing for all services |
 | Any component consistently > 70% utilisation for 1 week | Initiate upgrade sprint |

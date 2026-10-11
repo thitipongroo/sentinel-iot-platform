@@ -8,14 +8,14 @@
 
 อุตสาหกรรมอาหาร, เภสัชกรรม, อาคาร, และโรงงานที่มีปัญหาร่วมกัน :
 
-> "โรงพยาบาลในสิงคโปร์เสียวัคซีน COVID-19 มูลค่า $2.3 ล้าน ในปี 2021 เพราะตู้เย็นเสียตอนตี 3 ไม่มีระบบ alert อัตโนมัติ — จนถึงตอนเช้าก็สายเกินแก้ไข"
+> "โรงพยาบาลในสิงคโปร์เสียวัคซีน COVID-19 มูลค่า 80.5 ล้านบาท ในปี 2021 เพราะตู้เย็นเสียตอนตี 3 ไม่มีระบบ alert อัตโนมัติ — จนถึงตอนเช้าก็สายเกินแก้ไข"
 
 **ปัญหาหลัก :**
 
 - **ไม่มี real-time visibility** — อุณหภูมิเกิน threshold รู้ทีหลังเสมอ
 - **Manual monitoring** — คนเดินตรวจสอบ ไม่มีระบบ alert อัตโนมัติ
 - **ไม่มี audit trail** — FDA FSMA, EU Food Safety Law บังคับเก็บ log แต่ไม่มีระบบ
-- **ค่าเสียหาย:** สินค้า cold chain เสียหาย 1 ครั้ง = $100,000 – $1,000,000+
+- **ค่าเสียหาย:** สินค้า cold chain เสียหาย 1 ครั้ง = 3.5 ล้าน – 35 ล้านบาท+
 - **ทางเลือกที่มี (AWS IoT Core, Azure IoT Hub)** ต้องมีทีม engineer สร้าง dashboard เอง ไม่มี ready-to-use solution
 
 ---
@@ -67,19 +67,19 @@ Sentinel IoT Platform คือ **production-grade industrial IoT monitoring sys
 
 | Level | ขนาด | นิยาม | Source |
 | --- | --- | --- | --- |
-| **TAM** | **$53.8B** (2026) | Global IoT Monitoring & Management Market | MarketsandMarkets 2026 |
-| **SAM** | **$8.2B** | Industrial IoT Monitoring: Food, Pharma, Building, Manufacturing ใน Asia-Pacific + SEA | IDC IoT Spending Guide 2026 |
-| **SOM** | **$41M** | Thailand + SEA : ลูกค้า Food/Pharma/Building ที่พร้อม adopt SaaS IoT (1,000+ potential accounts) | Bottom-up estimate |
+| **TAM** | **1.88 ล้านล้านบาท** (2026) | Global IoT Monitoring & Management Market | MarketsandMarkets 2026 |
+| **SAM** | **2.87 แสนล้านบาท** | Industrial IoT Monitoring: Food, Pharma, Building, Manufacturing ใน Asia-Pacific + SEA | IDC IoT Spending Guide 2026 |
+| **SOM** | **1,435 ล้านบาท** | Thailand + SEA : ลูกค้า Food/Pharma/Building ที่พร้อม adopt SaaS IoT (1,000+ potential accounts) | Bottom-up estimate |
 
-**SOM คำนวณจาก :** 500 SME accounts × $522/month × 12 = ~$3.1M Year 3 target (6% of SOM)
+**SOM คำนวณจาก :** 500 SME accounts × 18,270 บาท/เดือน × 12 = ~109.6 ล้านบาท Year 3 target (6% of SOM)
 
 ### ICP (Ideal Customer Profile)
 
 | ลำดับ | กลุ่มลูกค้า | Sensor หลัก | เหตุผลที่ยอมจ่ายแพง |
 | --- | --- | --- | --- |
-| **#1 Priority** | Food & Pharma Cold Chain | Temperature, Humidity | ของเสียหาย 1 ครั้ง = $100K – $1M+, FDA FSMA compliance |
+| **#1 Priority** | Food & Pharma Cold Chain | Temperature, Humidity | ของเสียหาย 1 ครั้ง = 3.5 ล้าน – 35 ล้านบาท+, FDA FSMA compliance |
 | #2 | Food Manufacturing | Temperature, Humidity, Smoke | กฎหมายบังคับเก็บ log |
-| #3 | Building Management | CO2, Smoke, Temperature | ประหยัดพลังงาน $10K – $50K/ปี/อาคาร |
+| #3 | Building Management | CO2, Smoke, Temperature | ประหยัดพลังงาน 350,000 – 1,750,000 บาท/ปี/อาคาร |
 | #4 | Industrial Manufacturing | Temperature, Motion, Smoke | Predictive maintenance |
 
 ### ✅ Traction & Proof of Demand
@@ -104,7 +104,7 @@ Sentinel IoT Platform คือ **production-grade industrial IoT monitoring sys
 **เหตุผลที่เลือก Direct Sales ก่อน :**
 
 - Cold chain / food safety เป็น relationship-driven industry — ต้องการ trust ก่อนซื้อ
-- Deal size $522 – $5,217/month คุ้มค่ากับ founder ลงทุนเวลาเอง
+- Deal size 18,270 – 182,595 บาท/เดือน คุ้มค่ากับ founder ลงทุนเวลาเอง
 - Feedback loop เร็วที่สุด: founder คุยกับลูกค้าโดยตรง → iterate product ทันที
 
 ### Funnel (18 เดือนแรก)
@@ -114,16 +114,16 @@ Phase 1 (เดือน 1–6) : DESIGN PARTNERS
 ├── เป้าหมาย : 3 unpaid pilots ใน Food Cold Chain
 ├── Channel : Personal network + LinkedIn outreach
 ├── Output : 3 case studies + product feedback
-└── Budget : $0 (founder time only)
+└── Budget : 0 บาท (founder time only)
 
 Phase 2 (เดือน 7–12) : FIRST REVENUE
-├── เป้าหมาย : Convert 2/3 pilots → paid ($522/month each)
+├── เป้าหมาย : Convert 2/3 pilots → paid (18,270 บาท/เดือน แต่ละราย)
 ├── + 5 new customers จาก referral + case study
-├── MRR target : ~$3,600/month
-└── CAC target : < $500 (2x payback in 6 months)
+├── MRR target : ~126,000 บาท/เดือน
+└── CAC target : < 17,500 บาท (2x payback in 6 months)
 
 Phase 3 (เดือน 13–18) : REPEATABLE SALES
-├── เป้าหมาย : 20 customers, $12,000 MRR
+├── เป้าหมาย : 20 customers, 420,000 บาท MRR
 ├── Channel : Referral + 1 System Integrator partnership
 ├── Hire : 1 Sales/BD person (funded by Series Seed)
 └── LTV : CAC target : > 5x
@@ -133,7 +133,7 @@ Phase 3 (เดือน 13–18) : REPEATABLE SALES
 
 - **Regulatory urgency** — FDA FSMA 2026 enforcement กดดัน Food Manufacturers ให้ต้องมีระบบ
 - **LINE Notify integration** — ตอบโจทย์ Southeast Asia market โดยเฉพาะ (Thai/Vietnamese users)
-- **ราคาต่ำกว่า manual alternative** — $522/month vs. เงินเดือนพนักงาน 1 คน ($800 – $1,500/month)
+- **ราคาต่ำกว่า manual alternative** — 18,270 บาท/เดือน vs. เงินเดือนพนักงาน 1 คน (28,000 – 52,500 บาท/เดือน)
 
 ---
 
@@ -145,21 +145,21 @@ Phase 3 (เดือน 13–18) : REPEATABLE SALES
 
 เป้าหมาย : หา 10 paying customers พิสูจน์ว่ามีคนยอมจ่าย
 
-| Tier | Devices | Price/month | COGS | Gross Margin |
+| Tier | Devices | Price/เดือน | COGS | Gross Margin |
 | --- | --- | --- | --- | --- |
-| Small | 200 | $522 | $120 | 77% |
-| Medium | 2,000 | $1,522 | $350 | 77% |
-| Large | 10,000 | $5,217 | $1,200 | 77% |
+| Small | 200 | 18,270 บาท | 4,200 บาท | 77% |
+| Medium | 2,000 | 53,270 บาท | 12,250 บาท | 77% |
+| Large | 10,000 | 182,595 บาท | 42,000 บาท | 77% |
 
 ### ปีที่ 2 — ROADMAP : Upsell ลูกค้าที่พิสูจน์แล้ว
 
 เปิดใช้งานได้หลังจากมี base customers แล้วเท่านั้น
 
-| Add-on | Price/month | Gross Margin | Trigger |
+| Add-on | Price/เดือน | Gross Margin | Trigger |
 | --- | --- | --- | --- |
-| Data Retention 90 วัน | $99–$599 | 99.8% | Compliance audit |
-| Alert Pro | $79–$199 | ~100% | Alert fatigue |
-| Pro API Access | $199–$599 | ~100% | SCADA / ERP integration |
+| Data Retention 90 วัน | 3,465–20,965 บาท | 99.8% | Compliance audit |
+| Alert Pro | 2,765–6,965 บาท | ~100% | Alert fatigue |
+| Pro API Access | 6,965–20,965 บาท | ~100% | SCADA / ERP integration |
 
 ### ปีที่ 3 — ROADMAP : Enterprise & OEM
 
@@ -167,18 +167,18 @@ Phase 3 (เดือน 13–18) : REPEATABLE SALES
 
 | สินค้า | ราคา | รูปแบบ | Gross Margin |
 | --- | --- | --- | --- |
-| Enterprise Pack | $499/month | Add-on รายเดือน | ~100% |
-| White-label License | $60K–$120K/year | สัญญารายปี | ~85% |
+| Enterprise Pack | 17,465 บาท/เดือน | Add-on รายเดือน | ~100% |
+| White-label License | 2.1 ล้าน – 4.2 ล้านบาท/ปี | สัญญารายปี | ~85% |
 
 **ตัวอย่าง Full Stack Revenue (Medium + ปีที่ 2 add-ons ครบ) :**
 
 ```text
-Base Plan Medium:   $1,522/month
-+ Data Retention:   +$299/month
-+ Alert Pro:        +$79/month
-+ Pro API Access:   +$199/month
+Base Plan Medium:   53,270 บาท/เดือน
++ Data Retention:   +10,465 บาท/เดือน
++ Alert Pro:        +2,765 บาท/เดือน
++ Pro API Access:   +6,965 บาท/เดือน
 ─────────────────────────────
-Total:              $2,099/month (~$25,188/year)
+Total:              73,465 บาท/เดือน (~881,580 บาท/ปี)
 ```
 
 ---
@@ -187,11 +187,11 @@ Total:              $2,099/month (~$25,188/year)
 
 | คู่แข่ง | ราคาจริง (2026) | จุดอ่อน | Sentinel เหนือกว่า |
 | --- | --- | --- | --- |
-| AWS IoT Core | $0.08/1M connection-min + $1/1M messages | ไม่มี dashboard ต้องสร้างเอง | Ready-to-use, no engineering |
-| Azure IoT Hub | $10–$2,500/unit/month | Infrastructure-only ไม่มี UI | Full-stack platform |
-| Losant | $250/month (100K payload) | Payload billing คาดเดายาก | Device-based billing ชัดเจน |
-| Particle | $2.99/device/month | ผูกกับ hardware ของ Particle | Hardware-agnostic |
-| Manual/SCADA | $0 แต่ต้องคนดูแล | ไม่มี cloud analytics, ไม่มี audit trail | Real-time + automated alerts + compliance |
+| AWS IoT Core | 2.80 บาท/1M connection-min + 35 บาท/1M messages | ไม่มี dashboard ต้องสร้างเอง | Ready-to-use, no engineering |
+| Azure IoT Hub | 350 – 87,500 บาท/unit/เดือน | Infrastructure-only ไม่มี UI | Full-stack platform |
+| Losant | 8,750 บาท/เดือน (100K payload) | Payload billing คาดเดายาก | Device-based billing ชัดเจน |
+| Particle | 105 บาท/device/เดือน | ผูกกับ hardware ของ Particle | Hardware-agnostic |
+| Manual/SCADA | 0 บาท แต่ต้องคนดูแล | ไม่มี cloud analytics, ไม่มี audit trail | Real-time + automated alerts + compliance |
 
 **Positioning :** Premium — multi-tenant + compliance-grade + ready-to-deploy + SEA-native (LINE Notify)
 
@@ -245,22 +245,22 @@ Total:              $2,099/month (~$25,188/year)
 | # | Year 1 | Year 2 | Year 3 |
 | --- | --- | --- | --- |
 | Customers | 7 | 25 | 60 |
-| Avg MRR/customer | $700 | $900 | $1,100 |
-| MRR (end of year) | $4,900 | $22,500 | $66,000 |
-| ARR | ~$37,000 | ~$189,000 | ~$594,000 |
+| Avg MRR/customer | 24,500 บาท | 31,500 บาท | 38,500 บาท |
+| MRR (end of year) | 171,500 บาท | 787,500 บาท | 2,310,000 บาท |
+| ARR | ~1.3 ล้านบาท | ~6.6 ล้านบาท | ~20.8 ล้านบาท |
 | Gross Margin | 77% | 77% | 77% |
 
 **Key Assumptions :**
 
-- Average plan = Small - Medium tier ($522 – $1,522)
+- Average plan = Small - Medium tier (18,270 – 53,270 บาท)
 - Churn < 5% annually (compliance-driven stickiness)
 - No paid marketing Year 1 — founder-led sales only
 
 **Scaling COGS (Infrastructure gets cheaper at scale) :**
 
-- 200 devices: $0.60/device/month
-- 2,000 devices: $0.175/device/month (↓71%)
-- 10,000 devices: $0.12/device/month (↓80%)
+- 200 devices: 21 บาท/device/เดือน
+- 2,000 devices: 6.13 บาท/device/เดือน (↓71%)
+- 10,000 devices: 4.20 บาท/device/เดือน (↓80%)
 
 ---
 
@@ -278,15 +278,15 @@ Total:              $2,099/month (~$25,188/year)
 
 ### ✅ THE ASK
 
-**Raising: $300,000 USD (Pre-Seed) :**
+**Raising: 10,500,000 บาท (Pre-Seed) :**
 
 | Use of Funds | % | Amount | เป้าหมาย |
 | --- | --- | --- | --- |
-| Product & Infrastructure | 35% | $105,000 | Cloud infra + security audit + v2 features |
-| Sales & Design Partners | 30% | $90,000 | Founder runway 18 เดือน + pilot program |
-| Legal & Compliance | 15% | $45,000 | Company setup, IP, PDPA compliance |
-| Marketing & Content | 10% | $30,000 | SEO + content targeting Food/Pharma ICP |
-| Buffer | 10% | $30,000 | Contingency |
+| Product & Infrastructure | 35% | 3,675,000 บาท | Cloud infra + security audit + v2 features |
+| Sales & Design Partners | 30% | 3,150,000 บาท | Founder runway 18 เดือน + pilot program |
+| Legal & Compliance | 15% | 1,575,000 บาท | Company setup, IP, PDPA compliance |
+| Marketing & Content | 10% | 1,050,000 บาท | SEO + content targeting Food/Pharma ICP |
+| Buffer | 10% | 1,050,000 บาท | Contingency |
 
 **Runway :**
 
@@ -295,9 +295,9 @@ Total:              $2,099/month (~$25,188/year)
 **Milestones ที่จะ unlock ณ สิ้น runway :**
 
 1. ✅ 3 Design Partners → paid customers (validation)
-2. ✅ $10,000 MRR (product-market fit signal)
+2. ✅ 350,000 บาท MRR (product-market fit signal)
 3. ✅ 1 System Integrator partnership signed
-4. ✅ Ready for Seed Round ($1–2M) with proven unit economics
+4. ✅ Ready for Seed Round (35 – 70 ล้านบาท) with proven unit economics
 
 **Why now? :**
 
@@ -375,10 +375,10 @@ Total:              $2,099/month (~$25,188/year)
 
 ## APPENDIX C : PLATFORM SCALABILITY TIERS
 
-| Tier | Devices | AWS COGS/month | COGS/device/month |
+| Tier | Devices | AWS COGS/เดือน | COGS/device/เดือน |
 | --- | --- | --- | --- |
-| Starter | 1–50 | ~$40 | $0.80 |
-| Small | 51–200 | $120 | $0.60 |
-| Medium | 201–2,000 | $350 | $0.175 |
-| Large | 2,001–10,000 | $1,200 | $0.12 |
-| XLarge | 10,001–100,000 | ~$8,000 | $0.08 |
+| Starter | 1–50 | ~1,400 บาท | 28 บาท |
+| Small | 51–200 | 4,200 บาท | 21 บาท |
+| Medium | 201–2,000 | 12,250 บาท | 6.13 บาท |
+| Large | 2,001–10,000 | 42,000 บาท | 4.20 บาท |
+| XLarge | 10,001–100,000 | ~280,000 บาท | 2.80 บาท |

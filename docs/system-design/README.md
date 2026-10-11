@@ -18,3 +18,6 @@
 | [scaling.md](scaling.md) | Scaling strategy — horizontal/vertical scaling approach สำหรับแต่ละ component |
 | [capacity-planning.md](capacity-planning.md) | Capacity planning — การประมาณ resource ที่ต้องการ, scaling thresholds, hardware sizing |
 | [device-catalog.md](device-catalog.md) | Industry device catalog — 8 industries, 47 devices พร้อม per-sensor capability thresholds |
+| [c2-rpc-protocol.md](c2-rpc-protocol.md) | Command & Control (C2 / RPC) Protocol — Bidirectional RPC, correlation IDs, status lifecycle, security |
+| [device-twin-shadow.md](device-twin-shadow.md) | Device Twin / Shadow Architecture — Desired vs Reported state sync, delta resolution, OCC versioning |
+| [emqx-migration-plan.md](emqx-migration-plan.md) | EMQX Migration Plan — Zero-downtime cutover จาก Mosquitto สู่ EMQX Cluster บน AWS EKS (100k+ devices) |

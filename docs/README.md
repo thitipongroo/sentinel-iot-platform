@@ -72,6 +72,9 @@ docs/
 | [scaling.md](system-design/scaling.md) | Scaling strategy — horizontal/vertical scaling approach สำหรับแต่ละ component |
 | [sequence-diagrams.md](system-design/sequence-diagrams.md) | Sequence diagrams — flows หลักของระบบ เช่น device enrollment, telemetry ingestion, alert flow |
 | [tradeoffs.md](system-design/tradeoffs.md) | Architecture trade-offs — เหตุผลเบื้องหลังการเลือก technology และ design decisions |
+| [c2-rpc-protocol.md](system-design/c2-rpc-protocol.md) | Command & Control (C2 / RPC) Protocol — Bidirectional RPC, correlation IDs, status lifecycle, security |
+| [device-twin-shadow.md](system-design/device-twin-shadow.md) | Device Twin / Shadow Architecture — Desired vs Reported state sync, delta resolution, OCC versioning |
+| [emqx-migration-plan.md](system-design/emqx-migration-plan.md) | EMQX Migration Plan — Zero-downtime cutover จาก Mosquitto สู่ EMQX Cluster บน AWS EKS (100k+ devices) |
 
 ---
 

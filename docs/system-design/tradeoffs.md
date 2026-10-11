@@ -329,6 +329,59 @@ The tradeoff vs TimescaleDB: monthly partitions traditionally must be pre-create
 
 ---
 
+## 19. Command & Control (C2 / RPC): Asynchronous MQTT RPC vs Direct HTTP / CoAP / gRPC
+
+**Chosen:** Asynchronous Request / Response over MQTT (`req/resp` topics with correlation IDs)
+
+| Aspect | MQTT Asynchronous RPC | Direct Device HTTP / REST | CoAP (UDP-based) | gRPC over HTTP/2 |
+| --- | --- | --- | --- | --- |
+| NAT / Firewall traversal | Reuses outbound persistent TLS | Fails behind cellular carrier NAT | Fails on strict UDP firewalls | Fails behind cellular carrier NAT |
+| Connection overhead | Multiplexed on existing session | High (New TCP+TLS handshake) | Low (UDP datagram) | High (HTTP/2 multiplexing state) |
+| Delivery guarantee | QoS 1 + Broker offline buffer | None (Instant timeout if link drops) | Confirmable (CON) retry | App-layer retry needed |
+| Microcontroller footprint | Minimal (Runs on ESP32/Cortex-M) | Medium (Embedded HTTP server) | Ultra-lightweight | Heavy (Requires HTTP/2 + Protobuf) |
+| Scalability model | Decoupled via shared subscriptions | Blocking server threads | Requires UDP ingress gateway | Point-to-point server streaming |
+
+**Reasoning:** Field IoT devices are deployed on cellular networks behind Carrier-Grade NAT (CGNAT) without static public IPs. Inbound HTTP or gRPC connections to edge devices are physically impossible without expensive, high-maintenance reverse VPN tunnels. MQTT Asynchronous RPC reuses the existing persistent outbound TLS connection already maintained for telemetry, guaranteeing delivery via QoS 1 even during brief wireless fade-outs.
+
+**Tradeoff accepted:** The cloud REST API cannot block synchronously on an HTTP socket. The client receives `202 Accepted` and observes completion asynchronously via WebSocket or correlation ID polling. See [c2-rpc-protocol.md](c2-rpc-protocol.md).
+
+---
+
+## 20. Device Twin / Shadow: 3-Tier Model (Desired/Reported/Delta) vs Flat Key-Value Config
+
+**Chosen:** 3-Tier State Model (`desired`, `reported`, `delta`) with OCC versioning (AWS IoT standard)
+
+| Aspect | 3-Tier Shadow (Desired/Reported/Delta) | Flat Distributed Key-Value Config | Direct RPC Command Only |
+| --- | --- | --- | --- |
+| Offline configuration buffering | Full (Desired state preserved; Delta pushed on reconnect) | Partial (Polled on boot, no delta push) | None (Fails if device is offline) |
+| Intent vs Reality separation | Explicit (Exposes mechanical/hardware discrepancies) | None (Setting key overwrites reality) | Transient (Call status only) |
+| Bandwidth consumption | Minimal (Delta payload only sent over cellular link) | High (Full config blob downloaded) | Low per command, high retry loops |
+| Concurrency safety | 64-bit Optimistic Concurrency Control (OCC) | Weak (Last-write-wins) | None (Race conditions on parallel calls) |
+
+**Reasoning:** In industrial IoT, commanding a machine (`desired: CLOSED`) does not guarantee physical execution (a valve can jam mechanically). A flat configuration store falsely indicates that the valve is closed, masking physical failures. The 3-tier model separates intent from reality, tracks individual property timestamps, and generates lightweight `delta` events so sleeping or intermittent devices receive only what changed.
+
+**Tradeoff accepted:** Increased database storage overhead (storing dual JSONB states and metadata in PostgreSQL + Redis) and compute overhead for computing JSON merge patches. See [device-twin-shadow.md](device-twin-shadow.md).
+
+---
+
+## 21. MQTT Broker Infrastructure: EMQX Cluster on EKS vs Managed AWS IoT Core vs Mosquitto
+
+**Chosen:** EMQX 5.x Distributed Cluster on AWS EKS (Mria architecture)
+
+| Aspect | EMQX 5.x Cluster on EKS | AWS IoT Core (Managed Cloud) | Standalone Mosquitto |
+| --- | --- | --- | --- |
+| Monthly cost (100k devices @ 1 msg/s) | ~21,000 - 28,000 บาท / เดือน (Fixed EC2 on EKS) | ~907,200 บาท / เดือน (คิดตามอัตรา 35 บาท/ล้าน meters: 25.9 พันล้าน msgs/เดือน) | ~7,000 บาท / เดือน (Crashes above 20k conns) |
+| Kafka integration | Native C/Rust Data Bridge (Zero app hop) | Requires Kinesis + Lambda glue | Requires Spring Boot bridge (Bottleneck) |
+| Cloud vendor lock-in | Zero (Runs on EKS, GKE, AKS, Bare Metal) | Severe (Tightly bound to AWS IAM/Rules) | Zero |
+| Max concurrent connections | 1,000,000+ (Core + Replicant nodes) | Millions (Serverless quota expansion) | ~20,000 (Single-threaded C limit) |
+| Operational overhead | Moderate (Manage EMQX Operator on EKS) | Zero (Fully managed serverless) | High if manually bridging brokers |
+
+**Reasoning:** At an industrial scale of 100,000 devices publishing at 1 Hz (20,000 to 100,000 msgs/sec), AWS IoT Core's per-message pricing model is cost-prohibitive (> 875,000 บาท/เดือน). EMQX on EKS delivers fixed, predictable compute costs (~28,000 บาท/เดือน), scales linearly to 1M+ connections via its Mria topology, and eliminates the Spring Boot MQTT ingress bottleneck by streaming directly into Apache Kafka via its high-speed native Rule Engine.
+
+**Tradeoff accepted:** Operational responsibility for managing the EMQX Kubernetes Operator, cluster rolling updates, and tuning Linux kernel file descriptors (`fs.file-max`). See [emqx-migration-plan.md](emqx-migration-plan.md).
+
+---
+
 ## Summary Table
 
 | Decision | Chosen | Main Alternative | Key Reason |
@@ -337,7 +390,7 @@ The tradeoff vs TimescaleDB: monthly partitions traditionally must be pre-create
 | Messaging | MQTT | HTTP Polling | Event-driven, low bandwidth |
 | Cache + Queue | Redis | Memcached | Hash structures, List for replay queue, Pub/Sub |
 | Database | PostgreSQL | InfluxDB | SQL, JPA, zero extra stack |
-| Partitioning | Native RANGE | TimescaleDB | Zero new dependencies, same Postgres |
+| Partitioning | Native RANGE | TimescaleDB | Zero new dependencies, RDS compatibility, Auto-worker |
 | MQTT consumer | Spring Integration | Raw Paho | Declarative, DLQ routing |
 | Realtime | WebSocket | SSE | Bidirectional for future commands |
 | Auth | JWT + Refresh token + Redis JTI blocklist | Server sessions | Stateless + revocable; 15-min max blast radius, rotation |
@@ -351,3 +404,7 @@ The tradeoff vs TimescaleDB: monthly partitions traditionally must be pre-create
 | Frontend state | React Query + Zustand | useState + useEffect | Cache invalidation, optimistic updates |
 | Deployments | Argo Rollouts blue/green | Rolling update | Schema migration safety, instant rollback |
 | HA database | CloudNativePG operator | Patroni + etcd | CRD-native, built-in WAL archival |
+| C2 / RPC Protocol | Asynchronous MQTT RPC | Direct Device HTTP / gRPC | Traverses cellular NAT, QoS 1, low MCU memory |
+| Device Twin / Shadow | 3-Tier (Desired/Reported/Delta) | Flat Key-Value Config | Separates intent from reality, offline delta buffering |
+| Broker Ingestion | EMQX Cluster on EKS | AWS IoT Core / Mosquitto | 28,000 บาท vs 875,000 บาท/เดือน, 1M+ conns, native Kafka bridge |
+
