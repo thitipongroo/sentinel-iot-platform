@@ -59,6 +59,12 @@ public class Device {
     @Column(name = "organization_id", nullable = false)
     private UUID organizationId;
 
+    @Column(name = "mqtt_username")
+    private String mqttUsername;
+
+    @Column(name = "mqtt_password_hash")
+    private String mqttPasswordHash;
+
     /**
      * Sensor capability declarations for this device, keyed by {@link SensorType#name()}.
      *

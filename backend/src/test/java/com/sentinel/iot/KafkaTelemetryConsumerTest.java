@@ -122,7 +122,7 @@ class KafkaTelemetryConsumerTest {
 
             consumer.consumeBatch(List.of(V1_PAYLOAD));
 
-            verify(redisService).setLatestTelemetry(eq(deviceId.toString()), any(), any(), any(), any());
+            verify(redisService).setLatestTelemetry(eq(orgId), eq(deviceId.toString()), anyDouble(), anyDouble(), any(), any());
         }
     }
 
@@ -222,6 +222,78 @@ class KafkaTelemetryConsumerTest {
             verify(telemetryRepository).saveAll(argThat(list -> ((List<?>) list).size() == 2));
             verify(deviceRepository).saveAll(argThat(devices ->
                     ((java.util.Collection<?>) devices).size() == 1));
+        }
+    }
+
+    // ── Multi-tenant collision safety ─────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Multi-tenant collision safety — same device name across different tenants")
+    class MultiTenantBatchResolution {
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("resolves identical device names across different orgs when organizationId is provided")
+        void consumeBatch_twoOrgsWithSameDeviceName_resolvesCorrectly() {
+            UUID org1 = UUID.randomUUID();
+            UUID org2 = UUID.randomUUID();
+            UUID dev1 = UUID.randomUUID();
+            UUID dev2 = UUID.randomUUID();
+
+            Device d1 = new Device();
+            d1.setId(dev1);
+            d1.setName("sensor-shared");
+            d1.setOrganizationId(org1);
+            d1.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);
+
+            Device d2 = new Device();
+            d2.setId(dev2);
+            d2.setName("sensor-shared");
+            d2.setOrganizationId(org2);
+            d2.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);
+
+            when(deviceRepository.findAllByNameIn(anySet())).thenReturn(List.of(d1, d2));
+            when(deviceRepository.saveAll(any())).thenReturn(List.of(d1, d2));
+
+            String payloadOrg1 = "{\"deviceId\":\"sensor-shared\",\"organizationId\":\"" + org1 + "\",\"temperature\":22.0,\"humidity\":50.0}";
+            String payloadOrg2 = "{\"deviceId\":\"sensor-shared\",\"organizationId\":\"" + org2 + "\",\"temperature\":28.0,\"humidity\":55.0}";
+
+            consumer.consumeBatch(List.of(payloadOrg1, payloadOrg2));
+
+            verify(telemetryRepository).saveAll(argThat(list -> ((List<?>) list).size() == 2));
+            verify(wsBroadcastPublisher).publish(eq(org1), eq(payloadOrg1));
+            verify(wsBroadcastPublisher).publish(eq(org2), eq(payloadOrg2));
+        }
+
+        @SuppressWarnings("null")
+        @Test
+        @DisplayName("safely drops ambiguous records when multiple orgs share device name and organizationId is missing")
+        void consumeBatch_twoOrgsWithSameDeviceName_dropsAmbiguousWhenOrgIdMissing() {
+            UUID org1 = UUID.randomUUID();
+            UUID org2 = UUID.randomUUID();
+            UUID dev1 = UUID.randomUUID();
+            UUID dev2 = UUID.randomUUID();
+
+            Device d1 = new Device();
+            d1.setId(dev1);
+            d1.setName("sensor-ambiguous");
+            d1.setOrganizationId(org1);
+            d1.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);
+
+            Device d2 = new Device();
+            d2.setId(dev2);
+            d2.setName("sensor-ambiguous");
+            d2.setOrganizationId(org2);
+            d2.setLifecycleStatus(DeviceLifecycleStatus.ACTIVE);
+
+            when(deviceRepository.findAllByNameIn(anySet())).thenReturn(List.of(d1, d2));
+
+            String unScopedPayload = "{\"deviceId\":\"sensor-ambiguous\",\"temperature\":22.0,\"humidity\":50.0}";
+
+            // Must NOT throw duplicate key IllegalStateException!
+            consumer.consumeBatch(List.of(unScopedPayload));
+
+            verify(telemetryRepository, never()).saveAll(any());
         }
     }
 

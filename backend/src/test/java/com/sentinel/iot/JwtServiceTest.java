@@ -222,7 +222,7 @@ class JwtServiceTest {
         @DisplayName("returns false when token subject does not match UserDetails")
         void isTokenValid_returnsFalse_whenUsernameDoesNotMatch() {
             String token = service.generateAccessToken("alice", "ADMIN", ORG_ID);
-            when(redis.hasKey(anyString())).thenReturn(false);
+            lenient().when(redis.hasKey(anyString())).thenReturn(false);
             UserDetails userDetails = User.withUsername("bob")
                     .password("x").authorities("ROLE_ADMIN").build();
 

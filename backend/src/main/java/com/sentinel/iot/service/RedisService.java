@@ -63,22 +63,36 @@ public class RedisService {
     // ── Public API ────────────────────────────────────────────────────────────
 
     public void setDeviceStatus(String deviceId, String status) {
-        redis.opsForValue().set(statusKey(deviceId), status, TTL);
+        setDeviceStatus(TenantContext.get(), deviceId, status);
+    }
+
+    public void setDeviceStatus(java.util.UUID orgId, String deviceId, String status) {
+        String key = orgId != null
+                ? STATUS_PREFIX + orgId + ":" + deviceId
+                : STATUS_PREFIX + deviceId;
+        redis.opsForValue().set(key, status, TTL);
     }
 
     public String getDeviceStatus(String deviceId) {
         return redis.opsForValue().get(statusKey(deviceId));
     }
 
-    public void setLatestTelemetry(String deviceId, double temperature, double humidity,
+    public void setLatestTelemetry(String deviceId, Double temperature, Double humidity,
+                                   Boolean motion, Double smokePpm) {
+        setLatestTelemetry(TenantContext.get(), deviceId, temperature, humidity, motion, smokePpm);
+    }
+
+    public void setLatestTelemetry(java.util.UUID orgId, String deviceId, Double temperature, Double humidity,
                                    Boolean motion, Double smokePpm) {
         Map<String, String> fields = new HashMap<>();
-        fields.put("temperature", String.valueOf(temperature));
-        fields.put("humidity", String.valueOf(humidity));
+        fields.put("temperature", temperature != null ? String.valueOf(temperature) : "0.0");
+        fields.put("humidity", humidity != null ? String.valueOf(humidity) : "0.0");
         fields.put("motion", motion != null ? String.valueOf(motion) : "false");
         fields.put("smokePpm", smokePpm != null ? String.valueOf(smokePpm) : "0.0");
         fields.put("ts", String.valueOf(System.currentTimeMillis()));
-        String key = telemetryKey(deviceId);
+        String key = orgId != null
+                ? TELEMETRY_PREFIX + orgId + ":" + deviceId
+                : TELEMETRY_PREFIX + deviceId;
         redis.opsForHash().putAll(key, fields);
         redis.expire(key, TTL);
     }

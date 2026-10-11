@@ -88,12 +88,27 @@ public class KafkaTelemetryConsumer {
         }
         if (parsed.isEmpty()) return;
 
-        // ── 2. Bulk device resolution — one DB query for the whole batch ───────
-        Set<String> names = parsed.stream()
-                .map(p -> p.msg().getDeviceId())
-                .collect(Collectors.toSet());
-        Map<String, Device> deviceMap = deviceRepository.findAllByNameIn(names).stream()
-                .collect(Collectors.toMap(Device::getName, Function.identity()));
+        // ── 2. Bulk device resolution — tenant-aware bulk query ─────────────────
+        Set<String> names = new HashSet<>();
+        Set<UUID> ids = new HashSet<>();
+        for (Parsed p : parsed) {
+            String devId = p.msg().getDeviceId();
+            if (devId != null) {
+                names.add(devId);
+                UUID u = tryParseUuid(devId);
+                if (u != null) ids.add(u);
+            }
+        }
+
+        List<Device> resolvedDevices = new ArrayList<>(deviceRepository.findAllByNameIn(names));
+        if (!ids.isEmpty()) {
+            resolvedDevices.addAll(deviceRepository.findAllById(ids));
+        }
+
+        Map<UUID, Device> devicesById = resolvedDevices.stream()
+                .collect(Collectors.toMap(Device::getId, Function.identity(), (d1, d2) -> d1));
+        Map<String, List<Device>> devicesByName = resolvedDevices.stream()
+                .collect(Collectors.groupingBy(Device::getName));
 
         // ── 3. Build insert list ───────────────────────────────────────────────
         List<Telemetry> toInsert          = new ArrayList<>(parsed.size());
@@ -104,7 +119,37 @@ public class KafkaTelemetryConsumer {
 
         for (Parsed p : parsed) {
             TelemetryMessage msg    = p.msg();
-            Device           device = deviceMap.get(msg.getDeviceId());
+            Device           device = null;
+
+            UUID parsedUuid = tryParseUuid(msg.getDeviceId());
+            if (parsedUuid != null && devicesById.containsKey(parsedUuid)) {
+                Device candidate = devicesById.get(parsedUuid);
+                if (msg.getOrganizationId() == null || candidate.getOrganizationId().equals(msg.getOrganizationId())) {
+                    device = candidate;
+                }
+            }
+
+            if (device == null) {
+                List<Device> candidates = devicesByName.get(msg.getDeviceId());
+                if (candidates != null && !candidates.isEmpty()) {
+                    if (msg.getOrganizationId() != null) {
+                        // Exact tenant match
+                        device = candidates.stream()
+                                .filter(d -> d.getOrganizationId().equals(msg.getOrganizationId()))
+                                .findFirst()
+                                .orElse(null);
+                    } else if (candidates.size() == 1) {
+                        // Single device matches globally
+                        device = candidates.get(0);
+                    } else {
+                        // Ambiguous: multiple tenants have a device with this name, but payload has no orgId
+                        log.warn("Dropping ambiguous telemetry — device name '{}' exists in multiple organizations ({}), payload missing organizationId",
+                                msg.getDeviceId(), candidates.stream().map(Device::getOrganizationId).toList());
+                        droppedCounter.increment();
+                        continue;
+                    }
+                }
+            }
 
             if (device == null) {
                 log.debug("Dropping telemetry — unregistered device={}", msg.getDeviceId());
@@ -142,10 +187,11 @@ public class KafkaTelemetryConsumer {
         // for a record that failed to persist. Kafka retries are idempotent because
         // alerts are evaluated per-batch and Redis is best-effort.
         for (Accepted a : accepted) {
-            // Redis cache: store the unified readings map for fast dashboard reads
-            redisService.setLatestTelemetry(a.device().getId().toString(),
+            // Redis cache: store tenant-namespaced latest telemetry and status
+            redisService.setLatestTelemetry(a.device().getOrganizationId(), a.device().getId().toString(),
                     a.telemetry().getTemperature(), a.telemetry().getHumidity(),
                     a.telemetry().getMotion(), a.telemetry().getSmokePpm());
+            redisService.setDeviceStatus(a.device().getOrganizationId(), a.device().getId().toString(), "ONLINE");
 
             // Capability-aware alert evaluation: uses per-device thresholds when available
             alertService.evaluate(a.device().getId(), a.device().getOrganizationId(),
@@ -156,5 +202,14 @@ public class KafkaTelemetryConsumer {
 
         log.debug("Kafka batch: received={} inserted={} dropped={}",
                 rawPayloads.size(), toInsert.size(), rawPayloads.size() - toInsert.size());
+    }
+
+    private UUID tryParseUuid(String val) {
+        if (val == null || val.length() != 36) return null;
+        try {
+            return UUID.fromString(val);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

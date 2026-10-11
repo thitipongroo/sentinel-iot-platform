@@ -9,6 +9,7 @@ import com.sentinel.iot.repository.DeviceEnrollmentTokenRepository;
 import com.sentinel.iot.repository.DeviceRepository;
 import com.sentinel.iot.service.AuditService;
 import com.sentinel.iot.service.DeviceEnrollmentService;
+import com.sentinel.iot.service.MqttProvisioningService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,6 +45,7 @@ class DeviceEnrollmentServiceTest {
     @Mock DeviceEnrollmentTokenRepository tokenRepository;
     @Mock DeviceRepository                 deviceRepository;
     @Mock AuditService                     auditService;
+    @Mock MqttProvisioningService          mqttProvisioningService;
 
     @InjectMocks DeviceEnrollmentService service;
 
@@ -184,6 +186,7 @@ class DeviceEnrollmentServiceTest {
             assertThat(device.getStatus()).as("device status after enroll").isEqualTo("ONLINE");
             assertThat(token.getUsedAt()).as("token usedAt timestamp").isNotNull();
             assertThat(token.getUsedByIp()).as("token usedByIp").isEqualTo("10.0.0.1");
+            verify(mqttProvisioningService).provisionDevice(eq(device), eq(mqttPassword));
         }
 
         @SuppressWarnings("null")

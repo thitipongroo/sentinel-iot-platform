@@ -2,10 +2,13 @@ package com.sentinel.iot.security;
 
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
+import io.github.bucket4j.BucketConfiguration;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.NonNull;
@@ -30,9 +33,9 @@ import java.util.stream.Collectors;
  * setting (e.g. local dev), the TCP remote address is always used as the
  * client identity — preventing IP spoofing via crafted headers.
  *
- * For multi-instance deployments, replace the ConcurrentHashMap with a
- * Redis-backed Bucket4j ProxyManager (bucket4j-redis) so the limits are
- * enforced across all instances rather than per-process.
+ * In production/multi-instance deployments, backing Redis ProxyManager (bucket4j-redis)
+ * coordinates token buckets across all replicas via atomic CAS operations.
+ * Falls back to in-memory ConcurrentHashMap if Redis is not configured or in unit tests.
  */
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
@@ -41,12 +44,30 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final int  AUTH_CAPACITY       = 10;
     private static final Duration REFILL_PERIOD   = Duration.ofMinutes(1);
 
+    private static final BucketConfiguration AUTH_CONFIG = BucketConfiguration.builder()
+            .addLimit(Bandwidth.builder().capacity(AUTH_CAPACITY).refillGreedy(AUTH_CAPACITY, REFILL_PERIOD).build())
+            .build();
+
+    private static final BucketConfiguration GENERAL_CONFIG = BucketConfiguration.builder()
+            .addLimit(Bandwidth.builder().capacity(GENERAL_CAPACITY).refillGreedy(GENERAL_CAPACITY, REFILL_PERIOD).build())
+            .build();
+
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> fallbackBuckets = buckets;
+    private final ProxyManager<String> proxyManager;
 
     @Value("${rate-limit.trusted-proxies:}")
     private String trustedProxiesConfig;
 
     private volatile Set<String> trustedProxies;
+
+    public RateLimitFilter() {
+        this(null);
+    }
+
+    public RateLimitFilter(@Autowired(required = false) ProxyManager<String> proxyManager) {
+        this.proxyManager = proxyManager;
+    }
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -62,9 +83,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String  clientIp     = resolveClientIp(request);
         String  bucketKey    = (isAuthPath ? "auth:" : "api:") + clientIp;
         int     capacity     = isAuthPath ? AUTH_CAPACITY : GENERAL_CAPACITY;
-        Bucket  bucket       = buckets.computeIfAbsent(bucketKey, k -> newBucket(capacity));
 
-        if (bucket.tryConsume(1)) {
+        boolean allowed;
+        if (proxyManager != null) {
+            BucketConfiguration config = isAuthPath ? AUTH_CONFIG : GENERAL_CONFIG;
+            Bucket bucket = proxyManager.builder().build(bucketKey, () -> config);
+            allowed = bucket.tryConsume(1);
+        } else {
+            Bucket bucket = fallbackBuckets.computeIfAbsent(bucketKey, k -> newBucket(capacity));
+            allowed = bucket.tryConsume(1);
+        }
+
+        if (allowed) {
             chain.doFilter(request, response);
         } else {
             String limit = isAuthPath ? "10" : "100";

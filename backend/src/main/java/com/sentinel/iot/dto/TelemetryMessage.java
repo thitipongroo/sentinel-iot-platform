@@ -6,6 +6,7 @@ import lombok.Data;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * MQTT/Kafka inbound telemetry payload.  Supports two schema versions:
@@ -54,6 +55,12 @@ public class TelemetryMessage {
     // ── Identity ───────────────────────────────────────────────────────────────
 
     private String deviceId;
+
+    /**
+     * Tenant/Organization identity for multi-tenant isolation.
+     * When present, device name is resolved within this organization.
+     */
+    private UUID organizationId;
 
     /**
      * Schema version of this payload.  Absent in v1 messages; Jackson defaults to 1.

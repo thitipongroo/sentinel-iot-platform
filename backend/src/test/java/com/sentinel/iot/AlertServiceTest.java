@@ -311,4 +311,72 @@ class AlertServiceTest {
             verify(alertRepository).save(any(Alert.class));
         }
     }
+
+    // ── Alert State Machine ───────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Alert State Machine")
+    class StateMachine {
+
+        @Test
+        @DisplayName("acknowledge transitions state to ACKNOWLEDGED and records operator")
+        void acknowledge_transitionsState() {
+            UUID alertId = UUID.randomUUID();
+            Alert alert = new Alert(deviceId, "CRITICAL", "High temp", orgId);
+            when(alertRepository.findById(alertId)).thenReturn(java.util.Optional.of(alert));
+            when(alertRepository.save(any(Alert.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            Alert result = alertService.acknowledge(alertId, "operator-alice");
+
+            assertThat(result.getState()).isEqualTo(com.sentinel.iot.model.AlertState.ACKNOWLEDGED);
+            assertThat(result.isAcknowledged()).isTrue();
+            assertThat(result.getAcknowledgedBy()).isEqualTo("operator-alice");
+            assertThat(result.getAcknowledgedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("resolve transitions state to RESOLVED, sets notes and resolvedBy")
+        void resolve_transitionsState() {
+            UUID alertId = UUID.randomUUID();
+            Alert alert = new Alert(deviceId, "WARNING", "High humidity", orgId);
+            when(alertRepository.findById(alertId)).thenReturn(java.util.Optional.of(alert));
+            when(alertRepository.save(any(Alert.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            Alert result = alertService.resolve(alertId, "operator-bob", "HVAC cooling fan replaced");
+
+            assertThat(result.getState()).isEqualTo(com.sentinel.iot.model.AlertState.RESOLVED);
+            assertThat(result.isAcknowledged()).isTrue();
+            assertThat(result.getResolvedBy()).isEqualTo("operator-bob");
+            assertThat(result.getResolutionNotes()).isEqualTo("HVAC cooling fan replaced");
+            assertThat(result.getResolvedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("silence sets state to SILENCED with silencedUntil timestamp")
+        void silence_transitionsState() {
+            UUID alertId = UUID.randomUUID();
+            Alert alert = new Alert(deviceId, "CRITICAL", "Smoke alert", orgId);
+            when(alertRepository.findById(alertId)).thenReturn(java.util.Optional.of(alert));
+            when(alertRepository.save(any(Alert.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            Alert result = alertService.silence(alertId, "admin-charlie", java.time.Duration.ofMinutes(30));
+
+            assertThat(result.getState()).isEqualTo(com.sentinel.iot.model.AlertState.SILENCED);
+            assertThat(result.getSilencedBy()).isEqualTo("admin-charlie");
+            assertThat(result.getSilencedUntil()).isAfter(java.time.Instant.now());
+        }
+
+        @Test
+        @DisplayName("evaluate skips alert creation and notification when device is currently silenced")
+        void evaluate_skipsWhenDeviceSilenced() {
+            when(alertRepository.existsByDeviceIdAndStateAndSilencedUntilAfter(
+                    eq(deviceId), eq(com.sentinel.iot.model.AlertState.SILENCED), any(java.time.Instant.class)))
+                    .thenReturn(true);
+
+            alertService.evaluateLegacy(deviceId, orgId, "sensor-1", 95.0, 50.0, false, 10.0);
+
+            verify(alertRepository, never()).save(any(Alert.class));
+            verify(notificationService, never()).send(anyString());
+        }
+    }
 }

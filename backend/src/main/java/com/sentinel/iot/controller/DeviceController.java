@@ -115,8 +115,12 @@ public class DeviceController {
             HttpServletRequest httpRequest) {
         String remoteIp = HttpUtils.resolveClientIp(httpRequest);
         String mqttPassword = enrollmentService.enroll(request, remoteIp);
+        Device device = deviceService.findById(request.deviceId());
+        String mqttUsername = (device != null && device.getMqttUsername() != null && !device.getMqttUsername().isBlank())
+                ? device.getMqttUsername()
+                : "device-" + request.deviceId();
         return ResponseEntity.ok(Map.of(
-                "mqttUsername", "device-" + request.deviceId(),
+                "mqttUsername", mqttUsername,
                 "mqttPassword", mqttPassword
         ));
     }

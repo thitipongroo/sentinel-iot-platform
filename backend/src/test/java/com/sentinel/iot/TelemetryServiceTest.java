@@ -1,6 +1,8 @@
 package com.sentinel.iot;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sentinel.iot.model.Telemetry;
 import com.sentinel.iot.repository.TelemetryRepository;
 import com.sentinel.iot.service.RedisService;
@@ -42,7 +44,7 @@ class TelemetryServiceTest {
         service = new TelemetryService(
                 telemetryRepository,
                 redisService,
-                new ObjectMapper(),
+                new ObjectMapper().registerModule(new JavaTimeModule()),
                 new SimpleMeterRegistry());
     }
 
@@ -110,7 +112,7 @@ class TelemetryServiceTest {
         void saveFallback_serialisationFails_stillUpdatesRedisCache() throws Exception {
             UUID deviceId = UUID.randomUUID();
             ObjectMapper badMapper = mock(ObjectMapper.class);
-            doThrow(new IOException("json error")).when(badMapper).writeValueAsString(any());
+            doThrow(new JsonProcessingException("json error") {}).when(badMapper).writeValueAsString(any());
 
             TelemetryService serviceWithBadMapper = new TelemetryService(
                     telemetryRepository, redisService, badMapper, new SimpleMeterRegistry());

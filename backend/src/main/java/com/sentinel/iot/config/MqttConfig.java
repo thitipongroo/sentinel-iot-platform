@@ -58,7 +58,8 @@ public class MqttConfig {
     @Bean
     public MqttPahoMessageDrivenChannelAdapter mqttInbound() {
         MqttPahoMessageDrivenChannelAdapter adapter =
-                new MqttPahoMessageDrivenChannelAdapter(clientId + "-inbound", mqttClientFactory(), topic);
+                new MqttPahoMessageDrivenChannelAdapter(clientId + "-inbound", mqttClientFactory(),
+                        topic, "tenants/+/telemetry", "tenants/+/devices/+/telemetry");
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);

@@ -49,8 +49,14 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest req,
                                               HttpServletRequest httpRequest,
                                               HttpServletResponse httpResponse) {
-        Authentication auth = authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword()));
+        Authentication auth;
+        try {
+            auth = authManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword()));
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            auditService.log(req.getUsername(), "LOGIN_FAILED", "/api/v1/auth/login", "Invalid credentials", HttpUtils.resolveClientIp(httpRequest));
+            throw e;
+        }
 
         String role = auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)

@@ -62,6 +62,10 @@ public class AlertService {
                          Map<String, SensorCapability> capabilities) {
 
         if (readings == null || readings.isEmpty()) return;
+        if (isDeviceSilenced(deviceId)) {
+            log.debug("Skipping alert evaluation for silenced device: {}", deviceId);
+            return;
+        }
 
         if (capabilities == null || capabilities.isEmpty()) {
             // Device has no capability config — synthesize legacy call from readings
@@ -112,6 +116,10 @@ public class AlertService {
                                 @SpanTag("device.name") String deviceName,
                                 Double temperature, Double humidity,
                                 Boolean motion, Double smokePpm) {
+        if (isDeviceSilenced(deviceId)) {
+            log.debug("Skipping legacy alert evaluation for silenced device: {}", deviceId);
+            return;
+        }
         if (temperature != null && temperature > temperatureThreshold) {
             String msg = String.format("[%s] CRITICAL: temperature %.1f°C exceeds %.1f°C threshold",
                     deviceName, temperature, temperatureThreshold);
@@ -159,8 +167,14 @@ public class AlertService {
     }
 
     public Page<Alert> getPage(int page, int size) {
+        return getPage(null, page, size);
+    }
+
+    public Page<Alert> getPage(com.sentinel.iot.model.AlertState state, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        return alertRepository.findAllByOrderByCreatedAtDesc(pageable);
+        return state != null
+                ? alertRepository.findByStateOrderByCreatedAtDesc(state, pageable)
+                : alertRepository.findAllByOrderByCreatedAtDesc(pageable);
     }
 
     @org.springframework.transaction.annotation.Transactional
@@ -172,10 +186,40 @@ public class AlertService {
 
     @SuppressWarnings("null")
     public void acknowledge(UUID alertId) {
-        alertRepository.findById(alertId).ifPresent(a -> {
-            a.setAcknowledged(true);
-            alertRepository.save(a);
-        });
+        acknowledge(alertId, "system");
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public Alert acknowledge(UUID alertId, String operatorUsername) {
+        Alert alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
+        alert.transitionToAcknowledged(operatorUsername);
+        log.info("Alert {} transitioned to ACKNOWLEDGED by {}", alertId, operatorUsername);
+        return alertRepository.save(alert);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public Alert resolve(UUID alertId, String operatorUsername, String resolutionNotes) {
+        Alert alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
+        alert.transitionToResolved(operatorUsername, resolutionNotes);
+        log.info("Alert {} transitioned to RESOLVED by {}", alertId, operatorUsername);
+        return alertRepository.save(alert);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public Alert silence(UUID alertId, String operatorUsername, java.time.Duration duration) {
+        Alert alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> new IllegalArgumentException("Alert not found: " + alertId));
+        java.time.Instant until = java.time.Instant.now().plus(duration);
+        alert.transitionToSilenced(operatorUsername, until);
+        log.info("Alert {} SILENCED by {} until {}", alertId, operatorUsername, until);
+        return alertRepository.save(alert);
+    }
+
+    public boolean isDeviceSilenced(UUID deviceId) {
+        return alertRepository.existsByDeviceIdAndStateAndSilencedUntilAfter(
+                deviceId, com.sentinel.iot.model.AlertState.SILENCED, java.time.Instant.now());
     }
 
     // ── Private utilities ─────────────────────────────────────────────────────

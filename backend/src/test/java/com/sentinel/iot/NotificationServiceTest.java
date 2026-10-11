@@ -30,9 +30,9 @@ class NotificationServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(enabledProvider1.isEnabled()).thenReturn(true);
-        when(enabledProvider2.isEnabled()).thenReturn(true);
-        when(disabledProvider.isEnabled()).thenReturn(false);
+        lenient().when(enabledProvider1.isEnabled()).thenReturn(true);
+        lenient().when(enabledProvider2.isEnabled()).thenReturn(true);
+        lenient().when(disabledProvider.isEnabled()).thenReturn(false);
         notificationService = new NotificationService(
                 List.of(enabledProvider1, enabledProvider2, disabledProvider));
     }

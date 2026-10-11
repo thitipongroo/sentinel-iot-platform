@@ -152,4 +152,33 @@ fi
 
 chown mosquitto:mosquitto "$RUNTIME_ACL" "$RUNTIME_CONFIG"
 chmod 600 "$RUNTIME_ACL" "$RUNTIME_CONFIG"
+
+# ── 6. Dynamic Credentials Watcher ──────────────────────────────────────────
+DYNAMIC_CREDS="/mosquitto/data/dynamic_credentials"
+touch "$DYNAMIC_CREDS"
+chown mosquitto:mosquitto "$DYNAMIC_CREDS"
+chmod 666 "$DYNAMIC_CREDS"
+
+(
+  while true; do
+    if [ -s "$DYNAMIC_CREDS" ]; then
+      echo "[dynamic-auth] Detected new credentials in $DYNAMIC_CREDS"
+      while IFS= read -r entry || [ -n "$entry" ]; do
+        dev_id="${entry%%:*}"
+        dev_pass="${entry#*:}"
+        if [ -n "$dev_id" ] && [ -n "$dev_pass" ] && [ "$dev_id" != "$dev_pass" ]; then
+          mosquitto_passwd -b "$PASSWD_FILE" "$dev_id" "$dev_pass"
+          printf '\nuser %s\ntopic write factory/telemetry\ntopic write tenants/+/telemetry\ntopic write tenants/+/devices/+/telemetry\n' "$dev_id" >> "$RUNTIME_ACL"
+          echo "[dynamic-auth] Provisioned dynamic account for device: $dev_id"
+        fi
+      done < "$DYNAMIC_CREDS"
+      > "$DYNAMIC_CREDS"
+      pkill -HUP -x mosquitto 2>/dev/null || kill -HUP 1 2>/dev/null || true
+      echo "[dynamic-auth] Mosquitto notified via SIGHUP (credentials reloaded)"
+    fi
+    sleep 2
+  done
+) &
+
 exec mosquitto -c "$RUNTIME_CONFIG"
+

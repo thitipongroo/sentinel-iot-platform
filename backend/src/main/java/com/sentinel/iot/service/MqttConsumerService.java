@@ -10,12 +10,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.integration.mqtt.support.MqttHeaders;
 import org.springframework.integration.support.MessageBuilder;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.UUID;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -82,6 +84,7 @@ public class MqttConsumerService {
         activePermits.incrementAndGet();
 
         String rawPayload = message.getPayload().toString();
+        String receivedTopic = (String) message.getHeaders().get(MqttHeaders.RECEIVED_TOPIC);
         try {
             // ── 1. Parse ──────────────────────────────────────────────────────────
             TelemetryMessage msg;
@@ -93,6 +96,19 @@ public class MqttConsumerService {
                 return;
             }
 
+            // Enrich organizationId from topic if not present in payload
+            if (msg.getOrganizationId() == null && receivedTopic != null) {
+                UUID topicOrgId = extractOrgIdFromTopic(receivedTopic);
+                if (topicOrgId != null) {
+                    msg.setOrganizationId(topicOrgId);
+                    try {
+                        rawPayload = objectMapper.writeValueAsString(msg);
+                    } catch (Exception e) {
+                        log.debug("Payload serialization with topic orgId fallback to raw: {}", e.getMessage());
+                    }
+                }
+            }
+
             // ── 2. Validate ───────────────────────────────────────────────────────
             String validationError = validate(msg);
             if (validationError != null) {
@@ -102,16 +118,31 @@ public class MqttConsumerService {
             }
 
             // ── 3. Forward to Kafka ───────────────────────────────────────────────
-            // Device name as partition key → all events from one device land on the same
-            // partition, preserving per-device ordering in the consumer.
-            kafkaProducer.publish(msg.getDeviceId(), rawPayload);
+            // Multi-tenant partition key preserves ordering per device per tenant
+            String partitionKey = (msg.getOrganizationId() != null ? msg.getOrganizationId() + ":" : "") + msg.getDeviceId();
+            kafkaProducer.publish(partitionKey, rawPayload);
             mqttCounter.increment();
-            log.debug("Forwarded telemetry from device={} to Kafka", msg.getDeviceId());
+            log.debug("Forwarded telemetry from device={} to Kafka (key={})", msg.getDeviceId(), partitionKey);
 
         } finally {
             activePermits.decrementAndGet();
             concurrencyLimiter.release();
         }
+    }
+
+    private UUID extractOrgIdFromTopic(String topic) {
+        if (topic == null) return null;
+        // e.g. tenants/00000000-0000-0000-0000-000000000001/telemetry
+        // or tenants/00000000-0000-0000-0000-000000000001/devices/sensor-1/telemetry
+        String[] parts = topic.split("/");
+        if (parts.length >= 3 && "tenants".equalsIgnoreCase(parts[0])) {
+            try {
+                return UUID.fromString(parts[1]);
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private String validate(TelemetryMessage msg) {

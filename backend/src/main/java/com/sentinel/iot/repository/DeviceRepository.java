@@ -19,5 +19,8 @@ public interface DeviceRepository extends JpaRepository<Device, UUID> {
     boolean existsByNameAndOrganizationId(String name, UUID organizationId);
 
     List<Device> findAllByNameIn(Collection<String> names);
+    List<Device> findAllByNameInAndOrganizationId(Collection<String> names, UUID organizationId);
+    Optional<Device> findByNameAndOrganizationId(String name, UUID organizationId);
+    Optional<Device> findByMqttUsername(String mqttUsername);
     long countByStatus(String status);
 }

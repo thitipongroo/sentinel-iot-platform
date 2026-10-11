@@ -50,6 +50,7 @@ public class DeviceEnrollmentService {
     private final DeviceEnrollmentTokenRepository tokenRepository;
     private final DeviceRepository  deviceRepository;
     private final AuditService      auditService;
+    private final MqttProvisioningService mqttProvisioningService;
 
     @Value("${enrollment.token.ttl-hours:24}")
     private int tokenTtlHours;
@@ -130,9 +131,10 @@ public class DeviceEnrollmentService {
                 "deviceId=" + device.getId(), remoteIp);
 
         // Generate per-device MQTT password (returned to device over secure channel).
-        // In production, integrate with the MQTT broker's dynamic auth plugin or
-        // push credentials via the docker-entrypoint.sh provisioning hook.
         String mqttPassword = generateMqttPassword(device.getId());
+        if (mqttProvisioningService != null) {
+            mqttProvisioningService.provisionDevice(device, mqttPassword);
+        }
         log.info("Device enrolled: deviceId={} name={} ip={}", device.getId(), device.getName(), remoteIp);
 
         return mqttPassword;

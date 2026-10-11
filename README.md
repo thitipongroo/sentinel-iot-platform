@@ -156,7 +156,7 @@ flowchart TD
 | Layer           | Technology                                      | Tool                                                                                              |
 |-----------------|-------------------------------------------------|---------------------------------------------------------------------------------------------------|
 | Backend         | Java                                         | Spring Boot                                                                                   |
-| Security        | JWT, Rate Limiting                              | Spring Security, JWT, Bucket4j, ApiVersionFilter                                            |
+| Security        | JWT, Distributed Rate Limiting                  | Spring Security, JWT, Bucket4j Redis (`bucket4j-redis`), ApiVersionFilter                   |
 | Messaging       | MQTT, Event Streaming                           | Eclipse Mosquitto, Spring Integration, Apache Kafka                                       |
 | Schema Registry | Avro                                            | Apache Avro, Confluent Schema Registry                                                            |
 | Database        | ORM, Range Partitioning          | PostgreSQL, Spring Data JPA, Flyway                                                                           |
@@ -211,9 +211,10 @@ sentinel-iot-platform
 │   │   ├── application.yml    # All config; env-var overrides for every external dependency
 │   │   ├── logback-spring.xml # JSON (prod) / human-readable (dev) logging
 │   │   ├── avro               # Avro schemas (EdgeMetadata, SensorReading, TelemetryMessage)
-│   │   └── db/migration       # V1–V11: schema, partitioning, lifecycle, multi-tenancy,
+│   │   └── db/migration       # V1–V12: schema, partitioning, lifecycle, multi-tenancy,
 │   │                          # RLS, schema evolution, enrollment tokens, nullable fields,
-│   │                          # device name uniqueness (V10), platform settings (V11)
+│   │                          # device name uniqueness (V10), platform settings (V11),
+│   │                          # device dynamic MQTT credentials (V12)
 │   └── src/test               # Unit · Integration · Contract · Benchmark · Concurrent · Chaos · Architecture · Regression
 ├── frontend                   # Next.js 14 (App Router) + Tailwind CSS
 │   ├── cypress                # Cypress E2E tests
@@ -493,9 +494,9 @@ The platform handles DB unavailability (circuit breaker + Redis replay queue), R
 | Authentication | JWT (15 min, JS memory only) + HttpOnly refresh token (7 days, SHA-256 hash in DB, rotated on every use) |
 | Revocation | Redis JTI blocklist — revoked tokens rejected immediately on every request |
 | RBAC | `ADMIN` + `OPERATOR` roles; method-level `@PreAuthorize` |
-| Rate Limiting | Bucket4j — 10 req/min (auth), 100 req/min (API) per IP |
-| Multi-tenant Isolation | `organizationId` scoping + PostgreSQL Row Level Security + tenant-namespaced Redis keys |
-| MQTT Auth | `allow_anonymous false`; per-device credentials; TLS on `:8883`, mTLS opt-in |
+| Rate Limiting | Bucket4j Redis (`bucket4j-redis`) — 10 req/min (auth), 100 req/min (API) per IP, coordinated across replicas via Redis CAS with in-memory failover |
+| Multi-tenant Isolation | `organizationId` scoping + PostgreSQL Row Level Security + tenant-namespaced Redis keys (`telemetry:{orgId}:{deviceId}`) + collision-safe Kafka batch resolution |
+| MQTT Auth & Provisioning | Dynamic per-device credentials via 3-tier provisioning (DB, Redis cache, zero-downtime Mosquitto watcher reload) + TLS on `:8883`, mTLS opt-in |
 | Secret Scanning | Gitleaks on every CI push; Trivy SCA + container image scan (CRITICAL/HIGH fail build) |
 
 See [`docs/system-design/security.md`](docs/system-design/security.md) for full feature list and known limitations.

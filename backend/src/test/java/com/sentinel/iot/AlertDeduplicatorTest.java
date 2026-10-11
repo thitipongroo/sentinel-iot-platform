@@ -36,7 +36,7 @@ class AlertDeduplicatorTest {
         deduplicator = new AlertDeduplicator(redis);
         ReflectionTestUtils.setField(deduplicator, "cooldownMinutes", 5L);
         ReflectionTestUtils.setField(deduplicator, "enabled", true);
-        when(redis.opsForValue()).thenReturn(valueOps);
+        lenient().when(redis.opsForValue()).thenReturn(valueOps);
     }
 
     // ── Deduplication logic ───────────────────────────────────────────────────

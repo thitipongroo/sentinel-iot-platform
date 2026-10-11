@@ -36,6 +36,14 @@ public class AuditService {
         }
     }
 
+    public org.springframework.data.domain.Page<AuditLog> getLogs(
+            String username, String action, Instant from, Instant to, int page, int size) {
+        org.springframework.data.domain.Pageable pageable =
+                org.springframework.data.domain.PageRequest.of(page, size, org.springframework.data.domain.Sort.by("timestamp").descending());
+        java.util.UUID orgId = TenantContext.get();
+        return auditLogRepository.searchLogs(orgId, username, action, from, to, pageable);
+    }
+
     @Scheduled(cron = "${audit.cron:0 30 3 * * *}")
     public void purgeOldAuditLogs() {
         Instant cutoff = Instant.now().minus(retentionDays, ChronoUnit.DAYS);

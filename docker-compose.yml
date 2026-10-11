@@ -182,6 +182,8 @@ services:
       TRACING_ENABLED: ${TRACING_ENABLED:-false}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318/v1/traces
       SPRING_PROFILES_ACTIVE: prod
+    volumes:
+      - mosquitto_data:/mosquitto/data
     ports:
       - "8080:8080"
     networks: [sentinel-net]
