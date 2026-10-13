@@ -41,6 +41,9 @@ public class MqttConfig {
     @Value("${mqtt.password:}")
     private String password;
 
+    @Value("${mqtt.auto-startup:true}")
+    private boolean autoStartup;
+
     private String resolveInstanceSuffix() {
         if (instanceId != null && !instanceId.isBlank()) {
             return "-" + instanceId.replaceAll("[^a-zA-Z0-9_-]", "-");
@@ -96,6 +99,7 @@ public class MqttConfig {
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);
         adapter.setOutputChannel(mqttInputChannel());
+        adapter.setAutoStartup(autoStartup);
         return adapter;
     }
 
@@ -107,7 +111,7 @@ public class MqttConfig {
     }
 
     @Bean
-    @ServiceActivator(inputChannel = "mqttOutboundChannel")
+    @ServiceActivator(inputChannel = "mqttOutboundChannel", autoStartup = "${mqtt.auto-startup:true}")
     public MessageHandler mqttOutbound() {
         String pubClientId = clientId + resolveInstanceSuffix() + "-pub";
         MqttPahoMessageHandler handler =
@@ -125,7 +129,7 @@ public class MqttConfig {
     }
 
     @Bean
-    @ServiceActivator(inputChannel = "mqttDlqChannel")
+    @ServiceActivator(inputChannel = "mqttDlqChannel", autoStartup = "${mqtt.auto-startup:true}")
     public MessageHandler mqttDlqOutbound() {
         String dlqClientId = clientId + resolveInstanceSuffix() + "-dlq-pub";
         MqttPahoMessageHandler handler =

@@ -27,6 +27,9 @@ public class KafkaConfig {
     @Value("${kafka.topics.telemetry-dlq:telemetry.dlq}")
     private String telemetryDlqTopic;
 
+    @Value("${spring.kafka.listener.auto-startup:true}")
+    private boolean kafkaAutoStartup;
+
     // ── Topic declarations ────────────────────────────────────────────────────
 
     @SuppressWarnings("null")
@@ -92,6 +95,7 @@ public class KafkaConfig {
         factory.setBatchListener(true);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.BATCH);
         factory.setCommonErrorHandler(kafkaBatchErrorHandler);
+        factory.setAutoStartup(kafkaAutoStartup);
         return factory;
     }
 
@@ -115,6 +119,7 @@ public class KafkaConfig {
         ExponentialBackOff dlqBackOff = new ExponentialBackOff(5_000L, 2.0);
         dlqBackOff.setMaxInterval(300_000L);
         factory.setCommonErrorHandler(new DefaultErrorHandler(dlqBackOff));
+        factory.setAutoStartup(kafkaAutoStartup);
         return factory;
     }
 }

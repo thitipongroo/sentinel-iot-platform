@@ -35,7 +35,15 @@ jobs:
           POSTGRES_PASSWORD: sentinel
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U sentinel -d sentinel_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -63,19 +71,21 @@ jobs:
           DB_NAME: sentinel_ci
           DB_USER: sentinel
           DB_PASSWORD: sentinel
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
           JWT_SECRET: ci-contract-test-secret-minimum-32-chars!
+          INIT_ADMIN_PASSWORD: admin
+          INIT_OPERATOR_PASSWORD: operator
           # Disable external integrations for contract testing
           SCHEMA_REGISTRY_ENABLED: "false"
           LINE_NOTIFY_ENABLED: "false"
-          MQTT_BROKER: "tcp://localhost:11883"  # not running — MQTT is optional at startup
+          MQTT_BROKER: "tcp://localhost:11883"
         run: |
           java -jar target/*.jar \
             --spring.kafka.bootstrap-servers=localhost:9999 \
-            --spring.data.redis.host=localhost \
-            --spring.autoconfigure.exclude=\
-              org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,\
-              org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration \
-            &
+            --spring.kafka.listener.auto-startup=false \
+            --mqtt.auto-startup=false \
+            > /tmp/backend.log 2>&1 &
           echo $! > /tmp/backend.pid
 
       - name: Wait for backend health
@@ -83,10 +93,13 @@ jobs:
           for i in $(seq 1 30); do
             if curl -sf http://localhost:8080/actuator/health > /dev/null; then
               echo "Backend ready after ${i}s"
-              break
+              exit 0
             fi
             sleep 2
           done
+          echo "Backend failed to become healthy. Logs:"
+          cat /tmp/backend.log
+          exit 1
 
       - name: Download OpenAPI spec
         run: |
@@ -171,7 +184,15 @@ jobs:
           POSTGRES_PASSWORD: sentinel
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U sentinel -d sentinel_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -199,23 +220,38 @@ jobs:
         env:
           SPRING_PROFILES_ACTIVE: ci
           DB_HOST: localhost
+          DB_PORT: 5432
           DB_NAME: sentinel_ci
           DB_USER: sentinel
           DB_PASSWORD: sentinel
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
           JWT_SECRET: ci-contract-test-secret-minimum-32-chars!
+          INIT_ADMIN_PASSWORD: admin
+          INIT_OPERATOR_PASSWORD: operator
           SCHEMA_REGISTRY_ENABLED: "false"
           LINE_NOTIFY_ENABLED: "false"
+          MQTT_BROKER: "tcp://localhost:11883"
         run: |
           mvn package -DskipTests -q
           java -jar target/*.jar \
             --spring.kafka.bootstrap-servers=localhost:9999 \
-            --spring.autoconfigure.exclude=\
-              org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,\
-              org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration \
-            &
+            --spring.kafka.listener.auto-startup=false \
+            --mqtt.auto-startup=false \
+            > /tmp/backend.log 2>&1 &
+          echo $! > /tmp/backend.pid
           for i in $(seq 1 30); do
-            curl -sf http://localhost:8080/actuator/health && break || sleep 2
+            if curl -sf http://localhost:8080/actuator/health > /dev/null; then
+              echo "Backend ready after ${i}s"
+              break
+            fi
+            sleep 2
           done
+          if ! curl -sf http://localhost:8080/actuator/health > /dev/null; then
+            echo "Backend failed to become healthy. Logs:"
+            cat /tmp/backend.log
+            exit 1
+          fi
 
       - name: Obtain test JWT
         id: auth
@@ -252,3 +288,7 @@ jobs:
           name: Contract Tests
           path: schemathesis-report/results.xml
           reporter: java-junit
+
+      - name: Stop backend
+        if: always()
+        run: kill $(cat /tmp/backend.pid) || true
