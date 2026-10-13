@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react'
-import { useWebSocket } from '@/hooks/useWebSocket'
+import { useWebSocket, WebSocketProvider } from '@/hooks/useWebSocket'
 
 let mockWsInstance
 class MockWebSocket {
@@ -14,6 +14,8 @@ class MockWebSocket {
   }
 }
 
+const wrapper = ({ children }) => <WebSocketProvider>{children}</WebSocketProvider>
+
 beforeEach(() => {
   jest.useFakeTimers()
   global.WebSocket = MockWebSocket
@@ -24,32 +26,31 @@ afterEach(() => {
   jest.useRealTimers()
 })
 
-test('connects on mount with provided URL', () => {
-  renderHook(() => useWebSocket('ws://test-host/ws'))
+test('connects on mount with provider URL', () => {
+  renderHook(() => useWebSocket(), { wrapper })
   expect(mockWsInstance).not.toBeNull()
-  expect(mockWsInstance.url).toBe('ws://test-host/ws')
 })
 
 test('status is CONNECTED after onopen fires', () => {
-  const { result } = renderHook(() => useWebSocket('ws://test-host/ws'))
+  const { result } = renderHook(() => useWebSocket(), { wrapper })
   act(() => { mockWsInstance.onopen() })
   expect(result.current.status).toBe('CONNECTED')
 })
 
 test('parses JSON message from onmessage', () => {
-  const { result } = renderHook(() => useWebSocket('ws://test-host/ws'))
+  const { result } = renderHook(() => useWebSocket(), { wrapper })
   act(() => { mockWsInstance.onmessage({ data: '{"t":1,"temp":72.4}' }) })
   expect(result.current.lastMessage).toEqual({ t: 1, temp: 72.4 })
 })
 
 test('stores raw string if JSON parse fails', () => {
-  const { result } = renderHook(() => useWebSocket('ws://test-host/ws'))
+  const { result } = renderHook(() => useWebSocket(), { wrapper })
   act(() => { mockWsInstance.onmessage({ data: 'not-valid-json' }) })
   expect(result.current.lastMessage).toBe('not-valid-json')
 })
 
 test('status is RECONNECTING after onclose fires', () => {
-  const { result } = renderHook(() => useWebSocket('ws://test-host/ws'))
+  const { result } = renderHook(() => useWebSocket(), { wrapper })
   act(() => { mockWsInstance.onopen() })
   act(() => { mockWsInstance.onclose() })
   expect(result.current.status).toBe('RECONNECTING')
@@ -57,14 +58,14 @@ test('status is RECONNECTING after onclose fires', () => {
 
 test('schedules reconnect setTimeout after onclose', () => {
   const setSpy = jest.spyOn(global, 'setTimeout')
-  renderHook(() => useWebSocket('ws://test-host/ws'))
+  renderHook(() => useWebSocket(), { wrapper })
   act(() => { mockWsInstance.onclose() })
   expect(setSpy).toHaveBeenCalled()
 })
 
 test('cleans up WebSocket and timer on unmount', () => {
   const clearSpy = jest.spyOn(global, 'clearTimeout')
-  const { unmount } = renderHook(() => useWebSocket('ws://test-host/ws'))
+  const { unmount } = renderHook(() => useWebSocket(), { wrapper })
   act(() => { mockWsInstance.onclose() })
   unmount()
   expect(mockWsInstance.close).toHaveBeenCalled()

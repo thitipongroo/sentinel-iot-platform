@@ -9,6 +9,7 @@ import { devicesApi, alertsApi, telemetryApi } from '@/api/client'
 import AppShell from '@/components/AppShell'
 import TelemetryChart from '@/components/TelemetryChart'
 import DeviceManagement from '@/components/DeviceManagement'
+import DeviceShadowInspector from '@/components/digital-twin/DeviceShadowInspector'
 import ErrorBoundary from '@/components/ui/ErrorBoundary'
 
 const STATUS_COLORS = {
@@ -157,10 +158,14 @@ export default function DeviceDetailPage({ params }) {
           )}
         </div>
 
-        {/* Right — Telemetry chart */}
-        <div className="lg:col-span-2">
+        {/* Right — Telemetry chart & Digital Twin */}
+        <div className="lg:col-span-2 space-y-6">
           <ErrorBoundary label="Telemetry chart">
             <TelemetryChart data={telemetry} device={device} />
+          </ErrorBoundary>
+
+          <ErrorBoundary label="Device Shadow">
+            <DeviceShadowInspector device={device} userRole={user?.role} />
           </ErrorBoundary>
         </div>
       </div>

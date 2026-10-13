@@ -44,7 +44,7 @@ export default class ErrorBoundary extends Component {
             {this.state.error?.message}
           </p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => this.reset()}
             className="text-xs text-sentinel-accent hover:underline"
           >
             Try again

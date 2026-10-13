@@ -11,10 +11,13 @@ import { alertsApi } from '@/api/client'
 import OfflineBanner from '@/components/ui/OfflineBanner'
 
 const NAV = [
-  { href: '/dashboard', label: 'Dashboard', icon: '◈' },
-  { href: '/devices',   label: 'Devices',   icon: '⬡' },
-  { href: '/alerts',    label: 'Alerts',    icon: '⚠', badge: true },
-  { href: '/settings',  label: 'Settings',  icon: '⚙' },
+  { href: '/dashboard',     label: 'Dashboard',     icon: '◈' },
+  { href: '/devices',       label: 'Devices',       icon: '⬡' },
+  { href: '/digital-twin',  label: 'Digital Twin',  icon: '⧉' },
+  { href: '/predictive-ai', label: 'Predictive AI', icon: '✦' },
+  { href: '/lakehouse',     label: 'Lakehouse',     icon: '⛁' },
+  { href: '/alerts',        label: 'Alerts',        icon: '⚠', badge: true },
+  { href: '/settings',      label: 'Settings',      icon: '⚙' },
 ]
 const ADMIN_NAV = { href: '/users', label: 'Users', icon: '👤' }
 
@@ -45,7 +48,7 @@ export default function AppShell({ children }) {
 
   const isAdmin = user.role === 'ADMIN'
   const links   = isAdmin
-    ? [...NAV.slice(0, 3), ADMIN_NAV, NAV[3]]
+    ? [...NAV.slice(0, 6), ADMIN_NAV, NAV[6]]
     : NAV
 
   return (

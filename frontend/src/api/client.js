@@ -109,4 +109,33 @@ export const settingsApi = {
   update: (data) => api.patch('/settings', data),
 }
 
+export const shadowsApi = {
+  get:    (deviceId)       => api.get(`/devices/${deviceId}/shadow`),
+  update: (deviceId, data) => api.patch(`/devices/${deviceId}/shadow`, data),
+}
+
+export const lakehouseApi = {
+  query:          (data)                  => api.post('/analytics/lakehouse/query', data),
+  dailyRollups:   (deviceId, from, to)    => api.get('/analytics/rollups/daily', {
+    params: { deviceId, from: from instanceof Date ? from.toISOString() : from, to: to instanceof Date ? to.toISOString() : to }
+  }),
+  monthlyRollups: (deviceId, from, to)    => api.get('/analytics/rollups/monthly', {
+    params: { deviceId, from: from instanceof Date ? from.toISOString() : from, to: to instanceof Date ? to.toISOString() : to }
+  }),
+  triggerArchive: (from, to)              => api.post('/analytics/archive/trigger', null, {
+    params: {
+      from: from ? (from instanceof Date ? from.toISOString() : from) : undefined,
+      to:   to   ? (to instanceof Date ? to.toISOString() : to)     : undefined
+    }
+  }),
+}
+
+export const anomaliesApi = {
+  evaluate:             (data)                => api.post('/analytics/anomalies/evaluate', data),
+  getBaselines:         (deviceId)            => api.get(`/analytics/anomalies/baselines/${deviceId}`),
+  resetDeviceBaselines: (deviceId)            => api.post(`/analytics/anomalies/baselines/${deviceId}/reset`),
+  resetSensorBaseline:  (deviceId, sensorKey) => api.delete(`/analytics/anomalies/baselines/${deviceId}/${sensorKey}`),
+  getConfig:            ()                    => api.get('/analytics/anomalies/config'),
+}
+
 export default api

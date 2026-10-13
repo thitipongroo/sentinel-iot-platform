@@ -35,4 +35,10 @@ export const qk = {
   stats:            ()            => ['stats'],
   users:            ()            => ['users'],
   settings:         ()            => ['settings'],
+  deviceShadow:     (id)          => ['devices', id, 'shadow'],
+  anomaliesBaselines:(id)         => ['anomalies', id, 'baselines'],
+  anomaliesConfig:  ()            => ['anomalies', 'config'],
+  lakehouseQuery:   (params)      => ['lakehouse', 'query', params],
+  dailyRollups:     (id, from, to)=> ['rollups', 'daily', id, from, to],
+  monthlyRollups:   (id, from, to)=> ['rollups', 'monthly', id, from, to],
 }

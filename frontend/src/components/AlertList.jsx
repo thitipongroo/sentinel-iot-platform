@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
+import { alertsApi } from '@/api/client'
 
 const FILTER_TABS = ['All', 'Unacknowledged']
 
@@ -77,7 +78,10 @@ export default function AlertList({ alerts, onAcknowledge, userRole }) {
             </div>
             {!alert.acknowledged && userRole === 'ADMIN' && (
               <button
-                onClick={() => onAcknowledge(alert.id)}
+                onClick={() => {
+                  alertsApi.acknowledge(alert.id)
+                  onAcknowledge?.(alert.id)
+                }}
                 className="ml-3 text-xs text-gray-500 hover:text-white shrink-0"
               >
                 Ack
