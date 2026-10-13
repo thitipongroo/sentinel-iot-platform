@@ -531,6 +531,328 @@ The backend delivers messages only to sessions belonging to the **same organizat
 
 ---
 
+## Device Twin / Shadow
+
+### GET /api/v1/devices/{deviceId}/shadow
+
+Retrieve the full Device Twin / Shadow document for a device. Returns desired state, reported state, computed delta, per-property timestamp metadata, and OCC version.
+
+#### Response 200
+```json
+{
+  "deviceId": "00000000-0000-0000-0000-000000000001",
+  "version": 4,
+  "state": {
+    "desired": {
+      "sampleIntervalMs": 1000,
+      "fanSpeedRpm": 2400
+    },
+    "reported": {
+      "sampleIntervalMs": 5000,
+      "fanSpeedRpm": 2400
+    },
+    "delta": {
+      "sampleIntervalMs": 1000
+    }
+  },
+  "metadata": {
+    "desired": {
+      "sampleIntervalMs": { "timestamp": 1728820000000 }
+    },
+    "reported": {
+      "sampleIntervalMs": { "timestamp": 1728810000000 },
+      "fanSpeedRpm": { "timestamp": 1728810000000 }
+    }
+  },
+  "timestamp": 1728820000000
+}
+```
+
+---
+
+### PATCH /api/v1/devices/{deviceId}/shadow
+
+Update device shadow desired or reported state with Optimistic Concurrency Control (OCC).
+
+#### Request
+```json
+{
+  "version": 4,
+  "state": {
+    "desired": {
+      "sampleIntervalMs": 2000
+    }
+  }
+}
+```
+
+#### Response 200
+Returns the updated `DeviceShadowDocument` with incremented `version: 5`.
+
+**Response 409** — OCC Version conflict: another operator modified the shadow concurrently. Fetch the latest document and retry.
+
+---
+
+### DELETE /api/v1/devices/{deviceId}/shadow
+
+Reset device shadow document and clear cache (ADMIN only).
+
+**Response 204** — No content.
+
+---
+
+## Industrial Protocols & Edge Gateway
+
+### POST /api/v1/industrial/modbus/ingest
+
+Translates raw Modbus TCP register map into Sentinel v2 telemetry and forwards directly into Apache Kafka.
+
+#### Request
+```json
+{
+  "deviceId": "00000000-0000-0000-0000-000000000001",
+  "unitId": 1,
+  "holdingRegisters": {
+    "40001": 245,
+    "40002": 580,
+    "40003": 120
+  },
+  "registerMapping": {
+    "temperatureRegister": 40001,
+    "temperatureScale": 0.1,
+    "humidityRegister": 40002,
+    "humidityScale": 0.1,
+    "smokeRegister": 40003,
+    "smokeScale": 1.0
+  }
+}
+```
+
+#### Response 202 (Accepted)
+```json
+{
+  "deviceId": "00000000-0000-0000-0000-000000000001",
+  "temperature": 24.5,
+  "humidity": 58.0,
+  "smokePpm": 120.0,
+  "motion": false,
+  "timestamp": 1728820000000
+}
+```
+
+---
+
+### POST /api/v1/industrial/opcua/ingest
+
+Translates OPC-UA DataChange notifications into Sentinel v2 telemetry and forwards directly to Apache Kafka.
+
+#### Request
+```json
+{
+  "deviceId": "00000000-0000-0000-0000-000000000001",
+  "nodeIdValues": {
+    "ns=2;s=Device1.Temperature": 32.4,
+    "ns=2;s=Device1.Humidity": 65.0,
+    "ns=2;s=Device1.SmokePpm": 15.0
+  }
+}
+```
+
+#### Response 202 (Accepted)
+
+---
+
+### POST /api/v1/industrial/modbus/translate & opcua/translate
+
+Dry-run endpoints: transforms industrial registers/nodes into normalized JSON without publishing to Kafka.
+
+#### Response 200 (OK)
+
+---
+
+## Analytics, Rollups & DuckDB Lakehouse
+
+### GET /api/v1/analytics/rollups/daily
+
+Retrieve pre-computed daily statistical rollups (avg, min, max, sample counts) for a device in < 5ms.
+
+#### Request
+```http
+GET /api/v1/analytics/rollups/daily?deviceId=00000000-0000-0000-0000-000000000001&from=2026-09-01T00:00:00Z&to=2026-10-13T00:00:00Z
+```
+
+#### Response 200
+```json
+[
+  {
+    "deviceId": "00000000-0000-0000-0000-000000000001",
+    "bucket": "2026-10-12T00:00:00Z",
+    "sampleCount": 86400,
+    "tempAvg": 28.4,
+    "tempMin": 22.1,
+    "tempMax": 34.8,
+    "humAvg": 62.5,
+    "smokeMax": 45.0
+  }
+]
+```
+
+---
+
+### GET /api/v1/analytics/rollups/monthly
+
+Retrieve pre-computed monthly statistical rollups across multi-year historical horizons in < 5ms.
+
+---
+
+### POST /api/v1/analytics/lakehouse/query
+
+Executes an interactive vectorized OLAP aggregation using embedded DuckDB directly across Apache Parquet cold files.
+
+#### Request
+```json
+{
+  "deviceId": "00000000-0000-0000-0000-000000000001",
+  "from": "2025-01-01T00:00:00Z",
+  "to": "2026-10-01T00:00:00Z",
+  "bucket": "month"
+}
+```
+
+#### Response 200
+```json
+{
+  "columns": ["bucket", "sample_count", "temp_avg", "temp_min", "temp_max", "hum_avg", "smoke_max"],
+  "rows": [
+    ["2025-01-01T00:00:00Z", 2592000, 24.2, 18.5, 31.0, 58.1, 35.0],
+    ["2025-02-01T00:00:00Z", 2419200, 25.1, 19.0, 32.5, 59.4, 38.0]
+  ],
+  "totalRows": 21,
+  "durationMs": 48,
+  "source": "/data/archive/org=.../**/*.parquet"
+}
+```
+
+---
+
+### POST /api/v1/analytics/archive/trigger
+
+Trigger on-demand Parquet archival export for historical telemetry rows (ADMIN only).
+
+#### Request
+```http
+POST /api/v1/analytics/archive/trigger?from=2026-08-01T00:00:00Z&to=2026-09-01T00:00:00Z
+```
+
+#### Response 200
+```json
+{
+  "recordsArchived": 120500,
+  "bytesWritten": 1420500,
+  "filesCreated": [
+    "/data/archive/org=.../year=2026/month=08/telemetry.parquet"
+  ],
+  "durationMs": 850,
+  "timestamp": 1728820000000
+}
+```
+
+---
+
+## Predictive Anomaly Detection
+
+### POST /api/v1/analytics/anomalies/evaluate
+
+Dry-run ML Anomaly Scoring and Explainable AI (XAI) feature contribution evaluation on hypothetical readings without persisting alerts.
+
+#### Request
+```json
+{
+  "deviceId": "00000000-0000-0000-0000-000000000001",
+  "temperature": 86.4,
+  "humidity": 14.2,
+  "smokePpm": 230.0,
+  "timestamp": "2026-10-13T12:00:00Z"
+}
+```
+
+#### Response 200
+```json
+{
+  "isAnomaly": true,
+  "anomalyScore": 0.94,
+  "anomalyType": "THERMAL_RUNAWAY",
+  "severity": "CRITICAL",
+  "confidence": 0.98,
+  "contributions": {
+    "temperature": 0.48,
+    "smokePpm": 0.36,
+    "humidity": 0.16
+  }
+}
+```
+
+---
+
+### GET /api/v1/analytics/anomalies/baselines/{deviceId}
+
+Retrieve current rolling statistical baselines ($\mu, \sigma$, sample count, lower bound $\mu - k\sigma$, upper bound $\mu + k\sigma$) for all sensors of a device.
+
+#### Response 200
+```json
+{
+  "temperature": {
+    "mean": 24.2,
+    "variance": 1.44,
+    "standardDeviation": 1.2,
+    "sampleCount": 1240,
+    "lowerThreshold": 20.6,
+    "upperThreshold": 27.8,
+    "lastUpdated": 1728820000000
+  },
+  "smokePpm": {
+    "mean": 12.0,
+    "variance": 4.0,
+    "standardDeviation": 2.0,
+    "sampleCount": 1240,
+    "lowerThreshold": 6.0,
+    "upperThreshold": 18.0,
+    "lastUpdated": 1728820000000
+  }
+}
+```
+
+---
+
+### POST /api/v1/analytics/anomalies/baselines/{deviceId}/reset
+
+Reset rolling dynamic baselines for all sensors on a device after recalibration or maintenance.
+
+#### Response 200
+```json
+{
+  "status": "SUCCESS",
+  "deviceId": "00000000-0000-0000-0000-000000000001",
+  "message": "Dynamic baselines successfully reset"
+}
+```
+
+---
+
+### DELETE /api/v1/analytics/anomalies/baselines/{deviceId}/{sensorKey}
+
+Reset baseline for a specific sensor on a device.
+
+**Response 200**
+
+---
+
+### GET /api/v1/analytics/anomalies/config
+
+Returns current default hyper-parameters for adaptive thresholds ($\alpha, k\sigma$, dampening factor, warmup sample size).
+
+---
+
 ## Observability Endpoints
 
 ### GET /actuator/health
@@ -605,3 +927,15 @@ The value is injected into every backend log line as `requestId` in the MDC.
 | GET /api/v1/alerts | ✅ | ✅ | ❌ |
 | GET /api/v1/alerts/unacknowledged | ✅ | ✅ | ❌ |
 | PUT /api/v1/alerts/{id}/acknowledge | ✅ | ❌ | ❌ |
+| GET /api/v1/devices/{id}/shadow | ✅ | ✅ | ❌ |
+| PATCH /api/v1/devices/{id}/shadow | ✅ | ✅ | ❌ |
+| DELETE /api/v1/devices/{id}/shadow | ✅ | ❌ | ❌ |
+| POST /api/v1/industrial/* | ✅ | ✅ | ❌ |
+| GET /api/v1/analytics/rollups/* | ✅ | ✅ | ❌ |
+| POST /api/v1/analytics/lakehouse/query | ✅ | ✅ | ❌ |
+| POST /api/v1/analytics/archive/trigger | ✅ | ❌ | ❌ |
+| POST /api/v1/analytics/anomalies/evaluate | ✅ | ✅ | ❌ |
+| GET /api/v1/analytics/anomalies/baselines/* | ✅ | ✅ | ❌ |
+| POST /api/v1/analytics/anomalies/baselines/*/reset | ✅ | ✅ | ❌ |
+| DELETE /api/v1/analytics/anomalies/baselines/*/* | ✅ | ✅ | ❌ |
+| GET /api/v1/analytics/anomalies/config | ✅ | ✅ | ❌ |

@@ -41,3 +41,12 @@ Runbook ปฏิบัติการสำหรับใช้ระหว่
 |------|----------|
 | [chaos-testing.md](chaos-testing.md) | Chaos engineering — 5 failure injection scenarios (DB down, Redis down, pod kill, network partition, MQTT restart) |
 | [failure-testing.md](failure-testing.md) | Failure mode testing checklist — 6 scenarios พร้อม trigger commands, verification steps และ per-release sign-off table |
+
+---
+
+## Lakehouse & AI Operations
+
+| ไฟล์ | Severity | คำอธิบาย |
+|------|----------|----------|
+| [dynamic-baselines-tuning.md](dynamic-baselines-tuning.md) | 🟠 Warning | Dynamic Baselines Tuning & Anomaly Detection Troubleshooting — การปรับค่า $\alpha, k\sigma$, false positive mitigation, emergency reset |
+| [cold-storage-parquet-lifecycle.md](cold-storage-parquet-lifecycle.md) | 🟡 Info | DuckDB Lakehouse & Cold Storage Parquet Lifecycle — การดูแล Hive partitions, Snappy compression, DuckDB OOM, disk expansion, S3 sync |
