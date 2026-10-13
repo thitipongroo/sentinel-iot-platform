@@ -47,7 +47,9 @@ api.interceptors.response.use(
   },
   err => {
     if (err.response?.status === 401 && typeof window !== 'undefined'
-        && err.config?.url !== '/auth/login') {
+        && err.config?.url !== '/auth/login'
+        && err.config?.url !== '/auth/refresh'
+        && window.location.pathname !== '/login') {
       clearAccessToken()
       window.location.href = '/login'
     }

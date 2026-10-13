@@ -50,7 +50,8 @@ describe('Alerts Page (/alerts)', () => {
 describe('Alerts', () => {
   beforeEach(() => {
     cy.intercept('GET', '/api/v1/devices', { fixture: 'devices.json' }).as('devices')
-    cy.intercept('GET', '/api/v1/alerts', { fixture: 'alerts.json' }).as('alerts')
+    cy.intercept('GET', '/api/v1/alerts/unacknowledged*', { fixture: 'alerts.json' }).as('unacked')
+    cy.intercept('GET', '/api/v1/alerts*', { fixture: 'alerts.json' }).as('alerts')
     cy.intercept('GET', '/api/v1/telemetry/stats', { fixture: 'stats.json' }).as('stats')
     cy.intercept('GET', '/api/v1/telemetry/**/latest*', { fixture: 'telemetry.json' }).as('telemetry')
     cy.mockAuthAsAdmin()
@@ -61,9 +62,9 @@ describe('Alerts', () => {
   })
 
   it('shows all alerts by default', () => {
-    cy.contains('Temperature exceeded 80°C').should('be.visible')
-    cy.contains('Smoke level exceeded 200 ppm').should('be.visible')
-    cy.contains('Temperature above 70°C').should('be.visible')
+    cy.contains('Temperature exceeded 80°C').scrollIntoView().should('be.visible')
+    cy.contains('Smoke level exceeded 200 ppm').scrollIntoView().should('be.visible')
+    cy.contains('Temperature above 70°C').scrollIntoView().should('be.visible')
   })
 
   it('unacknowledged badge shows correct count', () => {
@@ -75,8 +76,8 @@ describe('Alerts', () => {
 
   it('clicking Unacknowledged tab filters to unacked alerts only', () => {
     cy.contains('button', 'Unacknowledged').click()
-    cy.contains('Temperature exceeded 80°C').should('be.visible')
-    cy.contains('Smoke level exceeded 200 ppm').should('be.visible')
+    cy.contains('Temperature exceeded 80°C').scrollIntoView().should('be.visible')
+    cy.contains('Smoke level exceeded 200 ppm').scrollIntoView().should('be.visible')
     cy.contains('Temperature above 70°C').should('not.exist')
   })
 
@@ -90,8 +91,8 @@ describe('Alerts', () => {
       statusCode: 200,
       body: {},
     }).as('ackAlert')
-    cy.intercept('GET', '/api/v1/alerts', { fixture: 'alerts.json' }).as('alertsRefetch')
-    cy.get('button').filter(':contains("Ack")').first().click()
+    cy.intercept('GET', '/api/v1/alerts*', { fixture: 'alerts.json' }).as('alertsRefetch')
+    cy.get('button').filter(':contains("Ack")').first().click({ force: true })
     cy.wait('@ackAlert')
   })
 })

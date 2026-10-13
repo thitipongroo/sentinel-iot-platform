@@ -15,8 +15,8 @@ describe('Users Page', () => {
   })
 
   it('shows ADMIN and OPERATOR role labels for each user', () => {
-    cy.contains('tr', 'admin').contains('ADMIN').should('be.visible')
-    cy.contains('tr', 'operator1').contains('OPERATOR').should('be.visible')
+    cy.contains('tr', 'admin').find('select').should('have.value', 'ADMIN')
+    cy.contains('tr', 'operator1').find('select').should('have.value', 'OPERATOR')
   })
 
   it('marks the currently logged-in user with "(you)"', () => {

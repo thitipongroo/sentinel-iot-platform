@@ -1,139 +1,135 @@
-# Frontend E2E Test Report
+# Frontend E2E Test Report — Sentinel IoT Platform
 
-**วันที่รัน:** 2026-05-12  
-**สถานะ:** ✅ ผ่านทั้งหมด  
-**ผลรวม:** 39 tests | 7 files | 0 failures  
-**Stack:** Next.js 14 · Cypress 13 · App Router  
-**Auth Pattern:** Mock `POST /api/v1/auth/refresh` ให้คืน access token → AuthProvider set user อัตโนมัติ (ไม่แตะ localStorage)
-
----
-
-## สรุปผล
-
-| Test File | Tests | ครอบคลุม |
-|-----------|-------|---------|
-| `auth.cy.js` | 5 | Authentication flow |
-| `dashboard.cy.js` | 6 | Dashboard overview & StatsBar |
-| `device-filters.cy.js` | 7 | DeviceTable filters & selection |
-| `telemetry-chart.cy.js` | 6 | TelemetryChart tabs & time windows |
-| `alerts.cy.js` | 5 | AlertList filter tabs & acknowledge |
-| `admin.cy.js` | 6 | DeviceManagement RBAC & PATCH APIs |
-| `edge-cases.cy.js` | 4 | OfflineBanner & VersionBanner |
-| **รวม** | **39** | **✅** |
+**วันที่รัน:** 2026-10-13  
+**สถานะ:** ✅ ผ่านทั้งหมด (100% Pass Rate)  
+**ผลรวม:** 68 tests | 11 files | 0 failures  
+**Stack:** Next.js 14 · Cypress 13.17.0 · App Router · TanStack Query v5  
+**Auth Pattern:** Mock `POST /api/v1/auth/refresh` คืน access token → AuthProvider sync state อัตโนมัติ (in-memory token store, ไม่แตะ localStorage)
 
 ---
 
-## `auth.cy.js` — 5 tests ✅
+## สรุปผลการทดสอบรายไฟล์ (Summary)
 
-ทดสอบ authentication flow ครบวงจร: redirect, login, logout
-
-| Test | สิ่งที่ตรวจสอบ |
-|------|--------------|
-| `redirects unauthenticated user from / to /login` | refresh คืน 401 → URL เปลี่ยนเป็น `/login` |
-| `redirects unauthenticated user from /dashboard to /login` | เข้า `/dashboard` โดยตรงโดยไม่มี auth → redirect |
-| `login with valid credentials navigates to /dashboard` | กรอก admin/admin123 → POST `/auth/login` → redirect `/dashboard` |
-| `login with invalid credentials shows error message` | password ผิด → "Invalid username or password" ปรากฏ |
-| `logout clears session and redirects to /login` | กด "Log out" → POST `/auth/logout` → redirect `/login` |
-
----
-
-## `dashboard.cy.js` — 6 tests ✅
-
-ทดสอบ StatsBar calculations และ initial data load  
-(5 devices: 3 ONLINE/2 OFFLINE, 2 CRITICAL unacked, replayQueueSize=5)
-
-| Test | สิ่งที่ตรวจสอบ |
-|------|--------------|
-| `shows StatsBar with correct total device count` | devices 5 ตัว → "Total Devices" = 5 |
-| `shows online and offline counts` | 3 ONLINE, 2 OFFLINE → card ถูกต้อง |
-| `shows critical alert count` | 2 CRITICAL unacked → "Critical Alerts" = 2 |
-| `shows events-per-minute from stats API` | `lastMinute: 42` → "Events / min" = 42 |
-| `shows warning color on buffered count greater than zero` | `replayQueueSize: 5` → Buffered มี class `text-sentinel-warning` |
-| `device list renders after data loads` | sensor-alpha, sensor-beta ปรากฏใน DOM |
+| # | Test File | จำนวน Tests | สถานะ | ขอบเขตการทดสอบ |
+|---|-----------|------------|-------|---------------|
+| 1 | `auth.cy.js` | 5 | ✅ ผ่าน | Authentication: unauthenticated redirects, login valid/invalid, logout session clear |
+| 2 | `dashboard.cy.js` | 6 | ✅ ผ่าน | Dashboard Overview: StatsBar (online/offline, critical alerts, events/min, buffer), device list |
+| 3 | `device-filters.cy.js` | 7 | ✅ ผ่าน | Device Table filters: name search, status/lifecycle filters, count label, clear, row selection |
+| 4 | `devices-page.cy.js` | 7 | ✅ ผ่าน | `/devices` list page: table render, status/lifecycle filters, clear, RBAC register button |
+| 5 | `device-detail.cy.js` | 6 | ✅ ผ่าน | `/devices/[id]` detail page: info card, breadcrumb, chart render, RBAC controls, recent alerts |
+| 6 | `telemetry-chart.cy.js` | 6 | ✅ ผ่าน | Telemetry Chart: Temp/Humidity, Smoke, Motion tabs, time windows (1h range, 24h/7d hourly) |
+| 7 | `alerts.cy.js` | 8 | ✅ ผ่าน | Alerts page (`/alerts`) & Dashboard AlertList: level/status filters, clear, ack flow, Ack All |
+| 8 | `users.cy.js` | 8 | ✅ ผ่าน | User management (`/users`): member count, roles, `(you)` badge, self-protection, add/delete |
+| 9 | `settings.cy.js` | 5 | ✅ ผ่าน | Platform settings (`/settings`): threshold values, data retention, notification channel status |
+| 10 | `admin.cy.js` | 6 | ✅ ผ่าน | Device management (ADMIN): lifecycle transitions, semver validation, decommissioned lock |
+| 11 | `edge-cases.cy.js` | 4 | ✅ ผ่าน | System resilience: OfflineBanner (online/offline events), VersionBanner (mismatch/rejected) |
+| **รวม** | **11 files** | **68 tests** | **✅ 68 passed (100%)** | |
 
 ---
 
-## `device-filters.cy.js` — 7 tests ✅
+## รายละเอียดผลการทดสอบแต่ละไฟล์
 
-ทดสอบ DeviceTable filtering, count label, clear และ row selection
+### 1. `auth.cy.js` — 5 tests ✅
+- `redirects unauthenticated user from / to /login` (ผ่าน)
+- `redirects unauthenticated user from /dashboard to /login` (ผ่าน)
+- `login with valid credentials navigates to /dashboard` (ผ่าน)
+- `login with invalid credentials shows error message` (ผ่าน)
+- `logout clears session and redirects to /login` (ผ่าน)
 
-| Test | สิ่งที่ตรวจสอบ |
-|------|--------------|
-| `search filters device list by name` | พิมพ์ "alpha" → แสดงเฉพาะ sensor-alpha |
-| `status filter shows only ONLINE devices` | เลือก ONLINE → ซ่อน sensor-beta, sensor-omega |
-| `lifecycle filter shows only ACTIVE devices` | เลือก ACTIVE → แสดง sensor-alpha, sensor-beta เท่านั้น |
-| `device count label reflects filtered result` | กรอง lifecycle=ACTIVE → "2 of 5 devices" |
-| `clear button resets all filters` | filter แล้วกด Clear → devices ทั้งหมดกลับมา |
-| `clicking a device row selects it` | คลิก row → `aria-selected="true"` |
-| `selected device triggers telemetry fetch` | คลิก sensor-beta → GET `/telemetry/uuid-2/latest` ถูกเรียก |
+### 2. `dashboard.cy.js` — 6 tests ✅
+- `shows StatsBar with correct total device count` (5 devices)
+- `shows online and offline counts` (3 Online, 2 Offline)
+- `shows critical alert count` (2 Critical unacknowledged)
+- `shows events-per-minute from stats API` (42 events/min)
+- `shows warning color on buffered count greater than zero` (Replay queue = 5)
+- `device list renders after data loads` (sensor-alpha, sensor-beta visible)
+
+### 3. `device-filters.cy.js` — 7 tests ✅
+- `search filters device list by name`
+- `status filter shows only ONLINE devices`
+- `lifecycle filter shows only ACTIVE devices`
+- `device count label reflects filtered result` ("2 of 5 devices")
+- `clear button resets all filters`
+- `clicking a device row selects it` (`aria-selected="true"`)
+- `selected device triggers telemetry fetch` (`GET /api/v1/telemetry/uuid-2/latest`)
+
+### 4. `devices-page.cy.js` — 7 tests ✅
+- `navigates to /devices and shows device list`
+- `shows ONLINE badge for online devices and OFFLINE for offline devices`
+- `filter by OFFLINE status hides ONLINE devices`
+- `search by name filters the table`
+- `Clear button resets all filters`
+- `ADMIN sees Register Device button`
+- `OPERATOR does not see Register Device button`
+
+### 5. `device-detail.cy.js` — 6 tests ✅
+- `shows device info card with correct details`
+- `breadcrumb links back to /devices`
+- `shows telemetry chart for the device`
+- `ADMIN sees device management panel`
+- `OPERATOR does not see device management panel`
+- `shows recent alerts for the device`
+
+### 6. `telemetry-chart.cy.js` — 6 tests ✅
+- `shows Temperature/Humidity tab as active by default`
+- `switching to Smoke tab makes it active`
+- `switching to Motion tab makes it active`
+- `switching time window to 1h calls range API`
+- `switching time window to 24h calls hourly API`
+- `switching time window to 7d calls hourly API`
+
+### 7. `alerts.cy.js` — 8 tests ✅
+- `filter by CRITICAL level hides WARNING alerts` (Alerts Page)
+- `Clear button resets both level and status filters` (Alerts Page)
+- `ADMIN sees Acknowledge All button when there are unacknowledged alerts` (Alerts Page)
+- `shows all alerts by default` (Dashboard AlertList)
+- `unacknowledged badge shows correct count` (Dashboard AlertList)
+- `clicking Unacknowledged tab filters to unacked alerts only` (Dashboard AlertList)
+- `ADMIN sees Acknowledge button on unacked alerts` (Dashboard AlertList)
+- `clicking Acknowledge calls the acknowledge API` (Dashboard AlertList)
+
+### 8. `users.cy.js` — 8 tests ✅
+- `renders user list with member count` (3 members)
+- `shows ADMIN and OPERATOR role labels for each user`
+- `marks the currently logged-in user with "(you)"`
+- `Delete and Reset Password buttons are disabled for own account`
+- `Delete button opens a confirmation dialog for other users`
+- `confirmed Delete calls DELETE /api/v1/users/:username`
+- `Add User button opens the modal`
+- `Add User form submits POST /api/v1/users`
+
+### 9. `settings.cy.js` — 5 tests ✅
+- `shows alert threshold values from API`
+- `shows retention period settings`
+- `shows active notification channels as enabled`
+- `shows disabled notification channels`
+- `settings page has no save/submit buttons (read-only)`
+
+### 10. `admin.cy.js` — 6 tests ✅
+- `ADMIN sees lifecycle controls`
+- `OPERATOR does not see lifecycle controls`
+- `lifecycle transition calls PATCH API`
+- `firmware input validates semver format`
+- `firmware update calls PATCH API with correct body`
+- `DECOMMISSIONED device disables all controls`
+
+### 11. `edge-cases.cy.js` — 4 tests ✅
+- `shows OfflineBanner when network goes offline`
+- `OfflineBanner disappears when network comes back online`
+- `shows VersionBanner on api-version mismatch event`
+- `shows VersionBanner on api-version-rejected event`
 
 ---
 
-## `telemetry-chart.cy.js` — 6 tests ✅
+## ปัญหาที่พบและได้รับการแก้ไขระหว่างการทดสอบ (Issues & Root Causes)
 
-ทดสอบ TelemetryChart tab switching และ time window API calls (uuid-1 auto-selected)
-
-| Test | สิ่งที่ตรวจสอบ |
-|------|--------------|
-| `shows Temperature/Humidity tab as active by default` | tab มี class `bg-sentinel-accent` |
-| `switching to Smoke tab makes it active` | คลิก "Smoke (ppm)" → tab active, Temperature/Humidity inactive |
-| `switching to Motion tab makes it active` | คลิก "Motion" → tab active |
-| `switching time window to 1h calls range API` | คลิก "1h" → GET `/telemetry/uuid-1/range*` ถูกเรียก |
-| `switching time window to 24h calls hourly API` | คลิก "24h" → GET `/telemetry/uuid-1/hourly*` ถูกเรียก |
-| `switching time window to 7d calls hourly API` | คลิก "7d" → GET `/telemetry/uuid-1/hourly*` ถูกเรียก |
-
----
-
-## `alerts.cy.js` — 5 tests ✅
-
-ทดสอบ AlertList tab filtering และ acknowledge flow  
-(3 alerts: 2 CRITICAL unacked + 1 WARNING acked)
-
-| Test | สิ่งที่ตรวจสอบ |
-|------|--------------|
-| `shows all alerts by default` | alert ทั้ง 3 ข้อความปรากฏใน DOM |
-| `unacknowledged badge shows correct count` | badge ใน header แสดง "2" |
-| `clicking Unacknowledged tab filters to unacked alerts only` | คลิก "Unacknowledged" → ซ่อน a3 (acked) |
-| `ADMIN sees Acknowledge button on unacked alerts` | role=ADMIN → ปุ่ม "Ack" 2 ปุ่ม |
-| `clicking Acknowledge calls the acknowledge API` | กด Ack → PUT `/alerts/a1/acknowledge` ถูกเรียก |
-
----
-
-## `admin.cy.js` — 6 tests ✅
-
-ทดสอบ DeviceManagement RBAC, lifecycle/firmware PATCH APIs และ decommissioned state  
-(uuid-1 auto-selected: ACTIVE)
-
-| Test | สิ่งที่ตรวจสอบ |
-|------|--------------|
-| `ADMIN sees lifecycle controls` | role=ADMIN → "Device Management" + lifecycle buttons แสดง |
-| `OPERATOR does not see lifecycle controls` | role=OPERATOR → "Device Management" ไม่มีใน DOM |
-| `lifecycle transition calls PATCH API` | คลิก "→ INACTIVE" → PATCH `/devices/uuid-1/lifecycle` body `{lifecycleStatus: 'INACTIVE'}` |
-| `firmware input validates semver format` | กรอก "not-semver" → "Version must follow semver" ปรากฏ |
-| `firmware update calls PATCH API with correct body` | กรอก "2.1.0" แล้ว Submit → PATCH `/devices/uuid-1/firmware` body `{firmwareVersion: '2.1.0'}` |
-| `DECOMMISSIONED device disables all controls` | คลิก sensor-omega → decommission message + firmware input disabled |
-
----
-
-## `edge-cases.cy.js` — 4 tests ✅
-
-ทดสอบ OfflineBanner (window events) และ VersionBanner (custom events)
-
-| Test | สิ่งที่ตรวจสอบ |
-|------|--------------|
-| `shows OfflineBanner when network goes offline` | dispatch `offline` event → banner "You are offline" ปรากฏ |
-| `OfflineBanner disappears when network comes back online` | dispatch `online` event → banner หาย |
-| `shows VersionBanner on api-version mismatch event` | dispatch `sentinel:api-version-mismatch` → "A new version is available." ปรากฏ |
-| `shows VersionBanner on api-version-rejected event` | dispatch `sentinel:api-version-rejected` → "This client version is no longer supported by the server." ปรากฏ |
-
----
-
-## ปัญหาที่พบและแก้ไข
-
-| # | ปัญหา | ไฟล์ที่แก้ | สาเหตุ |
-|---|-------|-----------|--------|
-| 1 | ไม่มี `cypress.config.js` — Cypress รันไม่ได้ | `cypress.config.js` (สร้างใหม่) | ขาด config file ทั้งหมด |
-| 2 | URL interceptors ผิด (`/api/devices`) | ทุก `*.cy.js` | Endpoint จริงอยู่ที่ `/api/v1/...` |
-| 3 | Auth approach ผิด (localStorage) | `commands.js` | App ใช้ in-memory tokenStore — ต้อง mock `POST /api/v1/auth/refresh` แทน |
-| 4 | ไม่มี fixtures — data อยู่ใน test โดยตรง | `cypress/fixtures/` (สร้างใหม่) | แยก fixture ออกเป็น `devices.json`, `alerts.json`, `stats.json`, `telemetry.json` |
-| 5 | OfflineBanner ไม่มีปุ่ม dismiss | `edge-cases.cy.js` | Component ไม่มี X button — ปรับ test เป็น "banner หายเมื่อ online กลับมา" |
+| # | ปัญหาที่ตรวจพบ | สาเหตุที่แท้จริง (Root Cause) | แนวทางแก้ไข (Fix) |
+|---|----------------|------------------------------|-------------------|
+| 1 | Infinite reload loop บน `/login` ทำให้ input โดน disable/detach | Axios 401 response interceptor ใน `client.js` เรียก `window.location.href = '/login'` ซ้ำเมื่อ `/auth/refresh` คืน 401 ในหน้า `/login` | เพิ่มเงื่อนไข `err.config?.url !== '/auth/refresh' && window.location.pathname !== '/login'` ป้องกัน reload ซ้ำ |
+| 2 | Logout button ใน `AppShell.jsx` ขาด accessible name | `auth.cy.js` ค้นหาด้วย `[aria-label="Log out"]` แต่ปุ่มไม่มี attribute | เพิ่ม `aria-label="Log out"` ใน `AppShell.jsx` และปรับ regex ใน unit test ให้รองรับทั้ง Log out และ Logout |
+| 3 | Dashboard Critical Alerts แสดง 0 แทน 2 | Mock ส่ง `alerts.json` เป็น array แต่ `dashboard/page.jsx` อ่านผ่าน `alertPage?.content` เท่านั้น | ปรับเป็น `Array.isArray(alertPage) ? alertPage : (alertPage?.content ?? [])` และใช้ glob wildcard `GET /api/v1/alerts*` |
+| 4 | Optimistic update crash `Cannot read properties of undefined (reading 'prev')` | ใน `acknowledgeMutation`, `old.content.map` พังเมื่อ `old` เป็น array ส่งผลให้ `onMutate` throw error และ `onError` ได้รับ `ctx` เป็น undefined | จัดการ fallback กรณี `old` เป็น array ใน `onMutate` และใช้ safe-nav `ctx?.prev` ใน `onError` |
+| 5 | Filter Clear button ใน `DeviceTable` ถูก card ถัดไปบดบัง | `DeviceTable` filter bar ใช้ `flex` ขาด `flex-wrap` ใน responsive grid คอลัมน์แคบทำให้ปุ่มล้นขอบ | เพิ่ม `flex-wrap` ใน `DeviceTable.jsx` และ `{ force: true }` ในการคลิกเคลียร์ฟิลเตอร์ |
+| 6 | `devices-page.cy.js` เลือก dropdown ผิดตัว | เทสต์ใช้ `first().next('select')` ซึ่งไปชี้ที่ Lifecycle dropdown แทน Status dropdown | เปลี่ยนเป็น `cy.get('select').first().select('OFFLINE')` ให้ตรงกับ Status dropdown |
+| 7 | `users.cy.js` ทดสอบ `<option>` visibility ไม่ผ่าน | บราวเซอร์ถือว่า `<option>` ภายใน closed `<select>` มีขนาด `0x0 px` จึงไม่ถือว่า visible | เปลี่ยนการ assert เป็น `find('select').should('have.value', 'ADMIN')` ตามแบบแผน Cypress |
+| 8 | Elements ใน AlertList และ DeviceManagement ถูก overflow clipping | คอนเทนเนอร์คอลัมน์ขวามี `calc(100vh - 13rem)` แบบตายตัว | เพิ่ม `overflow-y-auto` และกำหนด `min-h-[220px]` ให้ AlertList พร้อมใช้ `.scrollIntoView()` ใน spec ก่อน assert visibility |

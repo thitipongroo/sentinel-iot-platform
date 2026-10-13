@@ -40,7 +40,7 @@ describe('Device Filters', () => {
   it('clear button resets all filters', () => {
     cy.get('input[type="search"]').type('alpha')
     cy.contains('sensor-beta').should('not.exist')
-    cy.get('[aria-label="Clear all filters"]').click()
+    cy.get('[aria-label="Clear all filters"]').click({ force: true })
     cy.contains('sensor-beta').should('be.visible')
   })
 

@@ -33,7 +33,7 @@ export default function DashboardPage() {
     queryFn:  () => alertsApi.list(0, 50).then(r => r.data),
     enabled:  !!user,
   })
-  const alerts = alertPage?.content ?? []
+  const alerts = Array.isArray(alertPage) ? alertPage : (alertPage?.content ?? [])
 
   const { data: stats = { lastMinute: 0, replayQueueSize: 0 } } = useQuery({
     queryKey: qk.stats(),
@@ -80,13 +80,21 @@ export default function DashboardPage() {
     onMutate: async (alertId) => {
       await qc.cancelQueries({ queryKey: qk.alerts() })
       const prev = qc.getQueryData(qk.alerts())
-      qc.setQueryData(qk.alerts(), (old) => old
-        ? { ...old, content: old.content.map(a => a.id === alertId ? { ...a, acknowledged: true } : a) }
-        : old
-      )
+      qc.setQueryData(qk.alerts(), (old) => {
+        if (!old) return old
+        if (Array.isArray(old)) {
+          return old.map(a => a.id === alertId ? { ...a, acknowledged: true } : a)
+        }
+        return {
+          ...old,
+          content: (old.content ?? []).map(a => a.id === alertId ? { ...a, acknowledged: true } : a)
+        }
+      })
       return { prev }
     },
-    onError: (_err, _id, ctx) => qc.setQueryData(qk.alerts(), ctx.prev),
+    onError: (_err, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.alerts(), ctx.prev)
+    },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: qk.alerts() })
       qc.invalidateQueries({ queryKey: qk.alertsUnacked() })
@@ -111,12 +119,12 @@ export default function DashboardPage() {
           </ErrorBoundary>
         </div>
 
-        <div className="lg:col-span-2 flex flex-col gap-6 min-h-0">
+        <div className="lg:col-span-2 flex flex-col gap-6 min-h-0 overflow-y-auto pr-1">
           <ErrorBoundary label="Telemetry chart">
             <TelemetryChart data={telemetry} device={selectedDevice} />
           </ErrorBoundary>
 
-          <div className="flex-1 min-h-0">
+          <div className="min-h-[220px] flex-1">
             <ErrorBoundary label="Alert list">
               <AlertList
                 alerts={alerts}

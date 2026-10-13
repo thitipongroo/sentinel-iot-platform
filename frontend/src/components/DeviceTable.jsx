@@ -112,7 +112,7 @@ export default function DeviceTable({ devices = [], selected, onSelect, lastMess
     <section className="card h-full flex flex-col" aria-label="Device list">
 
       {/* ── Filter bar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-3" role="search" aria-label="Filter devices">
+      <div className="flex flex-wrap items-center gap-2 mb-3" role="search" aria-label="Filter devices">
         {/* Search */}
         <div className="relative flex items-center flex-1 min-w-0">
           <Search

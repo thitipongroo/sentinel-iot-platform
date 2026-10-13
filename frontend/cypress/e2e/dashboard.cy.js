@@ -1,7 +1,7 @@
 describe('Dashboard Overview', () => {
   beforeEach(() => {
     cy.intercept('GET', '/api/v1/devices', { fixture: 'devices.json' }).as('devices')
-    cy.intercept('GET', '/api/v1/alerts', { fixture: 'alerts.json' }).as('alerts')
+    cy.intercept('GET', '/api/v1/alerts*', { fixture: 'alerts.json' }).as('alerts')
     cy.intercept('GET', '/api/v1/telemetry/stats', { fixture: 'stats.json' }).as('stats')
     cy.intercept('GET', '/api/v1/telemetry/**/latest*', { fixture: 'telemetry.json' }).as('telemetry')
     cy.mockAuthAsAdmin()

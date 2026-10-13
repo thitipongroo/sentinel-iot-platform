@@ -95,7 +95,7 @@ test('logout button calls logout()', async () => {
   const logout = jest.fn()
   useAuth.mockReturnValue({ user: ADMIN_USER, logout, loading: false })
   render(<AppShell>content</AppShell>)
-  await userEvent.click(screen.getByRole('button', { name: /logout/i }))
+  await userEvent.click(screen.getByRole('button', { name: /log\s*out/i }))
   expect(logout).toHaveBeenCalled()
 })
 

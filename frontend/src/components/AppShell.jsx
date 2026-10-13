@@ -94,6 +94,7 @@ export default function AppShell({ children }) {
           </div>
           <button
             onClick={logout}
+            aria-label="Log out"
             className="text-xs text-gray-500 hover:text-sentinel-danger transition-colors"
           >
             Logout

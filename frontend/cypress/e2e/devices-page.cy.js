@@ -21,7 +21,7 @@ describe('Devices Page', () => {
   })
 
   it('filter by OFFLINE status hides ONLINE devices', () => {
-    cy.get('select').first().next('select').select('OFFLINE')
+    cy.get('select').first().select('OFFLINE')
     cy.contains('sensor-alpha').should('not.exist')
     cy.contains('sensor-beta').should('be.visible')
     cy.contains('sensor-omega').should('be.visible')
