@@ -112,6 +112,12 @@ jobs:
         with:
           version: v3.15.2
 
+      - name: Add Helm repositories
+        run: |
+          helm repo add argo https://argoproj.github.io/argo-helm
+          helm repo add kedacore https://kedacore.github.io/charts
+          helm repo update
+
       - name: Build dependencies
         run: helm dependency build infra/helm/sentinel-iot
 
