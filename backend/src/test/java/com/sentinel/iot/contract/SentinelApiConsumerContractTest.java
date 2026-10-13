@@ -5,6 +5,7 @@ import au.com.dius.pact.consumer.dsl.PactDslJsonBody;
 import au.com.dius.pact.consumer.dsl.PactDslWithProvider;
 import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
 import au.com.dius.pact.consumer.junit5.PactTestFor;
+import au.com.dius.pact.core.model.PactSpecVersion;
 import au.com.dius.pact.core.model.RequestResponsePact;
 import au.com.dius.pact.core.model.annotations.Pact;
 import org.junit.jupiter.api.DisplayName;
@@ -32,19 +33,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Tag("contract")
 @DisplayName("Sentinel API — consumer contract (Pact)")
 @ExtendWith(PactConsumerTestExt.class)
-@PactTestFor(providerName = "sentinel-iot-backend")
+@PactTestFor(providerName = "sentinel-iot-backend", pactVersion = PactSpecVersion.V3)
 class SentinelApiConsumerContractTest {
 
     // ── Auth API ──────────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("Auth API contract")
-    @PactTestFor(providerName = "sentinel-iot-backend")
-    @ExtendWith(PactConsumerTestExt.class)
+    @PactTestFor(providerName = "sentinel-iot-backend", pactVersion = PactSpecVersion.V3)
     class AuthApiContract {
 
         @Pact(consumer = "sentinel-frontend")
-        RequestResponsePact loginSuccessPact(PactDslWithProvider builder) {
+        public RequestResponsePact loginSuccessPact(PactDslWithProvider builder) {
             return builder
                     .given("admin user exists")
                     .uponReceiving("POST /auth/login with valid credentials")
@@ -85,7 +85,7 @@ class SentinelApiConsumerContractTest {
         }
 
         @Pact(consumer = "sentinel-frontend")
-        RequestResponsePact loginFailurePact(PactDslWithProvider builder) {
+        public RequestResponsePact loginFailurePact(PactDslWithProvider builder) {
             return builder
                     .given("admin user exists")
                     .uponReceiving("POST /auth/login with wrong password")
@@ -122,12 +122,11 @@ class SentinelApiConsumerContractTest {
 
     @Nested
     @DisplayName("Device API contract")
-    @PactTestFor(providerName = "sentinel-iot-backend")
-    @ExtendWith(PactConsumerTestExt.class)
+    @PactTestFor(providerName = "sentinel-iot-backend", pactVersion = PactSpecVersion.V3)
     class DeviceApiContract {
 
         @Pact(consumer = "sentinel-frontend")
-        RequestResponsePact deviceListPact(PactDslWithProvider builder) {
+        public RequestResponsePact deviceListPact(PactDslWithProvider builder) {
             return builder
                     .given("admin has at least one device")
                     .uponReceiving("GET /devices with valid Bearer token")
@@ -167,7 +166,7 @@ class SentinelApiConsumerContractTest {
         }
 
         @Pact(consumer = "sentinel-frontend")
-        RequestResponsePact deviceNotFoundPact(PactDslWithProvider builder) {
+        public RequestResponsePact deviceNotFoundPact(PactDslWithProvider builder) {
             return builder
                     .given("device does not exist")
                     .uponReceiving("GET /devices/{id} for unknown UUID")
@@ -207,7 +206,7 @@ class SentinelApiConsumerContractTest {
         }
 
         @Pact(consumer = "sentinel-frontend")
-        RequestResponsePact unauthenticatedPact(PactDslWithProvider builder) {
+        public RequestResponsePact unauthenticatedPact(PactDslWithProvider builder) {
             return builder
                     .given("no valid session")
                     .uponReceiving("GET /devices without Authorization header")
@@ -238,7 +237,7 @@ class SentinelApiConsumerContractTest {
 
     // RestTemplate that does not throw on 4xx/5xx — lets tests inspect the response.
     private RestTemplate noThrowRestTemplate() {
-        RestTemplate rest = new RestTemplate();
+        RestTemplate rest = new RestTemplate(new org.springframework.http.client.JdkClientHttpRequestFactory());
         rest.setErrorHandler(new org.springframework.web.client.DefaultResponseErrorHandler() {
             @Override
             public boolean hasError(HttpStatusCode statusCode) {

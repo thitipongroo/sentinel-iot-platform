@@ -63,6 +63,7 @@ public class KafkaTelemetryConsumer {
                 redisService, objectMapper, meterRegistry, null);
     }
 
+    @Autowired
     public KafkaTelemetryConsumer(TelemetryRepository telemetryRepository,
                                   DeviceRepository deviceRepository,
                                   AlertService alertService,

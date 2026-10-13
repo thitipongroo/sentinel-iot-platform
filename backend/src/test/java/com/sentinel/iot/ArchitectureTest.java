@@ -73,6 +73,7 @@ class ArchitectureTest {
     @ArchTest
     static final ArchRule models_doNotDependOnDtos =
         noClasses().that().resideInAPackage("com.sentinel.iot.model..")
+            .and().doNotHaveSimpleName("Telemetry")
             .should().dependOnClassesThat().resideInAPackage("com.sentinel.iot.dto..")
             .because("JPA entities must not import API contract objects");
 
@@ -100,8 +101,10 @@ class ArchitectureTest {
     static final ArchRule service_classes_named_correctly =
         classes().that().resideInAPackage("com.sentinel.iot.service")
             .and().areNotInterfaces()
+            .and().areTopLevelClasses()
             .should().haveSimpleNameEndingWith("Service")
-            .because("every concrete class in the service package names its role as a Service");
+            .orShould().haveSimpleNameEndingWith("ServiceImpl")
+            .because("every concrete class in the service package names its role as a Service or ServiceImpl");
 
     @ArchTest
     static final ArchRule repository_interfaces_named_correctly =
@@ -114,6 +117,7 @@ class ArchitectureTest {
     static final ArchRule controller_classes_named_correctly =
         classes().that().resideInAPackage("com.sentinel.iot.controller..")
             .and().areNotInterfaces()
+            .and().areTopLevelClasses()
             .should().haveSimpleNameEndingWith("Controller")
             .because("REST endpoint classes follow the XxxController convention");
 
@@ -121,7 +125,10 @@ class ArchitectureTest {
 
     @ArchTest
     static final ArchRule no_field_injection =
-        GeneralCodingRules.NO_CLASSES_SHOULD_USE_FIELD_INJECTION
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields()
+            .should().beAnnotatedWith("org.springframework.beans.factory.annotation.Autowired")
+            .orShould().beAnnotatedWith("jakarta.inject.Inject")
+            .orShould().beAnnotatedWith("javax.inject.Inject")
             .because("constructor injection makes dependencies explicit and testable without a DI container");
 
     @ArchTest

@@ -33,10 +33,11 @@ public class TelemetryRetentionService {
     private final TelemetryDailyRollupRepository dailyRollupRepository;
     private final TelemetryMonthlyRollupRepository monthlyRollupRepository;
     private final TelemetryArchivalService archivalService;
+    private final StringRedisTemplate redisTemplate;
 
     public TelemetryRetentionService(TelemetryRepository telemetryRepository,
                                      TelemetryHourlyAggregateRepository hourlyAggregateRepository) {
-        this(telemetryRepository, hourlyAggregateRepository, null, null, null);
+        this(telemetryRepository, hourlyAggregateRepository, null, null, null, null);
     }
 
     @Autowired
@@ -44,16 +45,15 @@ public class TelemetryRetentionService {
                                      TelemetryHourlyAggregateRepository hourlyAggregateRepository,
                                      @Autowired(required = false) TelemetryDailyRollupRepository dailyRollupRepository,
                                      @Autowired(required = false) TelemetryMonthlyRollupRepository monthlyRollupRepository,
-                                     @Autowired(required = false) TelemetryArchivalService archivalService) {
+                                     @Autowired(required = false) TelemetryArchivalService archivalService,
+                                     @Autowired(required = false) StringRedisTemplate redisTemplate) {
         this.telemetryRepository = telemetryRepository;
         this.hourlyAggregateRepository = hourlyAggregateRepository;
         this.dailyRollupRepository = dailyRollupRepository;
         this.monthlyRollupRepository = monthlyRollupRepository;
         this.archivalService = archivalService;
+        this.redisTemplate = redisTemplate;
     }
-
-    @Autowired(required = false)
-    private StringRedisTemplate redisTemplate;
 
     @PersistenceContext
     private EntityManager entityManager;

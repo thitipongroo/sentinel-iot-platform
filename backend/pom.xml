@@ -20,7 +20,7 @@
     <properties>
         <java.version>21</java.version>
         <jjwt.version>0.12.5</jjwt.version>
-        <lombok.version>1.18.48</lombok.version>
+        <lombok.version>1.18.36</lombok.version>
         <jmh.version>1.37</jmh.version>
     </properties>
 
@@ -291,10 +291,6 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>@{argLine} -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
-                    <environmentVariables>
-                        <DOCKER_HOST>unix://${user.home}/Library/Containers/com.docker.docker/Data/docker.raw.sock</DOCKER_HOST>
-                        <DOCKER_API_VERSION>1.44</DOCKER_API_VERSION>
-                    </environmentVariables>
                 </configuration>
             </plugin>
 <!-- ── Code-coverage gate: fails the build if coverage drops below minimum ── -->
