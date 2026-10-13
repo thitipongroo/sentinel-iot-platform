@@ -21,3 +21,4 @@
 | [c2-rpc-protocol.md](c2-rpc-protocol.md) | Command & Control (C2 / RPC) Protocol — Bidirectional RPC, correlation IDs, status lifecycle, security |
 | [device-twin-shadow.md](device-twin-shadow.md) | Device Twin / Shadow Architecture — Desired vs Reported state sync, delta resolution, OCC versioning |
 | [emqx-migration-plan.md](emqx-migration-plan.md) | EMQX Migration Plan — Zero-downtime cutover จาก Mosquitto สู่ EMQX Cluster บน AWS EKS (100k+ devices) |
+| [cloud-storage-connectors.md](cloud-storage-connectors.md) | Cloud Storage Connectors & K8s Deployment — IRSA/Workload Identity, EFS/Filestore RWX storage, S3 tiering |

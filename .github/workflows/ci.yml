@@ -46,7 +46,7 @@ jobs:
           path: backend/target/surefire-reports/
 
   frontend:
-    name: Frontend — Build & Lint
+    name: Frontend — Build, Lint & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -66,6 +66,10 @@ jobs:
       - name: Lint
         working-directory: frontend
         run: npm run lint
+
+      - name: Unit tests
+        working-directory: frontend
+        run: npm run test:unit
 
       - name: Build
         working-directory: frontend
@@ -90,8 +94,8 @@ jobs:
       - name: Validate docker-compose
         run: docker compose config --quiet
 
-      - name: Build images
-        run: docker compose build --parallel
+      - name: Build images (core + simulator)
+        run: docker compose --profile dev build --parallel
         env:
           DOCKER_BUILDKIT: "1"
           JWT_SECRET: ci-test-secret-placeholder

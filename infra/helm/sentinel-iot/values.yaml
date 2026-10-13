@@ -227,3 +227,34 @@ backup:
   s3Bucket: ""
   s3Region: ap-southeast-1
   image: postgres:16-alpine
+
+# ── ServiceAccount & Cloud IAM (IRSA / Workload Identity) ────────────────────
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: true
+
+# ── Lakehouse & Parquet Cold Storage (DuckDB Embedded OLAP) ──────────────────
+lakehouse:
+  enabled: true
+  archivalPath: "/data/archive"
+  persistence:
+    enabled: false
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 50Gi
+    existingClaim: ""
+  cronjob:
+    enabled: false
+    schedule: "0 1 * * *"
+    image:
+      repository: curlimages/curl
+      tag: "8.7.1"
+      pullPolicy: IfNotPresent
+
+# ── Realtime AI & Predictive Anomaly Detection ──────────────────────────────
+anomaly:
+  adaptiveMinSigmaFloor: "0.2"
+  sensitivityMultiplier: "3.0"
+  minSamplesForBaseline: "30"

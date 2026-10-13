@@ -1,0 +1,44 @@
+{{- if and .Values.lakehouse.enabled .Values.lakehouse.cronjob.enabled -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-lakehouse-archival
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: lakehouse-archival
+spec:
+  schedule: {{ .Values.lakehouse.cronjob.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "sentinel-iot.labels" . | nindent 12 }}
+            app.kubernetes.io/component: lakehouse-archival
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "sentinel-iot.serviceAccountName" . }}
+          containers:
+            - name: trigger-archival
+              image: {{ .Values.lakehouse.cronjob.image.repository }}:{{ .Values.lakehouse.cronjob.image.tag }}
+              imagePullPolicy: {{ .Values.lakehouse.cronjob.image.pullPolicy | default "IfNotPresent" }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Triggering Lakehouse cold storage Parquet archival..."
+                  STATUS=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+                    -X POST "http://{{ include "sentinel-iot.fullname" . }}-backend:8080/api/v1/analytics/archival/export?lookbackDays=1")
+                  cat /tmp/response.json
+                  if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 300 ]; then
+                    echo "Parquet Archival triggered successfully (HTTP $STATUS)"
+                    exit 0
+                  else
+                    echo "Parquet Archival failed with HTTP $STATUS"
+                    exit 1
+                  fi
+{{- end }}

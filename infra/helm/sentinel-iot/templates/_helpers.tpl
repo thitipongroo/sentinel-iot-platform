@@ -93,3 +93,14 @@ Kafka bootstrap servers — returns external when in-cluster kafka is disabled.
 {{- .Values.externalKafka.bootstrapServers }}
 {{- end }}
 {{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "sentinel-iot.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "sentinel-iot.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}

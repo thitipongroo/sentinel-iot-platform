@@ -1,0 +1,19 @@
+{{- if and .Values.lakehouse.enabled .Values.lakehouse.persistence.enabled (not .Values.lakehouse.persistence.existingClaim) -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "sentinel-iot.fullname" . }}-lakehouse-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sentinel-iot.labels" . | nindent 4 }}
+    app.kubernetes.io/component: lakehouse-storage
+spec:
+  accessModes:
+    - {{ .Values.lakehouse.persistence.accessMode | default "ReadWriteMany" }}
+  resources:
+    requests:
+      storage: {{ .Values.lakehouse.persistence.size | default "50Gi" }}
+  {{- if .Values.lakehouse.persistence.storageClass }}
+  storageClassName: {{ .Values.lakehouse.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}

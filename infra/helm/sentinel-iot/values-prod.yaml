@@ -105,3 +105,32 @@ pdb:
     minAvailable: 2
   frontend:
     minAvailable: 1
+
+# ── ServiceAccount & Cloud IAM (IRSA / Workload Identity) ────────────────────
+serviceAccount:
+  create: true
+  name: ""
+  # Configure with your IAM Role ARN for Amazon S3 or GCP Workload Identity
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/sentinel-backend-lakehouse
+  #   iam.gke.io/gcp-service-account: sentinel-backend@my-project.iam.gserviceaccount.com
+  annotations: {}
+
+# ── Lakehouse & Parquet Cold Storage in Prod ─────────────────────────────────
+lakehouse:
+  enabled: true
+  archivalPath: "/data/archive"
+  persistence:
+    enabled: true
+    storageClass: "gp3"
+    accessMode: ReadWriteMany
+    size: 100Gi
+  cronjob:
+    enabled: true
+    schedule: "0 1 * * *"
+
+# ── Predictive AI & Adaptive Thresholds in Prod ─────────────────────────────
+anomaly:
+  adaptiveMinSigmaFloor: "0.2"
+  sensitivityMultiplier: "3.0"
+  minSamplesForBaseline: "30"

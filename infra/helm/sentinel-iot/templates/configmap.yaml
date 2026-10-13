@@ -29,6 +29,10 @@ data:
   SPRING_APPLICATION_NAME: sentinel-iot-platform
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ printf "http://%s-jaeger:4318/v1/traces" (include "sentinel-iot.fullname" .) | quote }}
 
+  # ── Lakehouse & Predictive Anomaly AI ───────────────────────────────────────
+  TELEMETRY_ARCHIVAL_PATH: {{ (.Values.lakehouse).archivalPath | default "/data/archive" | quote }}
+  ANOMALY_ADAPTIVE_MIN_SIGMA_FLOOR: {{ (.Values.anomaly).adaptiveMinSigmaFloor | default "0.2" | quote }}
+
   # ── Frontend ──────────────────────────────────────────────────────────────────
   BACKEND_URL: {{ .Values.frontend.env.backendUrl | quote }}
   NEXT_PUBLIC_WS_URL: {{ .Values.frontend.env.nextPublicWsUrl | quote }}

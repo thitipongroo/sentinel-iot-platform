@@ -83,10 +83,16 @@ spec:
                   matchLabels:
                     app.kubernetes.io/component: backend
       terminationGracePeriodSeconds: 60
+      serviceAccountName: {{ include "sentinel-iot.serviceAccountName" . }}
       containers:
         - name: backend
           image: {{ include "sentinel-iot.image" (dict "registry" .Values.global.imageRegistry "repo" .Values.backend.image.repository "tag" .Values.backend.image.tag) }}
           imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          {{- if or (.Values.lakehouse).persistence.enabled (.Values.lakehouse).persistence.existingClaim }}
+          volumeMounts:
+            - name: lakehouse-data
+              mountPath: {{ .Values.lakehouse.archivalPath | default "/data/archive" }}
+          {{- end }}
           ports:
             - name: http
               containerPort: 8080
@@ -186,6 +192,12 @@ spec:
               drop: [ALL]
       securityContext:
         fsGroup: 1000
+      {{- if or (.Values.lakehouse).persistence.enabled (.Values.lakehouse).persistence.existingClaim }}
+      volumes:
+        - name: lakehouse-data
+          persistentVolumeClaim:
+            claimName: {{ ternary .Values.lakehouse.persistence.existingClaim (printf "%s-lakehouse-pvc" (include "sentinel-iot.fullname" .)) (not (empty .Values.lakehouse.persistence.existingClaim)) }}
+      {{- end }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
