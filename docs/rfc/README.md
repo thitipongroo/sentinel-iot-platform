@@ -9,7 +9,7 @@
 
 | เลขที่ | ชื่อเอกสาร RFC | สถานะ | เป้าหมาย Release | รายละเอียดโดยย่อ |
 |---|---|---|---|---|
-| [RFC-001](RFC-001-production-readiness-and-scaling-roadmap.md) | Production Readiness, Database Lifespan Extension & Scaling Roadmap | **Accepted / In Implementation** | v1.2.0 - v2.0.0 (Q4 2026 - Q3 2027) | แผนสถาปัตยกรรมรองรับ Production, Database Lifespan, EKS 3+ Replicas Stateless Scaling, และ Roadmap 4 เฟส |
+| [RFC-001](RFC-001-production-readiness-and-scaling-roadmap.md) | Production Readiness, Database Lifespan Extension & Scaling Roadmap | **Implemented / Completed (100%)** | v1.2.0 - v2.0.0 (Q4 2026 - Q3 2027) | แผนสถาปัตยกรรมรองรับ Production, Database Lifespan, EKS 3+ Replicas Stateless Scaling, และ Roadmap 4 เฟส (เสร็จสมบูรณ์ครบทั้ง 4 Phase) |
 
 ---
 
