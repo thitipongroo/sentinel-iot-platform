@@ -694,9 +694,9 @@ Detailed documentation lives in [`docs/`](docs/). See [`docs/README.md`](docs/RE
 
 ## Screenshots
 
-| Dashboard                                    | Alerts                                 | Grafana                                  |
-|----------------------------------------------|----------------------------------------|------------------------------------------|
-| ![dashboard](docs/screenshots/dashboard.png) | ![alerts](docs/screenshots/alerts.png) | ![grafana](docs/screenshots/grafana.png) |
+| Dashboard                                                          | Devices                                                 | Alerts                                                  | Digital Twin                                                       |
+|--------------------------------------------------------------------|---------------------------------------------------------|---------------------------------------------------------|--------------------------------------------------------------------|
+| ![dashboard](docs/screenshots/02-dashboard/dashboard-overview.png) | ![devices](docs/screenshots/03-devices/devices-list.png) | ![alerts](docs/screenshots/07-alerts/alerts-management.png) | ![digital-twin](docs/screenshots/04-digital-twin/digital-twin-hub.png) |
 
 ---
 
