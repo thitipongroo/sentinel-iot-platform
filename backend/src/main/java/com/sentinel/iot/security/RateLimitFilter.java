@@ -59,6 +59,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final Map<String, Bucket> fallbackBuckets = buckets;
     private final ProxyManager<String> proxyManager;
 
+    @Value("${rate-limit.enabled:true}")
+    private boolean rateLimitEnabled = true;
+
     @Value("${rate-limit.trusted-proxies:}")
     private String trustedProxiesConfig;
 
@@ -76,6 +79,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain chain) throws ServletException, IOException {
+        if (!rateLimitEnabled) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         String path = request.getRequestURI();
         if (!path.startsWith("/api/") || path.startsWith("/api/v1/auth/mqtt") || path.startsWith("/api/v1/mqtt")) {
             chain.doFilter(request, response);

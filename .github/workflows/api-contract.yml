@@ -91,6 +91,7 @@ jobs:
             --spring.kafka.admin.auto-create=false \
             --spring.kafka.admin.fail-fast=false \
             --mqtt.auto-startup=false \
+            --rate-limit.enabled=false \
             > /tmp/backend.log 2>&1 &
           echo $! > /tmp/backend.pid
 
@@ -246,6 +247,7 @@ jobs:
             --spring.kafka.admin.auto-create=false \
             --spring.kafka.admin.fail-fast=false \
             --mqtt.auto-startup=false \
+            --rate-limit.enabled=false \
             > /tmp/backend.log 2>&1 &
           echo $! > /tmp/backend.pid
           for i in $(seq 1 45); do
@@ -273,6 +275,7 @@ jobs:
       - name: Run schemathesis
         run: |
           schemathesis run http://localhost:8080/api-docs \
+            --url http://localhost:8080 \
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             --checks all \
             --max-examples 30 \

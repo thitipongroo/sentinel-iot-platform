@@ -60,6 +60,16 @@ class RateLimitFilterTest {
                         .isNotEqualTo(429);
             }
         }
+
+        @Test
+        @DisplayName("when rate limiting is disabled, requests beyond capacity are allowed")
+        void whenDisabled_allRequestsAllowed() throws Exception {
+            ReflectionTestUtils.setField(filter, "rateLimitEnabled", false);
+            for (int i = 0; i < 150; i++) {
+                assertThat(invoke("/api/devices", "10.1.1.1").getStatus())
+                        .isNotEqualTo(429);
+            }
+        }
     }
 
     // ── Rate-limited responses ────────────────────────────────────────────────

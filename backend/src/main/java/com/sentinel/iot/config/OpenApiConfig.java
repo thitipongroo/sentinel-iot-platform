@@ -36,7 +36,7 @@ public class OpenApiConfig {
                                 .name("Sentinel Platform Team")
                                 .email("platform@sentinel-iot.io")))
                 .servers(List.of(
-                        new Server().url("/api/v1").description("Current stable version (v1)")
+                        new Server().url("/").description("Default Server")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
                 .components(new Components()
