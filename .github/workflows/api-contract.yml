@@ -88,13 +88,15 @@ jobs:
           java -jar target/*.jar \
             --spring.kafka.bootstrap-servers=localhost:9999 \
             --spring.kafka.listener.auto-startup=false \
+            --spring.kafka.admin.auto-create=false \
+            --spring.kafka.admin.fail-fast=false \
             --mqtt.auto-startup=false \
             > /tmp/backend.log 2>&1 &
           echo $! > /tmp/backend.pid
 
       - name: Wait for backend health
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             if curl -sf http://localhost:8080/actuator/health > /dev/null; then
               echo "Backend ready after ${i}s"
               exit 0
@@ -241,10 +243,12 @@ jobs:
           java -jar target/*.jar \
             --spring.kafka.bootstrap-servers=localhost:9999 \
             --spring.kafka.listener.auto-startup=false \
+            --spring.kafka.admin.auto-create=false \
+            --spring.kafka.admin.fail-fast=false \
             --mqtt.auto-startup=false \
             > /tmp/backend.log 2>&1 &
           echo $! > /tmp/backend.pid
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             if curl -sf http://localhost:8080/actuator/health > /dev/null; then
               echo "Backend ready after ${i}s"
               break
