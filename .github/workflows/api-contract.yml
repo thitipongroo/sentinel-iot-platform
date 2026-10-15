@@ -276,7 +276,7 @@ jobs:
             -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             --checks all \
             --max-examples 30 \
-            --hypothesis-suppress-health-check=too_slow \
+            --suppress-health-check too_slow \
             --report-dir schemathesis-report \
             --junit-xml schemathesis-report/results.xml
 
