@@ -277,8 +277,9 @@ jobs:
             --checks all \
             --max-examples 30 \
             --suppress-health-check too_slow \
+            --report junit \
             --report-dir schemathesis-report \
-            --junit-xml schemathesis-report/results.xml
+            --report-junit-path schemathesis-report/results.xml
 
       - name: Upload schemathesis report
         uses: actions/upload-artifact@v4
@@ -293,7 +294,7 @@ jobs:
         if: always()
         with:
           name: Contract Tests
-          path: schemathesis-report/results.xml
+          path: schemathesis-report/*.xml
           reporter: java-junit
 
       - name: Stop backend

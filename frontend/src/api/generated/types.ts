@@ -1308,10 +1308,10 @@ export interface components {
             readonly timestamp?: string;
         };
         readonly PageAuditLog: {
-            /** Format: int32 */
-            readonly totalPages?: number;
             /** Format: int64 */
             readonly totalElements?: number;
+            /** Format: int32 */
+            readonly totalPages?: number;
             readonly first?: boolean;
             readonly last?: boolean;
             /** Format: int32 */
@@ -1448,10 +1448,10 @@ export interface components {
             readonly silencedBy?: string;
         };
         readonly PageAlert: {
-            /** Format: int32 */
-            readonly totalPages?: number;
             /** Format: int64 */
             readonly totalElements?: number;
+            /** Format: int32 */
+            readonly totalPages?: number;
             readonly first?: boolean;
             readonly last?: boolean;
             /** Format: int32 */
