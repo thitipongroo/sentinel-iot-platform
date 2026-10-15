@@ -84,6 +84,13 @@ class ResilienceUnderChaosTest {
             new ToxiproxyContainer("ghcr.io/shopify/toxiproxy:2.9.0")
                     .withNetwork(network);
 
+    static {
+        postgres.start();
+        redis.start();
+        mosquitto.start();
+        toxiproxy.start();
+    }
+
     @SuppressWarnings("deprecation")
     static ToxiproxyContainer.ContainerProxy postgresProxy;
 
