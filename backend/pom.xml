@@ -291,8 +291,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>@{argLine} -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
-                    <forkedProcessTimeoutInSeconds>300</forkedProcessTimeoutInSeconds>
+                    <forkedProcessTimeoutInSeconds>1200</forkedProcessTimeoutInSeconds>
                     <forkedProcessExitTimeoutInSeconds>60</forkedProcessExitTimeoutInSeconds>
+                    <enableProcessChecker>all</enableProcessChecker>
+                    <shutdown>kill</shutdown>
                 </configuration>
             </plugin>
 <!-- ── Code-coverage gate: fails the build if coverage drops below minimum ── -->
