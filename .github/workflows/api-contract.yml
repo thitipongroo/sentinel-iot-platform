@@ -13,12 +13,16 @@ on:
     paths:
       - 'backend/src/**'
       - 'backend/pom.xml'
+      - 'frontend/src/api/**'
+      - '.github/workflows/api-contract.yml'
   pull_request:
     branches: [main]
     paths:
       - 'backend/src/**'
       - 'backend/pom.xml'
       - 'frontend/src/api/**'
+      - '.github/workflows/api-contract.yml'
+  workflow_dispatch:
 
 jobs:
   # ── Step 1: Generate the canonical OpenAPI spec ──────────────────────────────
@@ -265,8 +269,7 @@ jobs:
       - name: Run schemathesis
         run: |
           schemathesis run http://localhost:8080/api-docs \
-            --auth-type bearer \
-            --auth "${{ steps.auth.outputs.token }}" \
+            -H "Authorization: Bearer ${{ steps.auth.outputs.token }}" \
             --checks all \
             --max-examples 30 \
             --hypothesis-suppress-health-check=too_slow \

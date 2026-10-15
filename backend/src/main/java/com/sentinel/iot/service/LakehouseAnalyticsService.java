@@ -18,8 +18,9 @@ import java.util.*;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class LakehouseAnalyticsService {
+
+    public LakehouseAnalyticsService() {}
 
     @Value("${telemetry.archival.path:./data/archive}")
     private String archivalPath;
