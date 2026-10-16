@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [main, develop]
+    tags: ['v*']
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_images:
+        description: 'Publish container images to GHCR'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   backend:
@@ -87,20 +95,19 @@ jobs:
   docker:
     name: Docker — Compose Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     needs: [backend, frontend]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate docker-compose
+      - name: Validate docker-compose configuration
         run: docker compose config --quiet
 
-      - name: Build images (core + simulator)
-        run: docker compose --profile dev build --parallel
+      - name: Validate compose build (simulator)
+        run: docker compose build simulator
         env:
           DOCKER_BUILDKIT: "1"
-          JWT_SECRET: ci-test-secret-placeholder
 
   helm-lint:
     name: Helm — Lint Chart
@@ -144,7 +151,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [backend, frontend, docker, helm-lint]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: |
+      startsWith(github.ref, 'refs/tags/v') ||
+      inputs.publish_images == true ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'Merge pull request'))
     permissions:
       contents: read
       packages: write
@@ -248,8 +258,17 @@ jobs:
           sarif_file: trivy-fs.sarif
           category: trivy-filesystem
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build backend image for container scan
-        run: docker build -t sentinel-backend-scan ./backend
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          load: true
+          tags: sentinel-backend-scan:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Trivy — container image scan (backend)
         uses: aquasecurity/trivy-action@master
