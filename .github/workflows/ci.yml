@@ -36,7 +36,7 @@ jobs:
         working-directory: backend
         env:
           JWT_SECRET: ci-test-secret-key-32-chars-minimum!
-        run: mvn verify -B -Dgroups=integration -DexcludedGroups="load,chaos,performance"
+        run: mvn test -B -Dtest="*IntegrationTest"
 
       - name: Upload test report
         uses: actions/upload-artifact@v4

@@ -129,7 +129,7 @@ class SecurityIntegrationTest extends BaseIntegrationTest {
         @Test
         @DisplayName("Swagger UI is publicly accessible without authentication")
         void swaggerUi_isPubliclyAccessible() throws Exception {
-            mockMvc.perform(get("/swagger-ui.html"))
+            mockMvc.perform(get("/swagger"))
                     .andExpect(status().is3xxRedirection());
         }
 

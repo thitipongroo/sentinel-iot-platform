@@ -7,11 +7,14 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class KafkaTelemetryProducer {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
+
+    public KafkaTelemetryProducer(KafkaTemplate<String, String> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
 
     @Value("${kafka.topics.telemetry-raw:telemetry.raw}")
     private String topic;
@@ -23,12 +26,16 @@ public class KafkaTelemetryProducer {
      */
     @SuppressWarnings("null")
     public void publish(String partitionKey, String rawPayload) {
-        kafkaTemplate.send(topic, partitionKey, rawPayload)
-                .whenComplete((result, ex) -> {
-                    if (ex != null) {
-                        log.error("Kafka publish failed for key={}: {}", partitionKey, ex.getMessage());
-                    }
-                });
+        try {
+            kafkaTemplate.send(topic, partitionKey, rawPayload)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("Kafka publish failed for key={}: {}", partitionKey, ex.getMessage());
+                        }
+                    });
+        } catch (Exception ex) {
+            log.error("Kafka publish failed for key={}: {}", partitionKey, ex.getMessage());
+        }
     }
 
     /**
@@ -43,11 +50,15 @@ public class KafkaTelemetryProducer {
         if (orgId != null) {
             record.headers().add("tenant-id", orgId.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
-        kafkaTemplate.send(record)
-                .whenComplete((result, ex) -> {
-                    if (ex != null) {
-                        log.error("Kafka publish failed for orgId={} device={}: {}", orgId, deviceName, ex.getMessage());
-                    }
-                });
+        try {
+            kafkaTemplate.send(record)
+                    .whenComplete((result, ex) -> {
+                        if (ex != null) {
+                            log.error("Kafka publish failed for orgId={} device={}: {}", orgId, deviceName, ex.getMessage());
+                        }
+                    });
+        } catch (Exception ex) {
+            log.error("Kafka publish failed for orgId={} device={}: {}", orgId, deviceName, ex.getMessage());
+        }
     }
 }
