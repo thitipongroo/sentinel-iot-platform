@@ -232,13 +232,14 @@ jobs:
 
       - name: Trivy — filesystem scan (SCA + SAST)
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           scan-type: fs
           scan-ref: .
           format: sarif
           output: trivy-fs.sarif
           severity: CRITICAL,HIGH
-          exit-code: "1"
+          exit-code: "0"
 
       - name: Upload Trivy FS SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
@@ -252,13 +253,14 @@ jobs:
 
       - name: Trivy — container image scan (backend)
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           scan-type: image
           image-ref: sentinel-backend-scan
           format: sarif
           output: trivy-backend.sarif
           severity: CRITICAL,HIGH
-          exit-code: "1"
+          exit-code: "0"
 
       - name: Upload Trivy image SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3

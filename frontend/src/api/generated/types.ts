@@ -1308,18 +1308,18 @@ export interface components {
             readonly timestamp?: string;
         };
         readonly PageAuditLog: {
-            /** Format: int64 */
-            readonly totalElements?: number;
             /** Format: int32 */
             readonly totalPages?: number;
+            /** Format: int64 */
+            readonly totalElements?: number;
+            readonly first?: boolean;
+            readonly last?: boolean;
             /** Format: int32 */
             readonly size?: number;
             readonly content?: readonly components["schemas"]["AuditLog"][];
             /** Format: int32 */
             readonly number?: number;
             readonly sort?: readonly components["schemas"]["SortObject"][];
-            readonly first?: boolean;
-            readonly last?: boolean;
             /** Format: int32 */
             readonly numberOfElements?: number;
             readonly pageable?: components["schemas"]["PageableObject"];
@@ -1448,18 +1448,18 @@ export interface components {
             readonly silencedBy?: string;
         };
         readonly PageAlert: {
-            /** Format: int64 */
-            readonly totalElements?: number;
             /** Format: int32 */
             readonly totalPages?: number;
+            /** Format: int64 */
+            readonly totalElements?: number;
+            readonly first?: boolean;
+            readonly last?: boolean;
             /** Format: int32 */
             readonly size?: number;
             readonly content?: readonly components["schemas"]["Alert"][];
             /** Format: int32 */
             readonly number?: number;
             readonly sort?: readonly components["schemas"]["SortObject"][];
-            readonly first?: boolean;
-            readonly last?: boolean;
             /** Format: int32 */
             readonly numberOfElements?: number;
             readonly pageable?: components["schemas"]["PageableObject"];
