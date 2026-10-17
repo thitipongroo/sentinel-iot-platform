@@ -91,18 +91,28 @@ else
 fi
 
 # Step 4: Live Injection via Node Simulator / MQTT
-log_info "Step 4: Injecting live Thermal Runaway crisis sequence via simulator..."
+log_info "Step 4: Injecting live Thermal Runaway crisis sequence via script..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+DRILL_JS="${SCRIPT_DIR}/thermal-runaway-injection.js"
 
 if command -v node >/dev/null 2>&1; then
+  # กรณี Host มี Node.js
   TARGET_DEVICE="${DEVICE_ID}" BROKER_URL="${MQTT_BROKER}" ORG_ID="${ORG_ID}" \
-    node "${REPO_ROOT}/simulator/thermal-runaway-injection.js" || {
-      log_warn "Simulator script failed to publish to MQTT broker directly. Proceeding with HTTP simulation gate."
-    }
+    node "${DRILL_JS}" || log_warn "Simulator script failed to publish directly."
+elif command -v docker >/dev/null 2>&1; then
+  # กรณี Host ไม่มี Node.js แต่มี Docker (รันผ่าน node:alpine ชั่วคราว)
+  log_info "Node.js not found on host. Executing drill via transient Docker container..."
+  docker run --rm \
+    --network sentinel-net \
+    -v "${SCRIPT_DIR}:/scripts:ro" \
+    -e TARGET_DEVICE="${DEVICE_ID}" \
+    -e BROKER_URL="mqtt://mosquitto:1883" \
+    -e ORG_ID="${ORG_ID}" \
+    node:22-alpine node /scripts/thermal-runaway-injection.js
 else
-  log_warn "Node.js not installed in environment. Skipping MQTT publish."
+  log_warn "Neither Node.js nor Docker found. Skipping MQTT publish."
 fi
+
 
 # Step 5: Verify Live Alert Dispatch & Deduplication
 log_info "Step 5: Inspecting Alert Registry (/api/v1/alerts) for fired alerts..."
