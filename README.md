@@ -230,7 +230,6 @@ sentinel-iot-platform
 │   ├── terraform              # EKS, RDS, ElastiCache, MSK modules
 │   ├── monitoring             # SLO rules + Grafana SLO dashboard
 │   └── scripts                # DR restore script
-├── simulator                  # Node.js MQTT publisher — dev/demo only (docs/demo/README.md)
 ├── monitoring                 # Prometheus config + Grafana provisioning (Docker Compose)
 ├── mosquitto                  # MQTT broker config
 ├── tests                      # k6 system-level tests (load/, performance/)

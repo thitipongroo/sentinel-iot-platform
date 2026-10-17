@@ -101,13 +101,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate docker-compose configuration
-        run: docker compose config --quiet
-
-      - name: Validate compose build (simulator)
-        run: docker compose build simulator
-        env:
-          DOCKER_BUILDKIT: "1"
+      - name: Validate docker-compose configuration (all profiles)
+        run: |
+          docker compose config --quiet
+          docker compose --profile dev config --quiet
+          docker compose --profile observability config --quiet
+          docker compose --profile full config --quiet
 
   helm-lint:
     name: Helm — Lint Chart

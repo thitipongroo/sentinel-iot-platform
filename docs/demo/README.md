@@ -52,21 +52,22 @@ docker compose up -d
 
 ### Run Standalone (manual)
 
+สามารถรันผ่าน `npx` ได้ทันทีโดยไม่ต้องติดตั้ง:
+
 ```bash
-cd simulator
-npm install
-MQTT_BROKER=mqtt://localhost:1883 DEVICES=sensor-1,sensor-2 node index.js
+npx mqtt-mock-sensor \
+  -b mqtt://localhost:1883 \
+  --org-id 00000000-0000-0000-0000-000000000001 \
+  --preset sentinel-env \
+  --schema-version 2 \
+  --devices 3 \
+  -i 5000
 ```
 
-### Source Code
+### Simulator Engine & Scripts
 
-ไฟล์ทั้งหมดอยู่ใน [`simulator/`](../../simulator/):
-
-| File           | Purpose                                        |
-|----------------|------------------------------------------------|
-| `index.js`     | Main process — MQTT connect, publish loop      |
-| `package.json` | Dependencies (`mqtt` 5.x)                      |
-| `Dockerfile`   | Container image (node:20-alpine)               |
+- **Continuous Simulation:** ขับเคลื่อนด้วย [`mqtt-mock-sensor`](https://github.com/thitipongroo/mqtt-mock-sensor) (Image: `ghcr.io/thitipongroo/mqtt-mock-sensor:latest`) รองรับ Sentinel Schema v2, Multi-tenancy, Dynamic Enrollment, Alert Quality Suppression และ DLQ Out-of-bounds testing
+- **E2E Thermal Runaway Drill:** สคริปต์ทดสอบ 4-Stage Crisis อยู่ที่ [`infra/scripts/thermal-runaway-injection.js`](../../infra/scripts/thermal-runaway-injection.js) และ [`infra/scripts/thermal-runaway-drill.sh`](../../infra/scripts/thermal-runaway-drill.sh)
 
 ---
 

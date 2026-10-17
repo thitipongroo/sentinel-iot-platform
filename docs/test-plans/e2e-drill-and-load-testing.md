@@ -10,7 +10,7 @@
 |---|---|---|---|
 | **High-Throughput Ingestion & Cache (10k RPS)** | [`tests/load/k6-high-throughput.js`](file:///Users/thitipongroo/workspace/github/sentinel-iot-platform/tests/load/k6-high-throughput.js) | วัดความหน่วงและเสถียรภาพของ Hot Cache Read, ML Inference Dry-Run, และ Shadow Update | • Peak $\ge 10,000\text{ req/sec}$<br/>• Telemetry Cache $p95 < 10\text{ ms}$<br/>• ML Anomaly Inference $p95 < 20\text{ ms}$<br/>• Error Rate $< 0.1\%$ |
 | **DuckDB Lakehouse OLAP Concurrency** | [`tests/load/k6-lakehouse-olap.js`](file:///Users/thitipongroo/workspace/github/sentinel-iot-platform/tests/load/k6-lakehouse-olap.js) | จำลอง 50 Concurrent Data Analysts รันคำสั่งวิเคราะห์ข้อมูลย้อนหลัง 2 ปี | • DuckDB Query $p95 < 500\text{ ms}$<br/>• Sub-Second Query Rate $> 98\%$ |
-| **Thermal Runaway Live Crisis Drill** | [`simulator/thermal-runaway-injection.js`](file:///Users/thitipongroo/workspace/github/sentinel-iot-platform/simulator/thermal-runaway-injection.js)<br/>[`infra/scripts/thermal-runaway-drill.sh`](file:///Users/thitipongroo/workspace/github/sentinel-iot-platform/infra/scripts/thermal-runaway-drill.sh) | ยิงข้อมูลจำลองอุณหภูมิวิกฤต $\Delta T \uparrow$, $\Delta H \downarrow$, $S \uparrow$ เข้าสู่ MQTT Broker | • AI ตรวจจับถูกต้อง (Precision $> 95\%$)<br/>• สร้าง Alert ระดับ `CRITICAL`<br/>• ไม่เกิด Alert Storm (Deduplication ทำงาน)<br/>• Outlier Dampening ป้องกันค่าเฉลี่ยสถิติปนเปื้อน |
+| **Thermal Runaway Live Crisis Drill** | [`infra/scripts/thermal-runaway-injection.js`](file:///Users/thitipongroo/workspace/github/sentinel-iot-platform/infra/scripts/thermal-runaway-injection.js)<br/>[`infra/scripts/thermal-runaway-drill.sh`](file:///Users/thitipongroo/workspace/github/sentinel-iot-platform/infra/scripts/thermal-runaway-drill.sh) | ยิงข้อมูลจำลองอุณหภูมิวิกฤต $\Delta T \uparrow$, $\Delta H \downarrow$, $S \uparrow$ เข้าสู่ MQTT Broker | • AI ตรวจจับถูกต้อง (Precision $> 95\%$)<br/>• สร้าง Alert ระดับ `CRITICAL`<br/>• ไม่เกิด Alert Storm (Deduplication ทำงาน)<br/>• Outlier Dampening ป้องกันค่าเฉลี่ยสถิติปนเปื้อน |
 | **KEDA Consumer Lag Autoscaling Drill** | [`infra/scripts/keda-autoscaling-drill.sh`](file:///Users/thitipongroo/workspace/github/sentinel-iot-platform/infra/scripts/keda-autoscaling-drill.sh) | จำลอง Ingest Burst สร้าง Kafka Consumer Lag $> 1,000$ | • ScaledObject ตรวจพบ Lag<br/>• Backend Pod Scale Out จาก 3 ไป 10 Replicas<br/>• Scale Down กลับสู่ 3 Replicas อย่างปลอดภัย |
 
 ---
@@ -34,8 +34,8 @@ k6 run tests/load/k6-lakehouse-olap.js -e BASE_URL=http://localhost:8080
 # เรียกใช้งาน Shell Script ทดสอบกระบวนการทั้งหมดแบบอัตโนมัติ
 ./infra/scripts/thermal-runaway-drill.sh
 
-# หรือสั่งจำลองข้อมูลเฉพาะจุดผ่าน Node Simulator
-TARGET_DEVICE="sensor-1" MQTT_BROKER="mqtt://localhost:1883" node simulator/thermal-runaway-injection.js
+# หรือสั่งจำลองข้อมูลเฉพาะจุดผ่าน Node Script
+TARGET_DEVICE="sensor-1" MQTT_BROKER="mqtt://localhost:1883" node infra/scripts/thermal-runaway-injection.js
 ```
 
 ### 2.4 รัน KEDA Autoscaling Drill
